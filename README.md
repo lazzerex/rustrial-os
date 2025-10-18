@@ -23,7 +23,7 @@ This project is currently under active development. Expect incomplete features, 
 rustup install nightly
 rustup override set nightly
 ```
-
+- For Linux, it's preferably to use the `Rustup package`
 - `rust-lld` / `lld` (the linker used by the custom target). On Windows this generally comes with the LLVM toolchain or via the `lld` package for your toolchain.
 - QEMU for running the generated disk/boot image:
 
@@ -34,6 +34,7 @@ rustup override set nightly
 ```powershell
 cargo install bootimage
 ```
+- You also need the `llvm-tools-preview` rustup component installed for running `bootimage` and building the bootloader. Run this command to have it installed: `rustup component add llvm-tools-preview`.
 
 ## Build
 
