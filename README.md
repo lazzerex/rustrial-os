@@ -1,4 +1,4 @@
-# rustrial_os
+# Rustrial OS
 
 A small, in-development educational operating system written in Rust.
 
