@@ -20,7 +20,7 @@ panic = "abort"
 
 [[bin]]
 name = "rustrial_os"
-test = false
+test = true
 bench = false
 
 

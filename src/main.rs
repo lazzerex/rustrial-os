@@ -1,6 +1,17 @@
 #![no_std]
 #![no_main]
 
+#![feature(custom_test_frameworks)]
+#![test_runner(crate::test_runner)]
+
+#[cfg(test)]
+pub fn test_runner(tests: &[&dyn Fn()]) {
+    println!("Running {} tests", tests.len());
+    for test in tests {
+        test();
+    }
+}
+
 mod vga_buffer;
 
 use core::panic::PanicInfo;
@@ -41,7 +52,9 @@ pub extern "C" fn _start() -> ! {
     // write!(vga_buffer::WRITER.lock(), ", some numbers: {} {}", 42, 1.337).unwrap();
 
     println!("Hello from Rustrial Kernel{}", "!");
-    panic!("Crash and burn");
+    //panic!("Crash and burn");
 
     loop {}
 }
+
+
