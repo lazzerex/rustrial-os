@@ -33,6 +33,9 @@ name = "rustrial_os"
 test = true
 bench = false
 
+[[test]]
+name = "should_panic"
+harness = false
 
 
 
