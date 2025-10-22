@@ -1,13 +1,32 @@
-# Rustrial OS
 
-![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white)
-![x86_64](https://img.shields.io/badge/x86__64-0071C5?style=flat-square&logo=intel&logoColor=white)
-![QEMU](https://img.shields.io/badge/QEMU-FF6600?style=flat-square&logo=qemu&logoColor=white)
-![Bootloader](https://img.shields.io/badge/Bootloader-262D3A?style=flat-square)
-![LLVM](https://img.shields.io/badge/LLVM-262D3A?style=flat-square&logo=llvm&logoColor=white)
-![GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-orange?style=flat-square)
-![Bare Metal](https://img.shields.io/badge/Bare%20Metal-4B0082?style=flat-square)
-![VGA](https://img.shields.io/badge/VGA%20Buffer-228B22?style=flat-square)
+<img width="1000" height="288" alt="30852518908" src="https://github.com/user-attachments/assets/0acead56-8b7d-42f7-ba0a-c1e68784052b" />
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Rust-%23000000.svg?style=flat&logo=rust&logoColor=white"/>
+  <img src="https://img.shields.io/badge/x86__64-blue?style=flat&logo=intel&logoColor=white"/>
+  <img src="https://img.shields.io/badge/QEMU-orange?style=flat&logo=qemu&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Bootloader-grey?style=flat"/>
+  <img src="https://img.shields.io/badge/LLVM-%23000000.svg?style=flat&logo=llvm&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Bare%20Metal-purple?style=flat"/>
+  <img src="https://img.shields.io/badge/VGA%20Buffer-green?style=flat"/>
+</p>
+
+<p align="center">
+  <!-- GitHub -->
+  <img src="https://img.shields.io/github/stars/lazzerex/rustrial-os?style=flat&logo=github"/>
+  <img src="https://img.shields.io/github/forks/lazzerex/rustrial-os?style=flat&logo=github"/>
+  <img src="https://img.shields.io/github/contributors/lazzerex/rustrial-os?style=flat"/>
+  <img src="https://img.shields.io/github/issues-pr-raw/lazzerex/rustrial-os?label=pull%20requests&style=flat&color=yellow"/>
+  <img src="https://img.shields.io/github/issues/lazzerex/rustrial-os?label=issues&style=flat&color=red"/>
+
+  <!-- Rust ecosystem -->
+  <img src="https://img.shields.io/crates/v/cargo.svg?label=cargo&logo=rust&style=flat&color=orange"/>
+  <img src="https://img.shields.io/crates/d/cargo.svg?label=downloads&style=flat&color=brightgreen"/>
+  <img src="https://img.shields.io/badge/rustup-stable-blue?style=flat&logo=rust"/>
+</p>
+
+---
+# Rustrial OS
 
 A small, in-development educational operating system written in Rust.
 
