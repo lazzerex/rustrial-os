@@ -16,7 +16,8 @@ pub extern "C" fn _start() -> ! {
     unsafe {
         *(0xdeadbeef as *mut u8) = 42;
     }
-    // x86_64::instructions::interrupts::int3();
+    
+    x86_64::instructions::interrupts::int3();
 
     #[cfg(test)]
     test_main();
