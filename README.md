@@ -1,5 +1,14 @@
 # Rustrial OS
 
+![Rust](https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white)
+![x86_64](https://img.shields.io/badge/x86__64-0071C5?style=flat-square&logo=intel&logoColor=white)
+![QEMU](https://img.shields.io/badge/QEMU-FF6600?style=flat-square&logo=qemu&logoColor=white)
+![Bootloader](https://img.shields.io/badge/Bootloader-8B4513?style=flat-square)
+![LLVM](https://img.shields.io/badge/LLVM-262D3A?style=flat-square&logo=llvm&logoColor=white)
+![GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-orange?style=flat-square)
+![Bare Metal](https://img.shields.io/badge/Bare%20Metal-4B0082?style=flat-square)
+![VGA](https://img.shields.io/badge/VGA%20Buffer-228B22?style=flat-square)
+
 A small, in-development educational operating system written in Rust.
 
 This repository is a work-in-progress learning project experimenting with bare-metal programming on x86_64 using Rust. It follows many of the techniques and guidance from Philipp Oppermann's excellent "Writing an OS in Rust" blog series (see Credit section below).
