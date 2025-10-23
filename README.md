@@ -1,6 +1,6 @@
 
+<img width="1334" height="421" alt="11747475313" src="https://github.com/user-attachments/assets/6c85e6bc-03b3-49c7-a90b-c38535edd7c1" />
 
-<img width="1000" height="318" alt="35135565259" src="https://github.com/user-attachments/assets/c1804113-fc3d-41e1-a75b-4356944023c3" />
 
 <p align="center">
   <img src="https://img.shields.io/badge/Rust-%23000000.svg?style=flat&logo=rust&logoColor=white"/>
