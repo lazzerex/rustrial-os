@@ -23,7 +23,8 @@ pub extern "C" fn _start() -> ! {
 
     // stack_overflow();
     
-    x86_64::instructions::interrupts::int3();
+    //breakpoint exception for debugging
+    //x86_64::instructions::interrupts::int3();
 
     #[cfg(test)]
     test_main();
