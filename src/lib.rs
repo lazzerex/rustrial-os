@@ -16,6 +16,7 @@ pub mod gdt;
 pub fn init() {
     gdt::init();
     interrupts::init_idt();
+    unsafe { interrupts::PICS.lock().initialize(); }
 }
 
 
@@ -64,6 +65,7 @@ pub fn exit_qemu(exit_code: QemuExitCode) {
         port.write(exit_code as u32);
     }
 }
+
 
 
 #[cfg(test)]
