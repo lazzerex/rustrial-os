@@ -29,10 +29,7 @@ pub extern "C" fn _start() -> ! {
     test_main();
 
     println!("It did not crash!");
-    loop {
-        use rustrial_os::print;
-        print!("-");
-    }
+    rustrial_os::hlt_loop();
 }
 
 
@@ -40,7 +37,7 @@ pub extern "C" fn _start() -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
-    loop {}
+    rustrial_os::hlt_loop();
 }
 
 #[cfg(test)]
