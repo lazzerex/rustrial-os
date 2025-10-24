@@ -26,6 +26,9 @@ pub extern "C" fn _start() -> ! {
     //breakpoint exception for debugging
     //x86_64::instructions::interrupts::int3();
 
+    let ptr = 0xdeadbeaf as *mut u8;
+    unsafe { *ptr = 42; }
+
     #[cfg(test)]
     test_main();
 
