@@ -26,8 +26,15 @@ pub extern "C" fn _start() -> ! {
     //breakpoint exception for debugging
     //x86_64::instructions::interrupts::int3();
 
-    let ptr = 0xdeadbeaf as *mut u8;
+    //the instruction pointer might be different on other systems so adjust accordingly when debugging
+    let ptr = 0x205014 as *mut u8;
     unsafe { *ptr = 42; }
+
+    unsafe { let x = *ptr; }
+    println!("read worked");
+
+    unsafe { *ptr = 42; }
+    println!("write worked");
 
     #[cfg(test)]
     test_main();
