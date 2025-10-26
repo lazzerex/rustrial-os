@@ -7,7 +7,7 @@
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
 use rustrial_os::println;
-use x86_64::structures::paging::PageTable;
+//use x86_64::structures::paging::PageTable;
 
 entry_point!(kernel_main);
 
@@ -15,7 +15,7 @@ entry_point!(kernel_main);
 // #[unsafe(no_mangle)]
 // pub extern "C" fn _start(boot_info: &'static BootInfo) -> ! {
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
-    use rustrial_os::memory::active_level_4_table;
+    //use rustrial_os::memory::active_level_4_table;
     use x86_64::VirtAddr;
     println!("Hello From the Rustrial Kernel{}", "!");
     use rustrial_os::memory::translate_addr;
@@ -73,13 +73,9 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
 
     let addresses = [
-        // the identity-mapped vga buffer page
         0xb8000,
-        // some code page
         0x201008,
-        // some stack page
         0x0100_0020_1a10,
-        // virtual address mapped to physical address 0
         boot_info.physical_memory_offset,
     ];
 

@@ -5,6 +5,7 @@ use x86_64::{
 };
 
 use x86_64::PhysAddr;
+use x86_64::structures::paging::OffsetPageTable;
 
 
 /// returns a mutable reference to the active level 4 table.
@@ -13,7 +14,14 @@ use x86_64::PhysAddr;
 /// complete physical memory is mapped to virtual memory at the passed
 /// `physical_memory_offset` (which is usually true for higher half kernels maybe idk)
 
-pub unsafe fn active_level_4_table(physical_memory_offset: VirtAddr)
+pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static> {
+    unsafe {
+        let level_4_table = active_level_4_table(physical_memory_offset);
+        OffsetPageTable::new(level_4_table, physical_memory_offset)
+    }
+}
+
+unsafe fn active_level_4_table(physical_memory_offset: VirtAddr)
     -> &'static mut PageTable
 {
     use x86_64::registers::control::Cr3;
