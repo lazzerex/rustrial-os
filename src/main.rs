@@ -4,9 +4,12 @@
 #![test_runner(rustrial_os::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+extern crate alloc;
+
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
 use rustrial_os::println;
+use alloc::boxed::Box;
 //use x86_64::structures::paging::PageTable;
 
 entry_point!(kernel_main);
@@ -18,14 +21,13 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     //use rustrial_os::memory::active_level_4_table;
     //use x86_64::VirtAddr;
     //use rustrial_os::memory::translate_addr;
-    use rustrial_os::memory;
     // use x86_64::{structures::paging::Translate, VirtAddr};
+    use rustrial_os::allocator;
     use x86_64::{structures::paging::Page, VirtAddr};
-    use rustrial_os::memory::BootInfoFrameAllocator; 
+    use rustrial_os::memory::{self, BootInfoFrameAllocator}; 
+
 
     println!("Hello From the Rustrial Kernel{}", "!");
-   
-
     rustrial_os::init();
 
     // unsafe {
@@ -80,11 +82,16 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     let mut mapper = unsafe { memory::init(phys_mem_offset) };
     let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
 
-    let page = Page::containing_address(VirtAddr::new(0xdeadbeaf000));
-    memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
+    allocator::init_heap(&mut mapper, &mut frame_allocator)
+        .expect("heap initialization failed");
 
-    let page_ptr: *mut u64 = page.start_address().as_mut_ptr();
-    unsafe { page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e)};
+    let x = Box::new(41);
+
+    // let page = Page::containing_address(VirtAddr::new(0xdeadbeaf000));
+    // memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
+
+    // let page_ptr: *mut u64 = page.start_address().as_mut_ptr();
+    // unsafe { page_ptr.offset(400).write_volatile(0x_f021_f077_f065_f04e)};
 
 
     // let addresses = [
@@ -99,6 +106,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     //     let phys = mapper.translate_addr(virt);
     //     println!("{:?} -> {:?}", virt, phys);
     // }
+
 
     #[cfg(test)]
     test_main();

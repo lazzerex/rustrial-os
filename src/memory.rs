@@ -17,7 +17,7 @@ use bootloader::bootinfo::MemoryRegionType;
 ///
 /// unsafe fn since the caller must guarantee that the
 /// complete physical memory is mapped to virtual memory at the passed
-/// `physical_memory_offset` (which is usually true for higher half kernels maybe idk)
+/// `physical_memory_offset` (which is usually true for higher half kernels maybe)
 
 pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static> {
     unsafe {
@@ -52,7 +52,7 @@ fn translate_addr_inner(addr: VirtAddr, physical_memory_offset: VirtAddr)
     use x86_64::structures::paging::page_table::FrameError;
     use x86_64::registers::control::Cr3;
 
-    // read the active level 4 frame from the CR3 register, everything else is probably dark magic
+    //here's where we read the active level 4 frame from the CR3 register
     let (level_4_table_frame, _) = Cr3::read();
 
     let table_indexes = [
@@ -85,7 +85,7 @@ pub fn create_example_mapping(
     let frame = PhysFrame::containing_address(PhysAddr::new(0xb8000));
     let flags = Flags::PRESENT | Flags::WRITABLE;
     let map_to_result = unsafe {
-        //for test only, will be removed if i remember to do so
+        //for test only, will be removed later
         mapper.map_to(page, frame, flags, frame_allocator)
     };
     map_to_result.expect("map_to failed").flush();
