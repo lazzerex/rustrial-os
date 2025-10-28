@@ -9,7 +9,7 @@ extern crate alloc;
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
 use rustrial_os::println;
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
 //use x86_64::structures::paging::PageTable;
 
 entry_point!(kernel_main);
@@ -22,8 +22,9 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     //use x86_64::VirtAddr;
     //use rustrial_os::memory::translate_addr;
     // use x86_64::{structures::paging::Translate, VirtAddr};
+    // use x86_64::{structures::paging::Page, VirtAddr};
     use rustrial_os::allocator;
-    use x86_64::{structures::paging::Page, VirtAddr};
+    use x86_64::VirtAddr;
     use rustrial_os::memory::{self, BootInfoFrameAllocator}; 
 
 
@@ -85,7 +86,20 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("heap initialization failed");
 
-    let x = Box::new(41);
+    let heap_value = Box::new(41);
+    println!("heap_value at {:p}", heap_value);
+
+    let mut vec = Vec::new();
+    for i in 0..500 {
+        vec.push(i);
+    }
+    println!("vec at {:p}", vec.as_slice());
+
+    let reference_counted = Rc::new(vec![1, 2, 3]);
+    let cloned_reference = reference_counted.clone();
+    println!("current reference count is {}", Rc::strong_count(&cloned_reference));
+    core::mem::drop(reference_counted);
+    println!("reference count is {} now", Rc::strong_count(&cloned_reference));
 
     // let page = Page::containing_address(VirtAddr::new(0xdeadbeaf000));
     // memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
