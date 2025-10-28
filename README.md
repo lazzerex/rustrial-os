@@ -1,6 +1,6 @@
+# Rustrial OS
 
-<img width="1334" height="421" alt="11747475313" src="https://github.com/user-attachments/assets/6c85e6bc-03b3-49c7-a90b-c38535edd7c1" />
-
+<img width="1334" height="421" alt="Rustrial OS Banner" src="https://github.com/user-attachments/assets/6c85e6bc-03b3-49c7-a90b-c38535edd7c1" />
 
 <p align="center">
   <img src="https://img.shields.io/badge/Rust-%23000000.svg?style=flat&logo=rust&logoColor=white"/>
@@ -13,101 +13,254 @@
 </p>
 
 <p align="center">
-  <!-- GitHub -->
   <img src="https://img.shields.io/github/stars/lazzerex/rustrial-os?style=flat&logo=github"/>
   <img src="https://img.shields.io/github/forks/lazzerex/rustrial-os?style=flat&logo=github"/>
   <img src="https://img.shields.io/github/contributors/lazzerex/rustrial-os?style=flat"/>
   <img src="https://img.shields.io/github/issues-pr-raw/lazzerex/rustrial-os?label=pull%20requests&style=flat&color=yellow"/>
   <img src="https://img.shields.io/github/issues/lazzerex/rustrial-os?label=issues&style=flat&color=red"/>
-
-  <!-- Rust ecosystem -->
   <img src="https://img.shields.io/crates/v/cargo.svg?label=cargo&logo=rust&style=flat&color=orange"/>
-  <img src="https://img.shields.io/crates/d/cargo.svg?label=downloads&style=flat&color=brightgreen"/>
-  <img src="https://img.shields.io/badge/rustup-stable-blue?style=flat&logo=rust"/>
+  <img src="https://img.shields.io/badge/rustup-nightly-blue?style=flat&logo=rust"/>
 </p>
 
 ---
-# Rustrial OS
 
-A small, in-development educational operating system written in Rust.
+## Overview
 
-This repository is a work-in-progress learning project experimenting with bare-metal programming on x86_64 using Rust. It follows many of the techniques and guidance from Philipp Oppermann's excellent "Writing an OS in Rust" blog series (see Credit section below).
+**Rustrial OS** is an educational x86_64 operating system kernel written entirely in Rust. This project demonstrates low-level systems programming concepts including memory management, interrupt handling, hardware interfacing, and heap allocation—all without relying on the standard library or operating system abstractions.
 
-## Status
+Built as a learning journey through bare-metal programming, Rustrial OS implements core operating system features from scratch, providing hands-on experience with computer architecture fundamentals.
 
-This project is currently under active development. Expect incomplete features, breaking changes, and manual build steps. The codebase is not yet suitable for production use.
+## Features
 
-## Repository layout / files of interest
+### ✅ Implemented
 
-- `Cargo.toml` - crate configuration and dependencies (uses `bootloader`, `volatile`, `spin`, etc.)
-- `x86_64-rustrial_os.json` - custom target specification (x86_64, no OS, rust-lld as linker).
-- `src/main.rs` - kernel entry point.
-- `src/vga_buffer.rs` - VGA text buffer driver used for printing to the screen during early boot.
+- **🖥️ VGA Text Mode Driver** - Direct VGA buffer manipulation for text output with color support
+- **⌨️ Keyboard Input** - PS/2 keyboard driver with scancode translation (US layout)
+- **⚡ Interrupt Handling** - Complete IDT setup with hardware interrupt support (timer, keyboard)
+- **🛡️ Exception Handling** - CPU exception handlers including:
+  - Breakpoint exceptions
+  - Double fault handler with separate stack (IST)
+  - Page fault handler with detailed error reporting
+- **🧮 Memory Management**
+  - Physical frame allocator
+  - Virtual memory with page table management
+  - 4-level page table walking and address translation
+  - OffsetPageTable-based mapper
+- **📦 Heap Allocation**
+  - Dynamic memory allocation using linked-list allocator
+  - 100 KiB heap starting at `0x_4444_4444_0000`
+  - Support for `Box`, `Vec`, `Rc` and other heap-based types
+- **🔧 GDT & TSS** - Global Descriptor Table and Task State Segment configuration
+- **⏰ Timer Interrupts** - Periodic timer ticks via PIC (Programmable Interrupt Controller)
+- **🔌 Serial Port Output** - UART communication for debugging (COM1)
+- **🧪 Testing Framework** - Custom test framework with integration and unit tests
+
+## Architecture
+
+### Project Structure
+
+```
+rustrial_os/
+├── src/
+│   ├── main.rs           # Kernel entry point
+│   ├── lib.rs            # Library exports and initialization
+│   ├── vga_buffer.rs     # VGA text mode driver
+│   ├── serial.rs         # UART serial port driver
+│   ├── interrupts.rs     # IDT and interrupt handlers
+│   ├── gdt.rs           # Global Descriptor Table setup
+│   ├── memory.rs        # Memory management and paging
+│   └── allocator.rs     # Heap allocator implementation
+├── tests/
+│   ├── basic_boot.rs    # Basic boot test
+│   ├── heap_allocation.rs  # Heap allocation tests
+│   ├── should_panic.rs  # Panic handling test
+│   └── stack_overflow.rs   # Stack overflow test
+├── Cargo.toml           # Project dependencies
+├── config.toml          # Cargo build configuration
+└── x86_64-rustrial_os.json  # Custom target specification
+```
+
+### Memory Layout
+
+- **VGA Buffer**: `0xb8000` - Text mode framebuffer
+- **Heap**: `0x_4444_4444_0000` - `0x_4444_4445_9000` (100 KiB)
+- **Serial Port**: `0x3F8` (COM1)
+- **IST Stack**: 20 KiB dedicated stack for double fault handler
 
 ## Prerequisites
 
-- Rust toolchain (stable or nightly as needed by some tooling). If you run into build errors about unstable features, try installing a recent nightly toolchain and re-running the commands:
+### Required Tools
 
-```powershell
-rustup install nightly
-rustup override set nightly
-```
-- For Linux, it's preferably to use the `Rustup package`
-- `rust-lld` / `lld` (the linker used by the custom target). On Windows this generally comes with the LLVM toolchain or via the `lld` package for your toolchain.
-- QEMU for running the generated disk/boot image:
+1. **Rust Nightly Toolchain**
+   ```bash
+   rustup install nightly
+   rustup override set nightly
+   rustup component add rust-src llvm-tools-preview
+   ```
 
-  - On Windows, download QEMU for Windows or use your package manager.
+2. **Bootimage Tool**
+   ```bash
+   cargo install bootimage
+   ```
 
-- (Optional) `bootimage` — convenient helper for creating a bootable disk image. Install with:
+3. **QEMU Emulator**
+   - **Linux**: `sudo apt install qemu-system-x86` (Debian/Ubuntu) or `sudo pacman -S qemu` (Arch)
+   - **macOS**: `brew install qemu`
+   - **Windows**: Download from [qemu.org](https://www.qemu.org/download/)
 
-```powershell
-cargo install bootimage
-```
-- You also need the `llvm-tools-preview` rustup component installed for running `bootimage` and building the bootloader. Run this command to have it installed: `rustup component add llvm-tools-preview`.
+### System Requirements
 
-## Build
+- Rust 1.70+ (nightly)
+- LLVM tools (included with Rust toolchain)
+- At least 2 GB RAM for building
+- Internet connection for dependency downloads
 
-Build the kernel using the provided custom target JSON. From the repository root run:
+## Build & Run
 
-```powershell
-cargo build --target x86_64-rustrial_os.json
-```
+### Quick Start
 
-If you have `bootimage` installed you can build and produce a bootable image in one step:
+```bash
+# Clone the repository
+git clone https://github.com/lazzerex/rustrial-os.git
+cd rustrial-os
 
-```powershell
-cargo bootimage --target x86_64-rustrial_os.json
-```
-
-Note: `bootimage` will place the built image under `target/<target-triple>/<debug|release>/bootimage-<crate>.bin` (or `.../bootimage-<crate>.img` depending on version). Adjust paths below accordingly.
-
-## Run (QEMU)
-
-Once you have a bootable image (either manually created or via `bootimage`), run it in QEMU:
-
-```powershell
-qemu-system-x86_64 -drive format=raw,file=target/x86_64-rustrial_os/debug/bootimage-rustrial_os.bin 
-
-# or just simply use this command. As configured in the config.toml file, this will run cargo build command for building the kernel, create a bootable image and automatically start QEMU
+# Build and run in QEMU (all-in-one)
 cargo run
 ```
 
-This runs the OS in QEMU and connects the serial port to the terminal (`-serial stdio`) so early printk output appears in your console.
+### Manual Build Steps
 
-## Notes and troubleshooting
+```bash
+# Build the kernel
+cargo build --target x86_64-rustrial_os.json
 
-- If you see linker errors, ensure `rust-lld` is available and that your Rust toolchain and linker are compatible. The custom target requests `rust-lld` as the linker.
-- If `bootimage` fails, try building manually with `cargo build --target ...` and inspect `target/<target>/debug` for artifacts. The bootloader/bootimage versions matter; if needed, pin versions in `Cargo.toml` or consult upstream docs.
+# Create bootable image
+cargo bootimage --target x86_64-rustrial_os.json
+
+# Run in QEMU manually
+qemu-system-x86_64 -drive format=raw,file=target/x86_64-rustrial_os/debug/bootimage-rustrial_os.bin
+```
+
+### Testing
+
+```bash
+# Run all tests
+cargo test
+
+# Run specific test
+cargo test --test heap_allocation
+
+# Run with test output
+cargo test -- --nocapture
+```
+
+## Configuration
+
+### Custom Target Specification
+
+The OS uses a custom target (`x86_64-rustrial_os.json`) with:
+- **Architecture**: x86_64
+- **OS**: none (bare metal)
+- **Linker**: rust-lld
+- **Features**: Software floating-point, red-zone disabled
+- **Panic strategy**: Abort
+
+### Build Configuration
+
+Configured in `.cargo/config.toml`:
+- Custom runner using `bootimage`
+- Build-std for `core`, `compiler_builtins`, and `alloc`
+- Panic-abort for tests
+
+## Development
+
+### Adding New Features
+
+1. **New Interrupt Handler**: Add to `interrupts.rs` IDT initialization
+2. **Memory Mapping**: Use the `Mapper` trait in `memory.rs`
+3. **Device Drivers**: Follow the pattern in `serial.rs` or `vga_buffer.rs`
+4. **Tests**: Create integration tests in `tests/` directory
+
+### Debugging
+
+```bash
+# Enable serial output for debugging
+cargo run -- -serial stdio
+
+# Run with GDB
+qemu-system-x86_64 -s -S -drive format=raw,file=target/.../bootimage-rustrial_os.bin
+# In another terminal: gdb target/.../rustrial_os
+```
+
+## Known Limitations
+
+- Single-core only (no SMP support)
+- No filesystem implementation
+- Limited device driver support
+- No user-space programs
+- Basic scheduler (none implemented yet)
+- Text mode only (no graphics)
+
+## Roadmap
+
+### Planned Features
+
+- [ ] Multitasking and process scheduler
+- [ ] User-space programs
+- [ ] System calls interface
+- [ ] Filesystem support (FAT32)
+- [ ] Network stack (basic TCP/IP)
+- [ ] ACPI support
+- [ ] USB driver framework
+- [ ] Graphics mode support
 
 ## Contributing
 
-Contributions, improvements, and bug fixes are welcome. This project is educational and intentionally small; feel free to open issues or PRs for suggestions, fixes, or enhancements.
+Contributions are welcome! Whether you're:
+- Fixing bugs
+- Adding new features
+- Improving documentation
+- Writing tests
 
-## Credit
+Please feel free to open an issue or submit a pull request.
 
-Much of the approach and many of the techniques used in this repository are based on Philipp Oppermann's "Writing an OS in Rust" blog series and repository. See his guide for a thorough, step-by-step explanation of building a small OS in Rust:
+### Development Guidelines
 
-[https://os.phil-opp.com/](https://os.phil-opp.com/)
+1. Follow Rust naming conventions and style guidelines
+2. Add tests for new functionality
+3. Update documentation for API changes
+4. Ensure `cargo test` passes before submitting PRs
+5. Use meaningful commit messages
+
+## Resources & Learning
+
+This project is heavily inspired by and follows guidance from:
+
+- **[Writing an OS in Rust](https://os.phil-opp.com/)** by Philipp Oppermann - Comprehensive blog series on OS development
+- **[OSDev Wiki](https://wiki.osdev.org/)** - Extensive operating system development resources
+- **[The Rust Book](https://doc.rust-lang.org/book/)** - Official Rust programming guide
+- **[Rust Embedded Book](https://rust-embedded.github.io/book/)** - Embedded Rust programming
+
+## License
+
+This project is open source and available under the MIT License.
+
+## Acknowledgments
+
+Special thanks to:
+- **Philipp Oppermann** for the excellent "Writing an OS in Rust" blog series
+- The **Rust Embedded Working Group** for embedded Rust tools
+- The **OSDev community** for OS development resources
+- All **contributors** to this project
 
 ---
 
+
+
+<p align="center">
+  <a href="https://github.com/lazzerex/rustrial-os/issues">Report Bug</a>
+  ·
+  <a href="https://github.com/lazzerex/rustrial-os/issues">Request Feature</a>
+  ·
+  <a href="https://github.com/lazzerex/rustrial-os/pulls">Submit PR</a>
+</p>
