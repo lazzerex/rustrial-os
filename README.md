@@ -26,34 +26,34 @@
 
 ## Overview
 
-**Rustrial OS** is an educational x86_64 operating system kernel written entirely in Rust. This project demonstrates low-level systems programming concepts including memory management, interrupt handling, hardware interfacing, and heap allocation—all without relying on the standard library or operating system abstractions.
+**Rustrial OS** is an educational x86_64 operating system kernel written entirely in Rust. This project demonstrates low-level systems programming concepts including memory management, interrupt handling, hardware interfacing, and heap allocation, all without relying on the standard library or operating system abstractions.
 
 Built as a learning journey through bare-metal programming, Rustrial OS implements core operating system features from scratch, providing hands-on experience with computer architecture fundamentals.
 
 ## Features
 
-### ✅ Implemented
+### Implemented
 
-- **🖥️ VGA Text Mode Driver** - Direct VGA buffer manipulation for text output with color support
-- **⌨️ Keyboard Input** - PS/2 keyboard driver with scancode translation (US layout)
-- **⚡ Interrupt Handling** - Complete IDT setup with hardware interrupt support (timer, keyboard)
-- **🛡️ Exception Handling** - CPU exception handlers including:
+- **VGA Text Mode Driver** - Direct VGA buffer manipulation for text output with color support
+- **Keyboard Input** - PS/2 keyboard driver with scancode translation (US layout)
+- **Interrupt Handling** - Complete IDT setup with hardware interrupt support (timer, keyboard)
+- **Exception Handling** - CPU exception handlers including:
   - Breakpoint exceptions
   - Double fault handler with separate stack (IST)
   - Page fault handler with detailed error reporting
-- **🧮 Memory Management**
+- **Memory Management**
   - Physical frame allocator
   - Virtual memory with page table management
   - 4-level page table walking and address translation
   - OffsetPageTable-based mapper
-- **📦 Heap Allocation**
+- **Heap Allocation**
   - Dynamic memory allocation using linked-list allocator
   - 100 KiB heap starting at `0x_4444_4444_0000`
   - Support for `Box`, `Vec`, `Rc` and other heap-based types
-- **🔧 GDT & TSS** - Global Descriptor Table and Task State Segment configuration
-- **⏰ Timer Interrupts** - Periodic timer ticks via PIC (Programmable Interrupt Controller)
-- **🔌 Serial Port Output** - UART communication for debugging (COM1)
-- **🧪 Testing Framework** - Custom test framework with integration and unit tests
+- **GDT & TSS** - Global Descriptor Table and Task State Segment configuration
+- **Timer Interrupts** - Periodic timer ticks via PIC (Programmable Interrupt Controller)
+- **Serial Port Output** - UART communication for debugging (COM1)
+- **Testing Framework** - Custom test framework with integration and unit tests
 
 ## Architecture
 
