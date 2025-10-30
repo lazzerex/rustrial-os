@@ -32,9 +32,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     println!("Hello From the Rustrial Kernel{}", "!");
     rustrial_os::init();
 
-    let mut executor = SimpleExecutor::new();
-    executor.spawn(Task::new(example_task()));
-    executor.run();
+   
 
     // unsafe {
     //     *(0xdeadbeef as *mut u8) = 42;
@@ -90,6 +88,10 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("heap initialization failed");
+
+    let mut executor = SimpleExecutor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.run();
 
     let heap_value = Box::new(41);
     println!("heap_value at {:p}", heap_value);
