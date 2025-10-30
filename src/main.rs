@@ -10,6 +10,7 @@ use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
 use rustrial_os::println;
 use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
+use rustrial_os::task::{Task, simple_executor::SimpleExecutor};
 //use x86_64::structures::paging::PageTable;
 
 entry_point!(kernel_main);
@@ -30,6 +31,10 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     println!("Hello From the Rustrial Kernel{}", "!");
     rustrial_os::init();
+
+    let mut executor = SimpleExecutor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.run();
 
     // unsafe {
     //     *(0xdeadbeef as *mut u8) = 42;
@@ -127,6 +132,15 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     println!("It did not crash!");
     rustrial_os::hlt_loop();
+}
+
+async fn async_number() -> u32 {
+    42
+}
+
+async fn example_task() {
+    let number = async_number().await;
+    println!("async number: {}", number);
 }
 
 #[cfg(not(test))]
