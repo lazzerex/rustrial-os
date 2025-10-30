@@ -11,6 +11,7 @@ use core::panic::PanicInfo;
 use rustrial_os::println;
 use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
 use rustrial_os::task::{Task, simple_executor::SimpleExecutor};
+use rustrial_os::task::keyboard;
 //use x86_64::structures::paging::PageTable;
 
 entry_point!(kernel_main);
@@ -131,6 +132,11 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     #[cfg(test)]
     test_main();
+
+    let mut executor = SimpleExecutor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.spawn(Task::new(keyboard::print_keypresses())); // new
+    executor.run();
 
     println!("It did not crash!");
     rustrial_os::hlt_loop();
