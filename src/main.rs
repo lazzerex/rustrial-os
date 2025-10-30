@@ -12,6 +12,7 @@ use rustrial_os::println;
 use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
 use rustrial_os::task::{Task, simple_executor::SimpleExecutor};
 use rustrial_os::task::keyboard;
+use rustrial_os::task::executor::Executor;
 //use x86_64::structures::paging::PageTable;
 
 entry_point!(kernel_main);
@@ -90,9 +91,9 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("heap initialization failed");
 
-    let mut executor = SimpleExecutor::new();
-    executor.spawn(Task::new(example_task()));
-    executor.run();
+    // let mut executor = SimpleExecutor::new();
+    // executor.spawn(Task::new(example_task()));
+    // executor.run();
 
     let heap_value = Box::new(41);
     println!("heap_value at {:p}", heap_value);
@@ -133,13 +134,13 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     #[cfg(test)]
     test_main();
 
-    let mut executor = SimpleExecutor::new();
+    let mut executor = Executor::new();
     executor.spawn(Task::new(example_task()));
-    executor.spawn(Task::new(keyboard::print_keypresses())); // new
+    executor.spawn(Task::new(keyboard::print_keypresses())); 
     executor.run();
 
     println!("It did not crash!");
-    rustrial_os::hlt_loop();
+    //rustrial_os::hlt_loop();
 }
 
 async fn async_number() -> u32 {
