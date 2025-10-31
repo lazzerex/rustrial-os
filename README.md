@@ -163,6 +163,8 @@ cargo test --test heap_allocation
 # Run with test output
 cargo test -- --nocapture
 
+```
+
 ## Key Implementation Details
 
 ### Memory Management
@@ -201,7 +203,7 @@ Key external crates:
 - `pic8259`: Programmable Interrupt Controller
 - `crossbeam-queue`: Lock-free concurrent queue (unused features available)
 - `futures-util`: Futures primitives for async
-```
+
 
 ## Configuration
 
