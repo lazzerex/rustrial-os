@@ -6,5 +6,5 @@ panic-abort-tests = true
 [build]
 target = "x86_64-rustrial_os.json"
 
-[target.'cfg(target_os = "none")']
+[target.x86_64-rustrial_os]
 runner = "bootimage runner"
