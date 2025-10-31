@@ -24,60 +24,70 @@
 
 ---
 
+# Rustrial OS
+
+A hobby x86-64 bare-metal operating system kernel written in Rust, built from scratch to explore low-level systems programming, memory management, and async concurrency on real hardware.
+
 ## Overview
 
-**Rustrial OS** is an educational x86_64 operating system kernel written entirely in Rust. This project demonstrates low-level systems programming concepts including memory management, interrupt handling, hardware interfacing, and heap allocation, all without relying on the standard library or operating system abstractions.
-
-Built as a learning journey through bare-metal programming, Rustrial OS implements core operating system features from scratch, providing hands-on experience with computer architecture fundamentals.
+Rustrial OS is an educational operating system project that demonstrates modern systems programming techniques using Rust. The kernel boots from bare metal on x86-64 architecture and provides core OS functionality including memory management, interrupt handling, task scheduling, and keyboard input processing.
 
 ## Features
 
-### Implemented
-
-- **VGA Text Mode Driver** - Direct VGA buffer manipulation for text output with color support
-- **Keyboard Input** - PS/2 keyboard driver with scancode translation (US layout)
-- **Interrupt Handling** - Complete IDT setup with hardware interrupt support (timer, keyboard)
-- **Exception Handling** - CPU exception handlers including:
+### Core Kernel Features
+- **Bare Metal x86-64 Architecture**: Custom bootloader integration using the Bootloader crate, supporting both real hardware and QEMU emulation
+- **Interrupt Handling**: Complete IDT (Interrupt Descriptor Table) setup with handlers for:
   - Breakpoint exceptions
-  - Double fault handler with separate stack (IST)
-  - Page fault handler with detailed error reporting
-- **Memory Management**
-  - Physical frame allocator
-  - Virtual memory with page table management
-  - 4-level page table walking and address translation
-  - OffsetPageTable-based mapper
-- **Heap Allocation**
-  - Dynamic memory allocation using linked-list allocator
-  - 100 KiB heap starting at `0x_4444_4444_0000`
-  - Support for `Box`, `Vec`, `Rc` and other heap-based types
-- **GDT & TSS** - Global Descriptor Table and Task State Segment configuration
-- **Timer Interrupts** - Periodic timer ticks via PIC (Programmable Interrupt Controller)
-- **Serial Port Output** - UART communication for debugging (COM1)
-- **Testing Framework** - Custom test framework with integration and unit tests
+  - Double fault handling with dedicated stack
+  - Timer interrupts (PIC 8259 chained controller)
+  - Keyboard input interrupts
+  - Page fault exceptions with detailed error reporting
+- **Memory Management**: 
+  - Paging support with virtual to physical address translation
+  - Configurable heap allocation at `0x_4444_4444_0000` with 100KB default size
+  - Multiple allocator strategies available (bump allocator, linked list allocator, fixed-size block allocator)
+  - Frame allocation from bootloader memory map
+- **Global Descriptor Table (GDT)**: CPU segmentation setup with double fault IST (Interrupt Stack Table) support
+- **Async Task System**: 
+  - Futures-based async/await support with custom executor
+  - Keyboard event handling as async tasks
+  - Waker-based task scheduling
 
-## Architecture
+### VGA Buffer & I/O
+- **VGA Text Output**: Direct memory-mapped VGA buffer (0xb8000) for console printing
+- **Serial Port I/O**: UART 16550 serial communication for test output and debugging
+- **Keyboard Input**: Async keyboard task for processing PS/2 keyboard scancodes
 
-### Project Structure
+## Project Structure
 
 ```
-rustrial_os/
-├── src/
-│   ├── main.rs           # Kernel entry point
-│   ├── lib.rs            # Library exports and initialization
-│   ├── vga_buffer.rs     # VGA text mode driver
-│   ├── serial.rs         # UART serial port driver
-│   ├── interrupts.rs     # IDT and interrupt handlers
-│   ├── gdt.rs           # Global Descriptor Table setup
-│   ├── memory.rs        # Memory management and paging
-│   └── allocator.rs     # Heap allocator implementation
-├── tests/
-│   ├── basic_boot.rs    # Basic boot test
-│   ├── heap_allocation.rs  # Heap allocation tests
-│   ├── should_panic.rs  # Panic handling test
-│   └── stack_overflow.rs   # Stack overflow test
-├── Cargo.toml           # Project dependencies
-├── config.toml          # Cargo build configuration
-└── x86_64-rustrial_os.json  # Custom target specification
+src/
+├── main.rs                 # Kernel entry point and main function
+├── lib.rs                  # Kernel library with core initialization and test infrastructure
+├── vga_buffer.rs          # VGA text mode buffer and print macros
+├── serial.rs              # Serial port (UART) I/O implementation
+├── gdt.rs                 # Global Descriptor Table setup
+├── interrupts.rs          # Interrupt Descriptor Table and handlers
+├── memory.rs              # Paging, page tables, and memory mapping
+├── allocator/             # Memory allocator implementations
+│   ├── mod.rs             # Allocator interface and Locked wrapper
+│   ├── bump.rs            # Simple bump allocator
+│   ├── linked_list.rs     # Linked list allocator
+│   └── fixed_size_block.rs # Fixed-size block allocator (active by default)
+└── task/                  # Async task system
+    ├── mod.rs             # Task structure and TaskId
+    ├── executor.rs        # Waker-based task executor
+    ├── simple_executor.rs # Basic single-threaded executor
+    └── keyboard.rs        # Keyboard input processing
+
+tests/
+├── basic_boot.rs          # Tests kernel boots without crashing
+├── heap_allocation.rs     # Tests heap allocation with Box, Vec, and Rc
+├── should_panic.rs        # Tests panic handling
+└── stack_overflow.rs      # Tests stack overflow exception handling
+
+x86_64-rustrial_os.json    # Custom build target configuration
+Cargo.toml                 # Project manifest with dependencies
 ```
 
 ### Memory Layout
@@ -152,6 +162,45 @@ cargo test --test heap_allocation
 
 # Run with test output
 cargo test -- --nocapture
+
+## Key Implementation Details
+
+### Memory Management
+The kernel implements a flexible allocator system:
+- **Bump Allocator**: Simple, fast allocation but no deallocation
+- **Linked List Allocator**: Maintains free list of deallocated blocks
+- **Fixed-Size Block Allocator** (Current): Pre-allocated block sizes for fast allocation with reduced fragmentation
+
+### Interrupt Handling
+- **Timer Interrupt**: Triggered by hardware timer for periodic tasks
+- **Keyboard Interrupt**: Reads PS/2 scancodes and queues them for processing
+- **Page Fault Handler**: Displays fault address and error code before halting
+- **Double Fault Handler**: Dedicated stack prevents triple faults
+
+### Async Tasks
+The kernel supports async/await using a custom executor:
+- Tasks are represented as pinned futures
+- Executor polls tasks via `Context` and `Waker`
+- Keyboard input is processed asynchronously as individual scancodes arrive
+
+### VGA Buffer
+- Direct memory access to VGA text buffer at `0xb8000`
+- Implements `Write` trait for `print!` and `println!` macros
+- Supports color attributes (foreground/background)
+
+## Dependencies
+
+Key external crates:
+- `bootloader`: Handles x86-64 bare-metal boot process
+- `x86_64`: x86-64 specific CPU instructions and structures
+- `volatile`: Memory access utilities to prevent compiler optimizations
+- `uart_16550`: UART serial communication
+- `pc-keyboard`: PS/2 keyboard decoding
+- `spin`: Spinlock for synchronization
+- `lazy_static`: Static initialization for IDT and PICS
+- `pic8259`: Programmable Interrupt Controller
+- `crossbeam-queue`: Lock-free concurrent queue (unused features available)
+- `futures-util`: Futures primitives for async
 ```
 
 ## Configuration
@@ -192,14 +241,27 @@ qemu-system-x86_64 -s -S -drive format=raw,file=target/.../bootimage-rustrial_os
 # In another terminal: gdb target/.../rustrial_os
 ```
 
-## Known Limitations
-
+### Known Limitations
 - Single-core only (no SMP support)
 - No filesystem implementation
 - Limited device driver support
 - No user-space programs
 - Basic scheduler (none implemented yet)
 - Text mode only (no graphics)
+- No pre-emptive multitasking (only cooperative via async/await)
+- Limited memory: 100KB heap by default
+- No file system
+- No network support
+- Minimal error handling in many areas
+
+### Potential Improvements
+- Multi-core CPU support
+- Pre-emptive task scheduling
+- Larger heap with paging improvements
+- File system implementation (FAT32 or ext2)
+- Network stack
+- Enhanced error types and Result-based error handling
+- Dynamic task creation and management
 
 ## Roadmap
 
@@ -243,7 +305,7 @@ This project is heavily inspired by and follows guidance from:
 
 ## License
 
-This project is open source and available under the MIT License.
+This project is provided as-is for educational purposes.
 
 ## Acknowledgments
 
