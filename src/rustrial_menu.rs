@@ -67,6 +67,11 @@ pub async fn interactive_menu() {
                             show_menu_screen();
                             menu_active = true;
                         }
+                        DecodedKey::Unicode('\x08') => {
+                            // Backspace
+                            use crate::vga_buffer::backspace;
+                            backspace();
+                        }
                         DecodedKey::Unicode(character) => print!("{}", character),
                         DecodedKey::RawKey(k) => print!("{:?}", k),
                     }

@@ -68,6 +68,11 @@ pub async fn print_keypresses() {
         if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
             if let Some(key) = keyboard.process_keyevent(key_event) {
                 match key {
+                    DecodedKey::Unicode('\x08') => {
+                        // Backspace
+                        use crate::vga_buffer::backspace;
+                        backspace();
+                    }
                     DecodedKey::Unicode(character) => print!("{}", character),
                     DecodedKey::RawKey(key) => print!("{:?}", key),
                 }
