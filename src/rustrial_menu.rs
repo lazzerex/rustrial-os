@@ -2,6 +2,7 @@ use crate::{print, println};
 use crate::task::keyboard;
 use futures_util::stream::StreamExt;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
+use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
 
 
 pub async fn interactive_menu() {
@@ -24,12 +25,15 @@ pub async fn interactive_menu() {
                         match ch {
                             '1' => {
                                 println!("\n→ Continuing with normal operation...\n");
+                                show_system_info();
+                                println!("\nNow in normal operation mode. Type characters to see them echoed:");
                                 menu_active = false;
                             }
                             '2' => {
                                 println!("\n→ Running RustrialScript Demo...\n");
                                 run_demo();
-                                println!("\nPress any key to continue...");
+                                println!("\n→ Demo complete! Now in normal operation mode.");
+                                println!("Type characters to see them echoed:");
                                 menu_active = false;
                             }
                             _ => {
@@ -58,6 +62,28 @@ fn show_menu_screen() {
     println!("  [2] Run RustrialScript Demo");
     println!();
     println!("Press a number key (1 or 2) to select...");
+}
+
+
+fn show_system_info() {
+    println!("=== System Information ===\n");
+    
+    let heap_value = Box::new(41);
+    println!("heap_value at {:p}", heap_value);
+
+    let mut vec = Vec::new();
+    for i in 0..500 {
+        vec.push(i);
+    }
+    println!("vec at {:p}", vec.as_slice());
+
+    let reference_counted = Rc::new(vec![1, 2, 3]);
+    let cloned_reference = reference_counted.clone();
+    println!("current reference count is {}", Rc::strong_count(&cloned_reference));
+    core::mem::drop(reference_counted);
+    println!("reference count is {} now", Rc::strong_count(&cloned_reference));
+    
+    println!("\nasync number: 42");
 }
 
 
