@@ -32,6 +32,31 @@ A hobby x86-64 bare-metal operating system kernel written in Rust, built from sc
 
 Rustrial OS is an educational operating system project that demonstrates modern systems programming techniques using Rust. The kernel boots from bare metal on x86-64 architecture and provides core OS functionality including memory management, interrupt handling, task scheduling, and keyboard input processing.
 
+## Showcase
+<details markdown="1"> <summary>Menu Screen</summary>
+
+
+<img width="416" height="172" alt="image" src="https://github.com/user-attachments/assets/3ad456ce-267b-4380-bede-40fb4aead9f9" />
+
+<img width="732" height="258" alt="image" src="https://github.com/user-attachments/assets/52cf8737-1811-415f-9526-6f2c25033df4" />
+
+<img width="527" height="307" alt="image" src="https://github.com/user-attachments/assets/a8309730-2383-427d-bd74-94f97cab7d0d" />
+
+<img width="625" height="68" alt="image" src="https://github.com/user-attachments/assets/42ef5f91-a9d3-4aab-9fc3-568e72b2aef4" />
+
+
+</details>
+
+
+<details markdown="1"> <summary>Running Some Unit Tests</summary>
+  
+<img width="909" height="144" alt="image" src="https://github.com/user-attachments/assets/ea1a4b66-5351-47c8-9e56-83366e27fb87" />
+
+<img width="906" height="140" alt="image" src="https://github.com/user-attachments/assets/90d5622b-060a-41a2-a25c-d617b8e69903" />
+
+</details>
+
+
 ## Features
 
 ### Core Kernel Features
