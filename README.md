@@ -67,9 +67,6 @@ Rustrial OS is an educational operating system project that demonstrates modern 
 ## Project Structure
 
 ```
-Cargo.toml                 # Project manifest with dependencies
-
-```
 src/
 ├── main.rs                  # Kernel entry point and main function
 ├── lib.rs                   # Kernel library with core initialization and test infrastructure
@@ -98,17 +95,14 @@ src/
 │   ├── executor.rs          # Waker-based task executor
 │   ├── simple_executor.rs   # Basic single-threaded executor
 │   └── keyboard.rs          # Keyboard input processing
-
 tests/
 ├── basic_boot.rs            # Tests kernel boots without crashing
 ├── heap_allocation.rs       # Tests heap allocation with Box, Vec, and Rc
 ├── should_panic.rs          # Tests panic handling
 └── stack_overflow.rs        # Tests stack overflow exception handling
-
-### Memory Layout
 Cargo.toml                   # Project manifest with dependencies
 ```
-
+### Memory Layout
 - **VGA Buffer**: `0xb8000` - Text mode framebuffer
 - **Heap**: `0x_4444_4444_0000` - `0x_4444_4445_9000` (100 KiB)
 - **Serial Port**: `0x3F8` (COM1)
