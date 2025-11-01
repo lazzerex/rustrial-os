@@ -1,7 +1,7 @@
 use crate::{print, println};
 use crate::task::keyboard;
 use futures_util::stream::StreamExt;
-use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
+use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
 use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
 
 
@@ -28,14 +28,14 @@ pub async fn interactive_menu() {
                                 println!("\n→ Continuing with normal operation...\n");
                                 show_system_info();
                                 println!("\nNow in normal operation mode.");
-                                println!("Type characters to see them echoed, or press 'm' to return to menu:");
+                                println!("Type characters to see them echoed, or press ESC to return to menu:");
                                 menu_active = false;
                             }
                             '2' => {
                                 println!("\n→ Running RustrialScript Demo...\n");
                                 run_demo();
                                 println!("\n→ Demo complete! Now in normal operation mode.");
-                                println!("Type characters to see them echoed, or press 'm' to return to menu:");
+                                println!("Type characters to see them echoed, or press ESC to return to menu:");
                                 menu_active = false;
                             }
                             '3' => {
@@ -60,7 +60,7 @@ pub async fn interactive_menu() {
                     help_mode = false;
                 } else {
                     match key {
-                        DecodedKey::Unicode('m') | DecodedKey::Unicode('M') => {
+                        DecodedKey::RawKey(KeyCode::Escape) => {
                             println!("\n\n→ Returning to main menu...\n");
                             use crate::vga_buffer::clear_screen;
                             clear_screen();
@@ -73,7 +73,9 @@ pub async fn interactive_menu() {
                             backspace();
                         }
                         DecodedKey::Unicode(character) => print!("{}", character),
-                        DecodedKey::RawKey(k) => print!("{:?}", k),
+                        DecodedKey::RawKey(_) => {
+                            // Ignore other raw keys
+                        }
                     }
                 }
             }
@@ -92,7 +94,7 @@ fn show_menu_screen() {
     println!("  [3] Show Help");
     println!();
     println!("Press a number key (1, 2, or 3) to select...");
-    println!("(Press 'm' anytime in normal mode to return to this menu)");
+    println!("(Press ESC anytime in normal mode to return to this menu)");
 }
 
 
@@ -174,7 +176,8 @@ fn show_help() {
     println!();
     println!("═══ Keyboard Commands ═══");
     println!();
-    println!("  m/M  - Return to main menu (in normal mode)");
+    println!("  ESC       - Return to main menu (in normal mode)");
+    println!("  Backspace - Delete last character");
     println!();
     println!("For more information, see the documentation at:");
     println!("github.com/lazzerex/rustrial-os");
