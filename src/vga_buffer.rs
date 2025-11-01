@@ -165,6 +165,14 @@ pub fn _print(args: fmt::Arguments) {
     });
 }
 
+pub fn clear_screen() {
+    use x86_64::instructions::interrupts;
+    
+    interrupts::without_interrupts(|| {
+        WRITER.lock().clear_screen();
+    });
+}
+
 
 #[test_case]
 fn test_println_simple() {
