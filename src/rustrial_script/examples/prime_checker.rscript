@@ -1,0 +1,23 @@
+// Prime number checker
+// Checks if a number is prime
+
+let num = 97;
+let is_prime = 1;
+let i = 2;
+
+if (num < 2) {
+    is_prime = 0;
+}
+
+while (i * i <= num) {
+    if (num % i == 0) {
+        is_prime = 0;
+    }
+    i = i + 1;
+}
+
+if (is_prime == 1) {
+    print(1);  // Prime
+} else {
+    print(0);  // Not prime
+}

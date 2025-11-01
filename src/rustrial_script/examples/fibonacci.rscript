@@ -1,0 +1,18 @@
+// Fibonacci sequence calculator
+// Calculates the first N fibonacci numbers
+
+let a = 0;
+let b = 1;
+let n = 15;
+let i = 0;
+
+print(a);
+print(b);
+
+while (i < n) {
+    let temp = a + b;
+    print(temp);
+    a = b;
+    b = temp;
+    i = i + 1;
+}

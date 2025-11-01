@@ -1,0 +1,13 @@
+// GCD calculator using Euclidean algorithm
+// Greatest Common Divisor
+
+let a = 48;
+let b = 18;
+
+while (b != 0) {
+    let temp = b;
+    b = a % b;
+    a = temp;
+}
+
+print(a);  // GCD result

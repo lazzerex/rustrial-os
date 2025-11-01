@@ -1,0 +1,19 @@
+// Collatz conjecture
+// Also known as the 3n+1 problem
+
+let n = 27;
+let steps = 0;
+
+print(n);
+
+while (n != 1) {
+    if (n % 2 == 0) {
+        n = n / 2;
+    } else {
+        n = 3 * n + 1;
+    }
+    print(n);
+    steps = steps + 1;
+}
+
+print(steps);  // Number of steps taken
