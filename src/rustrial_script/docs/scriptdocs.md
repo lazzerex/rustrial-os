@@ -450,4 +450,3 @@ To add new features:
 
 ---
 
-**Created for RustrialOS by the OS development team**
