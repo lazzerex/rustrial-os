@@ -7,7 +7,6 @@ use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
 
 pub async fn interactive_menu() {
     
-    show_menu_screen();
     let mut scancodes = keyboard::ScancodeStream::new();
     let mut kb = Keyboard::new(
         ScancodeSet1::new(),
@@ -16,6 +15,8 @@ pub async fn interactive_menu() {
     );
     
     let mut menu_active = true;
+    let mut help_mode = false;
+    show_menu_screen();
     
     while let Some(scancode) = scancodes.next().await {
         if let Ok(Some(key_event)) = kb.add_byte(scancode) {
@@ -26,23 +27,46 @@ pub async fn interactive_menu() {
                             '1' => {
                                 println!("\n→ Continuing with normal operation...\n");
                                 show_system_info();
-                                println!("\nNow in normal operation mode. Type characters to see them echoed:");
+                                println!("\nNow in normal operation mode.");
+                                println!("Type characters to see them echoed, or press 'm' to return to menu:");
                                 menu_active = false;
                             }
                             '2' => {
                                 println!("\n→ Running RustrialScript Demo...\n");
                                 run_demo();
                                 println!("\n→ Demo complete! Now in normal operation mode.");
-                                println!("Type characters to see them echoed:");
+                                println!("Type characters to see them echoed, or press 'm' to return to menu:");
                                 menu_active = false;
+                            }
+                            '3' => {
+                                println!("\n→ Showing Help...\n");
+                                show_help();
+                                println!("\nPress any key to return to menu...");
+                                menu_active = false;
+                                help_mode = true;
                             }
                             _ => {
                                 // ignore other keys in menu mode
                             }
                         }
                     }
+                } else if help_mode {
+                    // Any key returns to menu from help
+                    println!("\n\n→ Returning to main menu...\n");
+                    use crate::vga_buffer::clear_screen;
+                    clear_screen();
+                    show_menu_screen();
+                    menu_active = true;
+                    help_mode = false;
                 } else {
                     match key {
+                        DecodedKey::Unicode('m') | DecodedKey::Unicode('M') => {
+                            println!("\n\n→ Returning to main menu...\n");
+                            use crate::vga_buffer::clear_screen;
+                            clear_screen();
+                            show_menu_screen();
+                            menu_active = true;
+                        }
                         DecodedKey::Unicode(character) => print!("{}", character),
                         DecodedKey::RawKey(k) => print!("{:?}", k),
                     }
@@ -60,8 +84,10 @@ fn show_menu_screen() {
     println!();
     println!("  [1] Continue with normal operation");
     println!("  [2] Run RustrialScript Demo");
+    println!("  [3] Show Help");
     println!();
-    println!("Press a number key (1 or 2) to select...");
+    println!("Press a number key (1, 2, or 3) to select...");
+    println!("(Press 'm' anytime in normal mode to return to this menu)");
 }
 
 
@@ -113,4 +139,38 @@ fn run_demo() {
         Ok(_) => println!("\n=== Demo completed successfully! ==="),
         Err(e) => println!("\n=== Error: {} ===", e),
     }
+}
+
+
+fn show_help() {
+    println!("╔════════════════════════════════════════════════╗");
+    println!("║              RustrialOS - Help                ║");
+    println!("╚════════════════════════════════════════════════╝");
+    println!();
+    println!("RustrialOS is a hobby x86-64 bare-metal operating system");
+    println!("written in Rust, featuring:");
+    println!();
+    println!("• Custom memory management and heap allocation");
+    println!("• Interrupt handling and async task execution");
+    println!("• RustrialScript: A minimal stack-based interpreter");
+    println!("• Interactive menu system");
+    println!();
+    println!("═══ Menu Options ═══");
+    println!();
+    println!("[1] Normal Operation");
+    println!("    - Shows system information (heap, memory)");
+    println!("    - Enters keyboard echo mode");
+    println!();
+    println!("[2] RustrialScript Demo");
+    println!("    - Runs a Fibonacci sequence demo");
+    println!("    - Demonstrates the interpreter capabilities");
+    println!();
+    println!("[3] Help (this screen)");
+    println!();
+    println!("═══ Keyboard Commands ═══");
+    println!();
+    println!("  m/M  - Return to main menu (in normal mode)");
+    println!();
+    println!("For more information, see the documentation at:");
+    println!("github.com/lazzerex/rustrial-os");
 }
