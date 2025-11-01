@@ -11,7 +11,6 @@ use core::panic::PanicInfo;
 use rustrial_os::println;
 use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
 use rustrial_os::task::{Task, simple_executor::SimpleExecutor};
-use rustrial_os::task::keyboard;
 use rustrial_os::task::executor::Executor;
 //use x86_64::structures::paging::PageTable;
 
@@ -134,36 +133,10 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     #[cfg(test)]
     test_main();
 
-    // Demo RustrialScript interpreter
-    println!("\n=== RustrialScript Demo ===");
-    
-    let script = r#"
-        // Fibonacci sequence
-        let a = 0;
-        let b = 1;
-        let n = 10;
-        let i = 0;
-        
-        print(a);
-        print(b);
-        
-        while (i < n) {
-            let temp = a + b;
-            print(temp);
-            a = b;
-            b = temp;
-            i = i + 1;
-        }
-    "#;
-    
-    match rustrial_os::rustrial_script::run(script) {
-        Ok(_) => println!("\n=== Script executed successfully ===\n"),
-        Err(e) => println!("\n=== Script error: {} ===\n", e),
-    }
-
+    // Show interactive menu
     let mut executor = Executor::new();
+    executor.spawn(Task::new(rustrial_os::rustrial_menu::interactive_menu()));
     executor.spawn(Task::new(example_task()));
-    executor.spawn(Task::new(keyboard::print_keypresses())); 
     executor.run();
 
     println!("It did not crash!");

@@ -19,6 +19,7 @@ pub mod allocator;
 pub mod task;
 
 pub mod rustrial_script;
+pub mod rustrial_menu;
 
 pub fn init() {
     gdt::init();
