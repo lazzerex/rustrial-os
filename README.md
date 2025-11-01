@@ -134,7 +134,7 @@ Cargo.toml                   # Project manifest with dependencies
 - **IST Stack**: 20 KiB dedicated stack for double fault handler
 
 ## Prerequisites
-
+You should first have ```rustup``` and ```cargo``` installed on your machine. After that, installed all the required tools below. For Linux, you might want to use ```Rustup``` to avoid problems relating to the cargo versions conflicting.
 ### Required Tools
 
 1. **Rust Nightly Toolchain**
