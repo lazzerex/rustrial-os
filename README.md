@@ -53,44 +53,61 @@ Rustrial OS is an educational operating system project that demonstrates modern 
   - Keyboard event handling as async tasks
   - Waker-based task scheduling
 
+
 ### VGA Buffer & I/O
 - **VGA Text Output**: Direct memory-mapped VGA buffer (0xb8000) for console printing
 - **Serial Port I/O**: UART 16550 serial communication for test output and debugging
 - **Keyboard Input**: Async keyboard task for processing PS/2 keyboard scancodes
 
+### RustrialScript Interpreter & Interactive Menu
+- **RustrialScript Interpreter**: Minimal, stack-based scripting language for RustrialOS. Runs scripts directly in the OS, with no_std and alloc-only dependencies. Features integer, boolean, and nil types, arithmetic and control flow, and direct integration with VGA output.
+- **Interactive Menu System**: On boot, users are presented with a menu to choose between normal OS operation or running a RustrialScript demo. Keyboard input is handled asynchronously, and the menu is extensible for future options.
+- **Integration**: The interpreter is modular, with lexer, parser, VM, and value modules. Example scripts (fibonacci, factorial, etc.) are provided in `src/rustrial_script/examples/`. See `src/rustrial_script/docs/INTEGRATION.md` and `src/rustrial_script/docs/INTERACTIVE_MENU.md` for details.
+
 ## Project Structure
 
 ```
+Cargo.toml                 # Project manifest with dependencies
+
+```
 src/
-├── main.rs                 # Kernel entry point and main function
-├── lib.rs                  # Kernel library with core initialization and test infrastructure
-├── vga_buffer.rs          # VGA text mode buffer and print macros
-├── serial.rs              # Serial port (UART) I/O implementation
-├── gdt.rs                 # Global Descriptor Table setup
-├── interrupts.rs          # Interrupt Descriptor Table and handlers
-├── memory.rs              # Paging, page tables, and memory mapping
-├── allocator/             # Memory allocator implementations
-│   ├── mod.rs             # Allocator interface and Locked wrapper
-│   ├── bump.rs            # Simple bump allocator
-│   ├── linked_list.rs     # Linked list allocator
-│   └── fixed_size_block.rs # Fixed-size block allocator (active by default)
-└── task/                  # Async task system
-    ├── mod.rs             # Task structure and TaskId
-    ├── executor.rs        # Waker-based task executor
-    ├── simple_executor.rs # Basic single-threaded executor
-    └── keyboard.rs        # Keyboard input processing
+├── main.rs                  # Kernel entry point and main function
+├── lib.rs                   # Kernel library with core initialization and test infrastructure
+├── vga_buffer.rs            # VGA text mode buffer and print macros
+├── serial.rs                # Serial port (UART) I/O implementation
+├── gdt.rs                   # Global Descriptor Table setup
+├── interrupts.rs            # Interrupt Descriptor Table and handlers
+├── memory.rs                # Paging, page tables, and memory mapping
+├── rustrial_menu.rs         # Interactive menu system
+├── rustrial_script/         # RustrialScript interpreter modules and examples
+│   ├── mod.rs               # Main interpreter interface
+│   ├── lexer.rs             # Tokenizer
+│   ├── parser.rs            # Bytecode compiler
+│   ├── vm.rs                # Virtual machine
+│   ├── value.rs             # Value types
+│   ├── tests.rs             # Interpreter tests
+│   ├── examples/            # Example scripts (fibonacci, factorial, etc.)
+│   └── docs/                # Documentation (INTEGRATION.md, INTERACTIVE_MENU.md, etc.)
+├── allocator/               # Memory allocator implementations
+│   ├── mod.rs               # Allocator interface and Locked wrapper
+│   ├── bump.rs              # Simple bump allocator
+│   ├── linked_list.rs       # Linked list allocator
+│   └── fixed_size_block.rs  # Fixed-size block allocator (active by default)
+├── task/                    # Async task system
+│   ├── mod.rs               # Task structure and TaskId
+│   ├── executor.rs          # Waker-based task executor
+│   ├── simple_executor.rs   # Basic single-threaded executor
+│   └── keyboard.rs          # Keyboard input processing
 
 tests/
-├── basic_boot.rs          # Tests kernel boots without crashing
-├── heap_allocation.rs     # Tests heap allocation with Box, Vec, and Rc
-├── should_panic.rs        # Tests panic handling
-└── stack_overflow.rs      # Tests stack overflow exception handling
-
-x86_64-rustrial_os.json    # Custom build target configuration
-Cargo.toml                 # Project manifest with dependencies
-```
+├── basic_boot.rs            # Tests kernel boots without crashing
+├── heap_allocation.rs       # Tests heap allocation with Box, Vec, and Rc
+├── should_panic.rs          # Tests panic handling
+└── stack_overflow.rs        # Tests stack overflow exception handling
 
 ### Memory Layout
+Cargo.toml                   # Project manifest with dependencies
+```
 
 - **VGA Buffer**: `0xb8000` - Text mode framebuffer
 - **Heap**: `0x_4444_4444_0000` - `0x_4444_4445_9000` (100 KiB)
@@ -190,6 +207,22 @@ The kernel supports async/await using a custom executor:
 - Implements `Write` trait for `print!` and `println!` macros
 - Supports color attributes (foreground/background)
 
+### RustrialScript Interpreter
+- Stack-based VM with fixed-size stack (256 values)
+- Integer, boolean, and nil types
+- Simple syntax: variable assignment, arithmetic, control flow
+- Example scripts for math and logic
+- No_std, alloc-only: runs in bare-metal OS
+- Direct integration with VGA output
+- Modular design: lexer, parser, VM, value
+- See `src/rustrial_script/docs/ARCHITECTURE.md` and `src/rustrial_script/docs/scriptdocs.md` for language details
+
+### Interactive Menu System
+- Appears on boot, lets user choose OS mode or run interpreter demo
+- Async keyboard input handling
+- Extensible for future options (REPL, script selector, etc.)
+- See `src/rustrial_script/docs/INTERACTIVE_MENU.md` for user experience and integration
+
 ## Dependencies
 
 Key external crates:
@@ -278,6 +311,9 @@ qemu-system-x86_64 -s -S -drive format=raw,file=target/.../bootimage-rustrial_os
 - [ ] USB driver framework
 - [ ] Graphics mode support
 
+- [x] Minimal scripting interpreter (RustrialScript)
+- [x] Interactive boot menu system
+
 ## Contributing
 
 Contributions are welcome! Whether you're:
@@ -306,6 +342,15 @@ This project is heavily inspired by and follows guidance from:
 - **[Rust Embedded Book](https://rust-embedded.github.io/book/)** - Embedded Rust programming
 
 ## License
+
+
+## Documentation
+
+- [RustrialScript Integration Guide](src/rustrial_script/docs/INTEGRATION.md)
+- [Interactive Menu System](src/rustrial_script/docs/INTERACTIVE_MENU.md)
+- [RustrialScript Architecture](src/rustrial_script/docs/ARCHITECTURE.md)
+- [Getting Started with RustrialScript](src/rustrial_script/docs/GETTING_STARTED.md)
+- [RustrialScript Language Reference](src/rustrial_script/docs/scriptdocs.md)
 
 This project is provided as-is for educational purposes.
 
