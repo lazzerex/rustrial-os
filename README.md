@@ -32,6 +32,8 @@ A hobby x86-64 bare-metal operating system kernel written in Rust, built from sc
 
 Rustrial OS is an educational operating system project that demonstrates modern systems programming techniques using Rust. The kernel boots from bare metal on x86-64 architecture and provides core OS functionality including memory management, interrupt handling, task scheduling, and keyboard input processing.
 
+You can refer to ```src/rustrial_script/docs``` to know more about how RustrialScripts is implemented.
+
 ## Showcase
 <details markdown="1"> <summary>Menu Screen</summary>
 
