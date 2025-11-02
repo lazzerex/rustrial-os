@@ -60,7 +60,7 @@ pub async fn interactive_menu() {
                     help_mode = false;
                 } else {
                     match key {
-                        DecodedKey::RawKey(KeyCode::Escape) => {
+                        DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b') => {
                             println!("\n\n→ Returning to main menu...\n");
                             use crate::vga_buffer::clear_screen;
                             clear_screen();
@@ -85,9 +85,9 @@ pub async fn interactive_menu() {
 
 
 fn show_menu_screen() {
-    println!("\n╔════════════════════════════════════════════════╗");
-    println!("║         RustrialOS - Main Menu                ║");
-    println!("╚════════════════════════════════════════════════╝");
+    println!("\n╔═════════════════════════════════════════╗");
+    println!("║         RustrialOS - Main Menu            ║");
+    println!("╚═══════════════════════════════════════════╝");
     println!();
     println!("  [1] Continue with normal operation");
     println!("  [2] Run RustrialScript Demo");
