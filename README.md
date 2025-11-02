@@ -38,13 +38,13 @@ You can refer to ```src/rustrial_script/docs``` to know more about how RustrialS
 <details markdown="1"> <summary>Menu Screen</summary>
 
 
-<img width="416" height="172" alt="image" src="https://github.com/user-attachments/assets/3ad456ce-267b-4380-bede-40fb4aead9f9" />
+<img width="530" height="272" alt="image" src="https://github.com/user-attachments/assets/5f740132-ee68-4cde-aa5e-f111b29dd1d8" />
 
-<img width="732" height="258" alt="image" src="https://github.com/user-attachments/assets/52cf8737-1811-415f-9526-6f2c25033df4" />
+<img width="623" height="250" alt="image" src="https://github.com/user-attachments/assets/4bcb576d-c964-4565-8a3a-19454cef231e" />
 
-<img width="527" height="307" alt="image" src="https://github.com/user-attachments/assets/a8309730-2383-427d-bd74-94f97cab7d0d" />
+<img width="624" height="361" alt="image" src="https://github.com/user-attachments/assets/fcb6cf2b-094a-4663-b3e9-b0974babf838" />
 
-<img width="625" height="68" alt="image" src="https://github.com/user-attachments/assets/42ef5f91-a9d3-4aab-9fc3-568e72b2aef4" />
+<img width="563" height="391" alt="image" src="https://github.com/user-attachments/assets/5d1d8490-089d-444a-9440-40db87c48795" />
 
 
 </details>
