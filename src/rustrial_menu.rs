@@ -220,29 +220,39 @@ fn handle_script_browser_input(
             *menu_state = MenuState::ScriptChoice;
         }
         DecodedKey::RawKey(KeyCode::ArrowUp) | DecodedKey::Unicode('w') | DecodedKey::Unicode('W') => {
-            if let Some(fs) = crate::fs::root_fs() {
-                let fs = fs.lock();
-                if let Ok(scripts) = fs.list_dir("/scripts") {
-                    if !scripts.is_empty() && *selected_index > 0 {
-                        *selected_index -= 1;
-                        use crate::vga_buffer::clear_screen;
-                        clear_screen();
-                        show_script_browser(*selected_index);
-                    }
-                }
+            if *selected_index == 0 {
+                return;
+            }
+
+            let can_navigate = crate::fs::root_fs()
+                .and_then(|fs| {
+                    let fs_guard = fs.lock();
+                    fs_guard.list_dir("/scripts").ok()
+                })
+                .map(|scripts| !scripts.is_empty())
+                .unwrap_or(false);
+
+            if can_navigate {
+                *selected_index -= 1;
+                use crate::vga_buffer::clear_screen;
+                clear_screen();
+                show_script_browser(*selected_index);
             }
         }
         DecodedKey::RawKey(KeyCode::ArrowDown) | DecodedKey::Unicode('s') | DecodedKey::Unicode('S') => {
-            if let Some(fs) = crate::fs::root_fs() {
-                let fs = fs.lock();
-                if let Ok(scripts) = fs.list_dir("/scripts") {
-                    if !scripts.is_empty() && *selected_index < scripts.len().saturating_sub(1) {
-                        *selected_index += 1;
-                        use crate::vga_buffer::clear_screen;
-                        clear_screen();
-                        show_script_browser(*selected_index);
-                    }
-                }
+            let max_index = crate::fs::root_fs()
+                .and_then(|fs| {
+                    let fs_guard = fs.lock();
+                    fs_guard.list_dir("/scripts").ok()
+                })
+                .map(|scripts| scripts.len())
+                .unwrap_or(0);
+
+            if max_index > 0 && *selected_index < max_index.saturating_sub(1) {
+                *selected_index += 1;
+                use crate::vga_buffer::clear_screen;
+                clear_screen();
+                show_script_browser(*selected_index);
             }
         }
         DecodedKey::Unicode('\n') | DecodedKey::RawKey(KeyCode::Return) => {
