@@ -35,17 +35,24 @@ Rustrial OS is an educational operating system project that demonstrates modern 
 You can refer to ```src/rustrial_script/docs``` to know more about how RustrialScripts is implemented.
 
 ## Showcase
-<details markdown="1"> <summary>Menu Screen</summary>
 
+<details markdown="1"> <summary>Menu Screen & Filesystem</summary>
 
-<img width="530" height="272" alt="image" src="https://github.com/user-attachments/assets/5f740132-ee68-4cde-aa5e-f111b29dd1d8" />
+**Main Menu**
 
-<img width="623" height="250" alt="image" src="https://github.com/user-attachments/assets/4bcb576d-c964-4565-8a3a-19454cef231e" />
+<img width="530" height="272" alt="Main Menu" src="https://github.com/user-attachments/assets/5f740132-ee68-4cde-aa5e-f111b29dd1d8" />
 
-<img width="624" height="361" alt="image" src="https://github.com/user-attachments/assets/fcb6cf2b-094a-4663-b3e9-b0974babf838" />
+**RustrialScript Options**
 
-<img width="563" height="391" alt="image" src="https://github.com/user-attachments/assets/5d1d8490-089d-444a-9440-40db87c48795" />
+<img width="623" height="250" alt="Script Options" src="https://github.com/user-attachments/assets/4bcb576d-c964-4565-8a3a-19454cef231e" />
 
+**Script Browser - Navigate and Run Scripts**
+
+<img width="624" height="361" alt="Script Browser" src="https://github.com/user-attachments/assets/fcb6cf2b-094a-4663-b3e9-b0974babf838" />
+
+**Help Screen**
+
+<img width="563" height="391" alt="Help Screen" src="https://github.com/user-attachments/assets/5d1d8490-089d-444a-9440-40db87c48795" />
 
 </details>
 
@@ -86,48 +93,83 @@ You can refer to ```src/rustrial_script/docs``` to know more about how RustrialS
 - **Serial Port I/O**: UART 16550 serial communication for test output and debugging
 - **Keyboard Input**: Async keyboard task for processing PS/2 keyboard scancodes
 
+### Filesystem & Storage
+- **In-Memory Filesystem (RAMfs)**: Complete virtual filesystem implementation with:
+  - File creation, reading, writing, and deletion
+  - Directory support and navigation
+  - Virtual File System (VFS) abstraction layer
+  - Embedded script loading at boot time
+- **Script Loader**: Compile-time embedding of `.rscript` files into the kernel binary
+- **Interactive Script Browser**: Navigate and execute scripts from the filesystem with keyboard controls
+
 ### RustrialScript Interpreter & Interactive Menu
 - **RustrialScript Interpreter**: Minimal, stack-based scripting language for RustrialOS. Runs scripts directly in the OS, with no_std and alloc-only dependencies. Features integer, boolean, and nil types, arithmetic and control flow, and direct integration with VGA output.
-- **Interactive Menu System**: On boot, users are presented with a menu to choose between normal OS operation or running a RustrialScript demo. Keyboard input is handled asynchronously, and the menu is extensible for future options.
-- **Integration**: The interpreter is modular, with lexer, parser, VM, and value modules. Example scripts (fibonacci, factorial, etc.) are provided in `src/rustrial_script/examples/`. See `src/rustrial_script/docs/INTEGRATION.md` and `src/rustrial_script/docs/INTERACTIVE_MENU.md` for details.
+- **Interactive Menu System**: Enhanced boot menu with nested navigation:
+  - **Option 1**: Normal operation with system information and keyboard echo mode
+  - **Option 2**: RustrialScript with two sub-options:
+    - Run Demo: Execute pre-coded Fibonacci demonstration
+    - Browse Scripts: Interactive filesystem browser with 6 embedded scripts
+  - **Option 3**: Comprehensive help documentation
+- **Script Browser Features**:
+  - Navigate with arrow keys (↑/↓) or W/S
+  - Visual selection indicator (→ symbol)
+  - Press Enter to execute selected script
+  - Real-time script execution with VGA output
+  - Smart menu flow: returns to browser after execution
+- **Integration**: The interpreter is modular, with lexer, parser, VM, and value modules. Example scripts (fibonacci, factorial, collatz, gcd, prime checker, sum of squares) are embedded at compile time and loaded into the filesystem. See `src/rustrial_script/docs/` for detailed documentation and `FILESYSTEM.md` for filesystem architecture.
 
 ## Project Structure
 
 ```
 src/
-├── main.rs                  # Kernel entry point and main function
-├── lib.rs                   # Kernel library with core initialization and test infrastructure
+├── main.rs                  # Kernel entry point and initialization
+├── lib.rs                   # Kernel library with core setup and test infrastructure
 ├── vga_buffer.rs            # VGA text mode buffer and print macros
-├── serial.rs                # Serial port (UART) I/O implementation
-├── gdt.rs                   # Global Descriptor Table setup
-├── interrupts.rs            # Interrupt Descriptor Table and handlers
-├── memory.rs                # Paging, page tables, and memory mapping
-├── rustrial_menu.rs         # Interactive menu system
-├── rustrial_script/         # RustrialScript interpreter modules and examples
+├── serial.rs                # Serial port (UART) I/O for debugging
+├── gdt.rs                   # Global Descriptor Table configuration
+├── interrupts.rs            # Interrupt Descriptor Table and exception handlers
+├── memory.rs                # Paging, page tables, and memory translation
+├── allocator.rs             # Heap allocator interface
+├── rustrial_menu.rs         # Interactive menu system with script browser
+├── script_loader.rs         # Compile-time script embedding and loading
+├── fs/                      # Filesystem implementation
+│   ├── mod.rs               # Filesystem initialization and mounting
+│   ├── vfs.rs               # Virtual File System abstraction layer
+│   └── ramfs.rs             # RAM-based in-memory filesystem
+├── rustrial_script/         # RustrialScript interpreter modules
 │   ├── mod.rs               # Main interpreter interface
-│   ├── lexer.rs             # Tokenizer
+│   ├── lexer.rs             # Tokenizer for script parsing
 │   ├── parser.rs            # Bytecode compiler
-│   ├── vm.rs                # Virtual machine
-│   ├── value.rs             # Value types
-│   ├── tests.rs             # Interpreter tests
-│   ├── examples/            # Example scripts (fibonacci, factorial, etc.)
-│   └── docs/                # Documentation (INTEGRATION.md, INTERACTIVE_MENU.md, etc.)
+│   ├── vm.rs                # Stack-based virtual machine
+│   ├── value.rs             # Value types (int, bool, nil)
+│   ├── examples/            # Example scripts (*.rscript files)
+│   └── docs/                # Language and integration documentation
 ├── allocator/               # Memory allocator implementations
-│   ├── mod.rs               # Allocator interface and Locked wrapper
 │   ├── bump.rs              # Simple bump allocator
 │   ├── linked_list.rs       # Linked list allocator
-│   └── fixed_size_block.rs  # Fixed-size block allocator (active by default)
-├── task/                    # Async task system
-│   ├── mod.rs               # Task structure and TaskId
-│   ├── executor.rs          # Waker-based task executor
-│   ├── simple_executor.rs   # Basic single-threaded executor
-│   └── keyboard.rs          # Keyboard input processing
-tests/
-├── basic_boot.rs            # Tests kernel boots without crashing
-├── heap_allocation.rs       # Tests heap allocation with Box, Vec, and Rc
-├── should_panic.rs          # Tests panic handling
-└── stack_overflow.rs        # Tests stack overflow exception handling
-Cargo.toml                   # Project manifest with dependencies
+│   └── fixed_size_block.rs  # Fixed-size block allocator (default)
+└── task/                    # Async task execution system
+    ├── mod.rs               # Task structure and TaskId
+    ├── executor.rs          # Waker-based task executor
+    ├── simple_executor.rs   # Basic single-threaded executor
+    └── keyboard.rs          # Async keyboard input processing
+
+tests/                       # Integration tests
+├── basic_boot.rs            # Kernel boot verification
+├── heap_allocation.rs       # Heap allocator tests
+├── should_panic.rs          # Panic handling tests
+└── stack_overflow.rs        # Stack overflow exception tests
+
+boot/                        # Custom bootloader (optional)
+├── boot.asm                 # Stage 1 bootloader (512 bytes)
+├── stage2.asm               # Stage 2 bootloader (Long Mode setup)
+├── build.ps1                # Windows build script
+├── Makefile                 # Linux/macOS build script
+└── custombootloader.md      # Bootloader documentation
+
+Cargo.toml                   # Project dependencies and configuration
+x86_64-rustrial_os.json      # Custom target specification
+FILESYSTEM.md                # Filesystem architecture documentation
 ```
 ### Memory Layout
 - **VGA Buffer**: `0xb8000` - Text mode framebuffer
@@ -165,18 +207,210 @@ You should first have ```rustup``` and ```cargo``` installed on your machine. Af
 
 ## Build & Run
 
-### Quick Start
+### Quick Start (Using Bootloader Crate)
+
+This is the recommended method for development and testing:
 
 ```bash
 # Clone the repository
 git clone https://github.com/lazzerex/rustrial-os.git
 cd rustrial-os
 
-# Build and run in QEMU (all-in-one)
+# Build and run in QEMU (all-in-one command)
 cargo run
 ```
 
-### Manual Build Steps
+The OS will boot and display an interactive menu where you can:
+- Press **1** for normal operation mode
+- Press **2** to access RustrialScript (demo or script browser)
+- Press **3** to view help documentation
+
+### Using Custom Bootloader (Advanced)
+
+The custom bootloader is written in x86-64 assembly and provides educational insight into the boot process. See `boot/custombootloader.md` for detailed documentation.
+
+#### Prerequisites for Custom Bootloader
+
+1. **NASM (Netwide Assembler)**
+   - Windows: Download from [nasm.us](https://www.nasm.us/) and add to PATH
+   - Linux: `sudo apt install nasm` (Debian/Ubuntu) or `sudo pacman -S qemu` (Arch)
+   - macOS: `brew install nasm`
+
+2. **Verify NASM installation:**
+   ```bash
+   nasm -v
+   # Should output: NASM version 2.xx.xx or higher
+   ```
+
+#### Building with Custom Bootloader
+
+**Step 1: Build the Custom Bootloader**
+
+```powershell
+# Windows (PowerShell)
+cd boot
+.\build.ps1
+cd ..
+```
+
+```bash
+# Linux/macOS
+cd boot
+make
+cd ..
+```
+
+This creates:
+- `boot/boot.bin` - Stage 1 bootloader (512 bytes)
+- `boot/stage2.bin` - Stage 2 bootloader (~8KB)
+- `boot/bootloader.img` - Combined bootloader image
+
+**Step 2: Build the Kernel**
+
+```bash
+# Build kernel for release (optimized)
+cargo build --target x86_64-rustrial_os.json --release
+
+# Convert ELF to flat binary
+cargo install cargo-binutils
+rustup component add llvm-tools-preview
+rust-objcopy target/x86_64-rustrial_os/release/rustrial_os -O binary kernel.bin
+```
+
+**Step 3: Create Bootable Disk Image**
+
+```powershell
+# Windows (PowerShell)
+# Create 10MB disk image filled with zeros
+$diskSize = 20000 * 512
+$zeros = New-Object byte[] $diskSize
+[System.IO.File]::WriteAllBytes("disk.img", $zeros)
+
+# Write bootloader at sector 0
+$bootloader = [System.IO.File]::ReadAllBytes("boot\bootloader.img")
+$disk = [System.IO.File]::ReadAllBytes("disk.img")
+[Array]::Copy($bootloader, 0, $disk, 0, $bootloader.Length)
+
+# Write kernel at sector 66 (0x4200 bytes offset)
+$kernel = [System.IO.File]::ReadAllBytes("kernel.bin")
+[Array]::Copy($kernel, 0, $disk, 33280, $kernel.Length)
+
+[System.IO.File]::WriteAllBytes("disk.img", $disk)
+
+# Run in QEMU
+qemu-system-x86_64 -drive format=raw,file=disk.img
+```
+
+```bash
+# Linux/macOS
+# Create 10MB disk image
+dd if=/dev/zero of=disk.img bs=512 count=20000
+
+# Write bootloader at sector 0
+dd if=boot/bootloader.img of=disk.img conv=notrunc
+
+# Write kernel at sector 66
+dd if=kernel.bin of=disk.img bs=512 seek=65 conv=notrunc
+
+# Run in QEMU
+qemu-system-x86_64 -drive format=raw,file=disk.img
+```
+
+**Why Sector 66?**
+- Sector 0: Boot signature (Stage 1)
+- Sectors 1-64: Stage 2 bootloader
+- Sector 65+: Reserved
+- Sector 66+: Kernel binary
+
+**Complete Build Script (PowerShell)**
+
+Create `build-custom.ps1` in the project root:
+
+```powershell
+#!/usr/bin/env pwsh
+# Complete custom bootloader build script
+
+Write-Host "Building RustrialOS with Custom Bootloader..." -ForegroundColor Cyan
+
+# Step 1: Build bootloader
+Write-Host "`n[1/4] Building custom bootloader..." -ForegroundColor Yellow
+cd boot
+.\build.ps1
+if (-not $?) { exit 1 }
+cd ..
+
+# Step 2: Build kernel
+Write-Host "`n[2/4] Building kernel..." -ForegroundColor Yellow
+cargo build --target x86_64-rustrial_os.json --release
+if (-not $?) { exit 1 }
+
+# Step 3: Convert kernel to binary
+Write-Host "`n[3/4] Converting kernel to flat binary..." -ForegroundColor Yellow
+rust-objcopy target/x86_64-rustrial_os/release/rustrial_os -O binary kernel.bin
+
+# Step 4: Create disk image
+Write-Host "`n[4/4] Creating bootable disk image..." -ForegroundColor Yellow
+$diskSize = 20000 * 512
+$zeros = New-Object byte[] $diskSize
+[System.IO.File]::WriteAllBytes("disk.img", $zeros)
+
+$bootloader = [System.IO.File]::ReadAllBytes("boot\bootloader.img")
+$disk = [System.IO.File]::ReadAllBytes("disk.img")
+[Array]::Copy($bootloader, 0, $disk, 0, $bootloader.Length)
+
+$kernel = [System.IO.File]::ReadAllBytes("kernel.bin")
+[Array]::Copy($kernel, 0, $disk, 33280, $kernel.Length)
+
+[System.IO.File]::WriteAllBytes("disk.img", $disk)
+
+Write-Host "`nBuild complete! disk.img created." -ForegroundColor Green
+Write-Host "Run with: qemu-system-x86_64 -drive format=raw,file=disk.img" -ForegroundColor Cyan
+```
+
+Then run:
+```powershell
+.\build-custom.ps1
+```
+
+**Complete Build Script (Bash)**
+
+Create `build-custom.sh` in the project root:
+
+```bash
+#!/bin/bash
+# Complete custom bootloader build script
+
+echo -e "\e[36mBuilding RustrialOS with Custom Bootloader...\e[0m"
+
+# Step 1: Build bootloader
+echo -e "\n\e[33m[1/4] Building custom bootloader...\e[0m"
+cd boot && make && cd .. || exit 1
+
+# Step 2: Build kernel
+echo -e "\n\e[33m[2/4] Building kernel...\e[0m"
+cargo build --target x86_64-rustrial_os.json --release || exit 1
+
+# Step 3: Convert kernel to binary
+echo -e "\n\e[33m[3/4] Converting kernel to flat binary...\e[0m"
+rust-objcopy target/x86_64-rustrial_os/release/rustrial_os -O binary kernel.bin
+
+# Step 4: Create disk image
+echo -e "\n\e[33m[4/4] Creating bootable disk image...\e[0m"
+dd if=/dev/zero of=disk.img bs=512 count=20000 2>/dev/null
+dd if=boot/bootloader.img of=disk.img conv=notrunc 2>/dev/null
+dd if=kernel.bin of=disk.img bs=512 seek=65 conv=notrunc 2>/dev/null
+
+echo -e "\n\e[32mBuild complete! disk.img created.\e[0m"
+echo -e "\e[36mRun with: qemu-system-x86_64 -drive format=raw,file=disk.img\e[0m"
+```
+
+Make it executable and run:
+```bash
+chmod +x build-custom.sh
+./build-custom.sh
+```
+
+### Manual Build Steps (Bootloader Crate)
 
 ```bash
 # Build the kernel
@@ -192,18 +426,68 @@ qemu-system-x86_64 -drive format=raw,file=target/x86_64-rustrial_os/debug/bootim
 ### Testing
 
 ```bash
-# Run all tests
+# Run all integration tests
 cargo test
 
 # Run specific test
 cargo test --test heap_allocation
 
-# Run with test output
+# Run with verbose output
 cargo test -- --nocapture
+```
 
+### QEMU Options
+
+```bash
+# Run with serial output to terminal
+cargo run -- -serial stdio
+
+# Run with more memory
+qemu-system-x86_64 -m 256M -drive format=raw,file=disk.img
+
+# Run with debugging enabled
+qemu-system-x86_64 -s -S -drive format=raw,file=disk.img
+# Then in another terminal: gdb target/x86_64-rustrial_os/debug/rustrial_os
 ```
 
 ## Key Implementation Details
+
+### Filesystem Architecture
+
+The OS implements a complete virtual filesystem layer:
+
+**RAMfs (In-Memory Filesystem)**:
+- Files stored in heap-allocated data structures
+- Fast access (no disk I/O)
+- Directory support with path-based navigation
+- Full VFS abstraction for future filesystem implementations
+
+**Script Loading System**:
+- Scripts embedded at compile time using `include_bytes!`
+- Automatically mounted to `/scripts/` directory at boot
+- 6 example scripts available: fibonacci, factorial, collatz, gcd, prime_checker, sum_of_squares
+- Can be extended by modifying `src/script_loader.rs`
+
+**VFS API Example**:
+```rust
+use rustrial_os::fs::{self, FileSystem};
+
+// Get filesystem reference
+if let Some(fs) = fs::root_fs() {
+    let mut fs = fs.lock();
+    
+    // Create a file
+    fs.create_file("/test.txt", b"Hello, World!")?;
+    
+    // Read the file
+    let content = fs.read_file_to_string("/test.txt")?;
+    
+    // List directory
+    let files = fs.list_dir("/scripts")?;
+}
+```
+
+See `FILESYSTEM.md` for detailed architecture documentation.
 
 ### Memory Management
 The kernel implements a flexible allocator system:
@@ -231,18 +515,42 @@ The kernel supports async/await using a custom executor:
 ### RustrialScript Interpreter
 - Stack-based VM with fixed-size stack (256 values)
 - Integer, boolean, and nil types
-- Simple syntax: variable assignment, arithmetic, control flow
-- Example scripts for math and logic
-- No_std, alloc-only: runs in bare-metal OS
-- Direct integration with VGA output
-- Modular design: lexer, parser, VM, value
-- See `src/rustrial_script/docs/ARCHITECTURE.md` and `src/rustrial_script/docs/scriptdocs.md` for language details
+- Simple syntax: variable assignment, arithmetic, control flow (if/while)
+- Example scripts demonstrate Fibonacci, factorials, GCD, prime checking, etc.
+- No_std, alloc-only: runs in bare-metal OS with no dependencies
+- Direct integration with VGA buffer for output
+- Modular design: separate lexer, parser, VM, and value modules
+- Bytecode compilation for efficient execution
+- See `src/rustrial_script/docs/ARCHITECTURE.md` for implementation details
+- See `src/rustrial_script/docs/scriptdocs.md` for language reference
 
 ### Interactive Menu System
-- Appears on boot, lets user choose OS mode or run interpreter demo
-- Async keyboard input handling
-- Extensible for future options (REPL, script selector, etc.)
-- See `src/rustrial_script/docs/INTERACTIVE_MENU.md` for user experience and integration
+- Async keyboard-driven navigation
+- Nested menu structure for better organization
+- Visual feedback with selection indicators
+- Smart state management for menu transitions
+- Script browser with real-time file listing from RAMfs
+- Keyboard controls:
+  - Number keys: Select menu options
+  - Arrow keys (↑/↓) or W/S: Navigate in script browser
+  - Enter: Execute selected item
+  - ESC: Return to previous menu/screen
+  - Backspace: Delete character (in echo mode)
+- See `src/rustrial_script/docs/INTERACTIVE_MENU.md` for user experience details
+
+### Custom Bootloader (Optional)
+- Two-stage boot process written in x86-64 assembly
+- Stage 1: 512-byte boot sector loaded by BIOS
+- Stage 2: ~8KB bootloader handling Long Mode transition
+- Features:
+  - A20 line enable for >1MB memory access
+  - CPUID checks for 64-bit CPU support
+  - 4-level paging setup with identity mapping
+  - GDT configuration for Protected/Long Mode
+  - Real Mode → Protected Mode → Long Mode transition
+- Educational resource for learning boot process
+- See `boot/custombootloader.md` for complete documentation
+- Production use: stick with the stable `bootloader` crate
 
 ## Dependencies
 
@@ -298,31 +606,40 @@ qemu-system-x86_64 -s -S -drive format=raw,file=target/.../bootimage-rustrial_os
 ```
 
 ### Known Limitations
-- Single-core only (no SMP support)
-- No filesystem implementation
-- Limited device driver support
-- No user-space programs
-- Basic scheduler (none implemented yet)
-- Text mode only (no graphics)
-- No pre-emptive multitasking (only cooperative via async/await)
-- Limited memory: 100KB heap by default
-- No file system
+- Single-core only (no SMP support yet)
+- Filesystem is in-memory only (no persistence across reboots)
+- No block device drivers (ATA/AHCI not implemented)
+- Limited device driver support (VGA text mode, PS/2 keyboard, serial only)
+- No user-space programs or process isolation
+- No pre-emptive multitasking (cooperative async/await only)
+- Limited memory: 100KB heap by default (configurable)
+- Text mode only (no graphics mode)
 - No network support
-- Minimal error handling in many areas
+- Scripts are read-only (can't edit at runtime)
+- Minimal error handling in some areas
 
 ### Potential Improvements
-- Multi-core CPU support
-- Pre-emptive task scheduling
-- Larger heap with paging improvements
-- File system implementation (FAT32 or ext2)
-- Network stack
+- Multi-core CPU support with proper synchronization
+- Pre-emptive task scheduling with time slicing
+- Larger heap with on-demand paging
+- Block device drivers (ATA PIO/DMA, AHCI)
+- Persistent filesystem (FAT32 or custom FS)
+- File caching and buffering layer
+- Network stack (basic TCP/IP)
+- Script editor and REPL interface
 - Enhanced error types and Result-based error handling
 - Dynamic task creation and management
+- ACPI support for power management
+- USB driver framework
 
 ## Roadmap
 
 ### Planned Features
 
+- [x] ~~Basic filesystem support (RAMfs)~~ ✅ **Completed!**
+- [ ] Block device abstraction layer
+- [ ] FAT32 filesystem implementation
+- [ ] Read files from bootloader disk
 - [ ] Multitasking and process scheduler
 - [ ] User-space programs
 - [ ] System calls interface
@@ -353,6 +670,60 @@ Please feel free to open an issue or submit a pull request.
 4. Ensure `cargo test` passes before submitting PRs
 5. Use meaningful commit messages
 
+## Troubleshooting
+
+### Build Issues
+
+**Error: "target 'x86_64-rustrial_os' not found"**
+```bash
+# Ensure rust-src is installed
+rustup component add rust-src
+```
+
+**Error: "bootimage not found"**
+```bash
+# Install bootimage tool
+cargo install bootimage
+```
+
+**Error: "NASM not found" (Custom Bootloader)**
+- Windows: Download from [nasm.us](https://www.nasm.us/), install, and add to PATH
+- Linux: `sudo apt install nasm`
+- macOS: `brew install nasm`
+
+### Runtime Issues
+
+**QEMU doesn't start or shows black screen**
+- Verify QEMU installation: `qemu-system-x86_64 --version`
+- Check disk image exists: `ls -l disk.img` or `dir disk.img`
+- Try with verbose output: `cargo run -- -serial stdio`
+
+**Kernel panic or triple fault**
+- Check serial output for panic messages
+- Verify heap is properly initialized in `main.rs`
+- Run tests to isolate issues: `cargo test`
+
+**Script browser shows no files**
+- Ensure filesystem is initialized in `main.rs`
+- Verify scripts are loaded: check for "[FS]" messages on boot
+- Confirm `script_loader.rs` includes all scripts
+
+**Custom bootloader hangs**
+- Verify boot.bin is exactly 512 bytes with 0xAA55 signature
+- Check stage2.bin is present and assembled correctly
+- Ensure kernel.bin is at correct sector (66) on disk
+- Test with: `qemu-system-x86_64 -drive format=raw,file=boot/bootloader.img`
+
+### Testing Issues
+
+**Tests fail with "exit code 0x10"**
+- This is actually success! Exit code 0x10 is our success code
+- Check output for actual test results
+
+**Integration tests timeout**
+- Increase timeout in `Cargo.toml`: `test-timeout = 600`
+- Run single test: `cargo test --test heap_allocation`
+
 ## Resources & Learning
 
 This project is heavily inspired by and follows guidance from:
@@ -367,11 +738,26 @@ This project is heavily inspired by and follows guidance from:
 
 ## Documentation
 
-- [RustrialScript Integration Guide](src/rustrial_script/docs/INTEGRATION.md)
-- [Interactive Menu System](src/rustrial_script/docs/INTERACTIVE_MENU.md)
-- [RustrialScript Architecture](src/rustrial_script/docs/ARCHITECTURE.md)
-- [Getting Started with RustrialScript](src/rustrial_script/docs/GETTING_STARTED.md)
-- [RustrialScript Language Reference](src/rustrial_script/docs/scriptdocs.md)
+### Main Documentation
+- **[FILESYSTEM.md](FILESYSTEM.md)** - Complete filesystem architecture, design decisions, and API reference
+- **[boot/custombootloader.md](boot/custombootloader.md)** - Custom x86-64 bootloader documentation and boot process
+
+### RustrialScript Documentation
+Located in `src/rustrial_script/docs/`:
+- **[INTEGRATION.md](src/rustrial_script/docs/INTEGRATION.md)** - How to integrate and use the interpreter
+- **[INTERACTIVE_MENU.md](src/rustrial_script/docs/INTERACTIVE_MENU.md)** - Menu system user guide
+- **[ARCHITECTURE.md](src/rustrial_script/docs/ARCHITECTURE.md)** - Interpreter internals and design
+- **[GETTING_STARTED.md](src/rustrial_script/docs/GETTING_STARTED.md)** - Quick start guide for RustrialScript
+- **[scriptdocs.md](src/rustrial_script/docs/scriptdocs.md)** - Complete language reference and syntax
+
+### Example Scripts
+Located in `src/rustrial_script/examples/`:
+- `fibonacci.rscript` - Fibonacci sequence generator
+- `factorial.rscript` - Factorial calculator
+- `collatz.rscript` - Collatz conjecture demonstration
+- `gcd.rscript` - Greatest common divisor calculator
+- `prime_checker.rscript` - Prime number tester
+- `sum_of_squares.rscript` - Sum of squares calculator
 
 This project is provided as-is for educational purposes.
 
@@ -385,7 +771,61 @@ Special thanks to:
 
 ---
 
+## Quick Reference
 
+### Boot Menu Navigation
+```
+Main Menu:
+  [1] Normal Operation     → System info + keyboard echo
+  [2] RustrialScript       → Sub-menu for scripts
+      [1] Run Demo         → Fibonacci demonstration
+      [2] Browse Scripts   → Interactive file browser
+  [3] Help                 → Documentation
+
+Script Browser:
+  ↑/↓ or W/S  - Navigate scripts
+  Enter       - Execute selected script
+  ESC         - Return to previous menu
+```
+
+### Common Commands
+```bash
+# Quick start
+cargo run
+
+# Build with custom bootloader
+./build-custom.sh          # Linux/macOS
+.\build-custom.ps1         # Windows
+
+# Run tests
+cargo test
+
+# Build for release
+cargo build --target x86_64-rustrial_os.json --release
+
+# Run with serial output
+cargo run -- -serial stdio
+```
+
+### File Locations
+- Kernel source: `src/`
+- Scripts: `src/rustrial_script/examples/`
+- Bootloader: `boot/`
+- Tests: `tests/`
+- Documentation: `*.md` and `src/rustrial_script/docs/`
+
+### Memory Map
+```
+0x0000_0000 - 0x0000_7BFF   Free/BIOS
+0x0000_7C00 - 0x0000_7DFF   Boot sector (Stage 1)
+0x0000_7E00 - 0x0000_9FFF   Stage 2 bootloader
+0x0000_1000 - 0x0000_4FFF   Page tables
+0x0010_0000 - 0x001F_FFFF   Kernel binary
+0x4444_4444_0000            Heap start (100KB)
+0xB800_0000                 VGA buffer
+```
+
+---
 
 <p align="center">
   <a href="https://github.com/lazzerex/rustrial-os/issues">Report Bug</a>
