@@ -89,6 +89,11 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("heap initialization failed");
 
+    // Initialize filesystem and load scripts
+    rustrial_os::fs::init();
+    rustrial_os::script_loader::load_scripts()
+        .expect("failed to load scripts");
+
     // let page = Page::containing_address(VirtAddr::new(0xdeadbeaf000));
     // memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
 
