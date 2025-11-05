@@ -1,1 +1,22 @@
+# Rust build artifacts
 /target
+
+# Custom bootloader build artifacts
+kernel.bin
+disk.img
+boot/*.bin
+boot/*.img
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+UPDATE_SUMMARY.md
