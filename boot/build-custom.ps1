@@ -1,4 +1,10 @@
 #!/usr/bin/env pwsh
+# ============================================================================
+# RustrialOS Custom Bootloader Build Script - WINDOWS (PowerShell)
+# ============================================================================
+# This script is designed for Windows systems using PowerShell.
+# For Linux/macOS, use build-custom.sh instead.
+# 
 # Complete custom bootloader build script for RustrialOS
 
 Write-Host "╔════════════════════════════════════════════════╗" -ForegroundColor Cyan

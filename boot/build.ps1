@@ -1,4 +1,9 @@
-# RustrialOS Custom Bootloader Build Script (PowerShell)
+# ============================================================================
+# RustrialOS Custom Bootloader Build Script - WINDOWS (PowerShell)
+# ============================================================================
+# This script is designed for Windows systems using PowerShell.
+# For Linux/macOS, use the Makefile instead (run: make)
+# 
 # Requires: nasm.exe in PATH or in current directory
 
 Write-Host "RustrialOS Custom Bootloader Build Script" -ForegroundColor Cyan

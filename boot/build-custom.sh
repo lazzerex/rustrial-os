@@ -1,4 +1,10 @@
 #!/bin/bash
+# ============================================================================
+# RustrialOS Custom Bootloader Build Script - LINUX/macOS (Bash)
+# ============================================================================
+# This script is designed for Linux and macOS systems using Bash.
+# For Windows, use build-custom.ps1 instead.
+# 
 # Complete custom bootloader build script for RustrialOS
 
 set -e  # Exit on any error

@@ -1,6 +1,14 @@
+; ============================================================================
 ; RustrialOS Custom Bootloader - Stage 1 (Boot Sector)
-; This is loaded at 0x7C00 by BIOS and must be exactly 512 bytes
-; Its job is to load Stage 2 from disk into memory and jump to it
+; ============================================================================
+; Platform: x86-64 (all operating systems)
+; Build with: NASM assembler
+;   - Windows: nasm -f bin boot.asm -o boot.bin
+;   - Linux/macOS: nasm -f bin boot.asm -o boot.bin
+;
+; This is loaded at 0x7C00 by BIOS and must be exactly 512 bytes.
+; Its job is to load Stage 2 from disk into memory and jump to it.
+; ============================================================================
 
 [BITS 16]           ; Real mode (16-bit)
 [ORG 0x7C00]        ; BIOS loads us here

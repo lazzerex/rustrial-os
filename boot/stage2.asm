@@ -1,4 +1,11 @@
+; ============================================================================
 ; RustrialOS Custom Bootloader - Stage 2
+; ============================================================================
+; Platform: x86-64 (all operating systems)
+; Build with: NASM assembler
+;   - Windows: nasm -f bin stage2.asm -o stage2.bin
+;   - Linux/macOS: nasm -f bin stage2.asm -o stage2.bin
+;
 ; Loaded at 0x7E00 by Stage 1
 ; Responsibilities:
 ;   1. Enable A20 line
@@ -8,6 +15,7 @@
 ;   5. Switch to long mode (64-bit)
 ;   6. Load kernel from disk
 ;   7. Jump to kernel entry point
+; ============================================================================
 
 [BITS 16]
 [ORG 0x7E00]

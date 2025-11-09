@@ -4,6 +4,68 @@
 
 This directory contains a custom x86-64 bootloader written in Assembly for RustrialOS. The bootloader implements a two-stage boot process that transitions the CPU from 16-bit Real Mode to 64-bit Long Mode and loads the kernel into memory.
 
+## Files in This Directory
+
+### Assembly Source Files
+- **`boot.asm`** - Stage 1 bootloader (boot sector, 512 bytes)
+  - Platform: All (x86-64 assembly)
+  - Loaded by BIOS, loads Stage 2 from disk
+  
+- **`stage2.asm`** - Stage 2 bootloader (main bootloader, ~8KB)
+  - Platform: All (x86-64 assembly)
+  - Enables A20, checks CPU, loads kernel, enters Long Mode
+
+### Build Scripts
+
+#### Windows Scripts
+- **`build.ps1`** - PowerShell script to build the bootloader only
+  - For: Windows (PowerShell)
+  - Usage: `cd boot; .\build.ps1`
+  
+- **`build-custom.ps1`** - Complete build script (bootloader + kernel + disk image)
+  - For: Windows (PowerShell)
+  - Usage: `.\boot\build-custom.ps1` (run from project root)
+
+#### Linux/macOS Scripts
+- **`Makefile`** - Make build script to build the bootloader only
+  - For: Linux/macOS
+  - Usage: `cd boot; make`
+  
+- **`build-custom.sh`** - Complete build script (bootloader + kernel + disk image)
+  - For: Linux/macOS (Bash)
+  - Usage: `./boot/build-custom.sh` (run from project root)
+
+### Documentation
+- **`custombootloader.md`** - This file, comprehensive bootloader documentation
+
+### Quick Reference
+
+| Task | Windows | Linux/macOS |
+|------|---------|-------------|
+| Build bootloader only | `cd boot; .\build.ps1` | `cd boot; make` |
+| Build complete disk image | `.\boot\build-custom.ps1` | `./boot/build-custom.sh` |
+| Clean build artifacts | Delete files manually | `cd boot; make clean` |
+| Test in QEMU | `qemu-system-x86_64 -drive format=raw,file=disk.img` | Same |
+
+### Platform-Specific Notes
+
+**Windows Users:**
+- Use PowerShell scripts (`.ps1` files)
+- Ensure PowerShell execution policy allows scripts: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
+- NASM must be installed and in PATH
+- Forward slashes in paths are automatically converted
+
+**Linux/macOS Users:**
+- Use Makefile or Bash scripts (`.sh` files)
+- Make scripts executable: `chmod +x boot/build-custom.sh`
+- NASM is typically available through package managers
+- Ensure `dd` and `make` utilities are installed (usually pre-installed)
+
+**Assembly Files (Platform-Independent):**
+- `boot.asm` and `stage2.asm` work on all platforms
+- Only the build tools differ between operating systems
+- NASM syntax is identical across Windows/Linux/macOS
+
 ### Architecture
 
 **Stage 1 (boot.asm)** - Boot Sector (512 bytes)
@@ -68,35 +130,100 @@ Jump to kernel at 0x100000 (64-bit mode)
 
 ### Prerequisites
 
-**NASM (Netwide Assembler)**
-- Download: https://www.nasm.us/
-- Windows: Install and add to PATH
-- Linux: `sudo apt install nasm` or `sudo dnf install nasm`
-- macOS: `brew install nasm`
+#### Required Tools
 
-### Build Commands
+**NASM (Netwide Assembler)** - Required for all platforms
+- Official Website: https://www.nasm.us/
+- **Windows:** 
+  - Download the Windows installer from https://www.nasm.us/pub/nasm/releasebuilds/
+  - Run the installer and ensure "Add NASM to PATH" is checked
+  - Or download the ZIP, extract, and manually add to PATH
+  - Verify installation: `nasm -v`
+- **Linux (Debian/Ubuntu):**
+  - `sudo apt update && sudo apt install nasm`
+  - Verify installation: `nasm -v`
+- **Linux (Fedora/RHEL):**
+  - `sudo dnf install nasm`
+  - Verify installation: `nasm -v`
+- **macOS:**
+  - Using Homebrew: `brew install nasm`
+  - Using MacPorts: `sudo port install nasm`
+  - Verify installation: `nasm -v`
 
-**Windows (PowerShell):**
+**Additional Tools by Platform:**
+- **Windows:** PowerShell 5.1+ (built-in on Windows 10/11)
+- **Linux/macOS:** Make and dd utilities (usually pre-installed)
+
+### Build Commands by Operating System
+
+#### Windows (PowerShell)
+
+**Building the Bootloader Only:**
 ```powershell
 cd boot
 .\build.ps1
 ```
 
-**Linux/macOS (Make):**
+**Building Complete Disk Image:**
+```powershell
+# Run from project root
+.\boot\build-custom.ps1
+```
+
+**What Gets Built:**
+- `boot\boot.bin` - Stage 1 bootloader (512 bytes)
+- `boot\stage2.bin` - Stage 2 bootloader (~8KB)
+- `boot\bootloader.img` - Combined bootloader
+- `disk.img` - Complete bootable disk image (with build-custom.ps1)
+
+#### Linux/macOS (Make/Bash)
+
+**Building the Bootloader Only:**
 ```bash
 cd boot
 make
 ```
 
-**Manual Build:**
+**Building Complete Disk Image:**
 ```bash
-# Assemble Stage 1
+# Run from project root
+chmod +x boot/build-custom.sh
+./boot/build-custom.sh
+```
+
+**What Gets Built:**
+- `boot/boot.bin` - Stage 1 bootloader (512 bytes)
+- `boot/stage2.bin` - Stage 2 bootloader (~8KB)
+- `boot/bootloader.img` - Combined bootloader
+- `disk.img` - Complete bootable disk image (with build-custom.sh)
+
+**Cleaning Build Artifacts:**
+```bash
+cd boot
+make clean
+```
+
+#### Manual Build (All Platforms)
+
+If you prefer to build manually or troubleshoot:
+
+```bash
+# Navigate to boot directory
+cd boot
+
+# Assemble Stage 1 (boot sector)
 nasm -f bin boot.asm -o boot.bin
 
-# Assemble Stage 2
+# Assemble Stage 2 (main bootloader)
 nasm -f bin stage2.asm -o stage2.bin
 
-# Combine stages
+# Combine stages (Windows PowerShell)
+$boot = [System.IO.File]::ReadAllBytes("boot.bin")
+$stage2 = [System.IO.File]::ReadAllBytes("stage2.bin")
+$combined = $boot + $stage2
+[System.IO.File]::WriteAllBytes("bootloader.img", $combined)
+
+# Combine stages (Linux/macOS)
 cat boot.bin stage2.bin > bootloader.img
 ```
 
@@ -171,28 +298,93 @@ pub extern "C" fn _start() -> ! {
 
 ## Creating Bootable Disk Image
 
-### Step 1: Build Bootloader and Kernel
+### Quick Start - Use the Build Scripts
 
+The easiest way to create a complete bootable disk image is to use the provided build scripts:
+
+#### Windows
+```powershell
+# From project root directory
+.\boot\build-custom.ps1
+```
+
+#### Linux/macOS
+```bash
+# From project root directory
+chmod +x boot/build-custom.sh
+./boot/build-custom.sh
+```
+
+These scripts automatically:
+1. Build the custom bootloader
+2. Build the kernel in release mode
+3. Convert the kernel to a flat binary
+4. Create a bootable disk image
+5. Test with QEMU (if available)
+
+### Manual Process (Step-by-Step)
+
+If you prefer manual control or need to troubleshoot:
+
+#### Step 1: Install Required Tools
+
+**All Platforms:**
+```bash
+# Install cargo-binutils for kernel conversion
+cargo install cargo-binutils
+rustup component add llvm-tools-preview
+```
+
+**Windows:**
+- Install QEMU from: https://qemu.weilnetz.de/w64/
+- Or use Chocolatey: `choco install qemu`
+
+**Linux:**
+```bash
+sudo apt install qemu-system-x86  # Debian/Ubuntu
+sudo dnf install qemu-system-x86  # Fedora/RHEL
+```
+
+**macOS:**
+```bash
+brew install qemu
+```
+
+#### Step 2: Build Bootloader and Kernel
+
+**Windows (PowerShell):**
 ```powershell
 # Build bootloader
 cd boot
 .\build.ps1
 cd ..
 
-# Build kernel
+# Build kernel in release mode
 cargo build --target x86_64-rustrial_os.json --release
 
 # Convert kernel ELF to flat binary
-cargo install cargo-binutils
-rustup component add llvm-tools-preview
+rust-objcopy target\x86_64-rustrial_os\release\rustrial_os -O binary kernel.bin
+```
+
+**Linux/macOS (Bash):**
+```bash
+# Build bootloader
+cd boot
+make
+cd ..
+
+# Build kernel in release mode
+cargo build --target x86_64-rustrial_os.json --release
+
+# Convert kernel ELF to flat binary
 rust-objcopy target/x86_64-rustrial_os/release/rustrial_os -O binary kernel.bin
 ```
 
-### Step 2: Create Disk Image
+#### Step 3: Create Disk Image
 
 **Windows (PowerShell):**
 ```powershell
-# Create 10MB disk image
+# Create 10MB disk image (20000 sectors × 512 bytes)
 $diskSize = 20000 * 512
 $zeros = New-Object byte[] $diskSize
 [System.IO.File]::WriteAllBytes("disk.img", $zeros)
@@ -202,30 +394,62 @@ $bootloader = [System.IO.File]::ReadAllBytes("boot\bootloader.img")
 $disk = [System.IO.File]::ReadAllBytes("disk.img")
 [Array]::Copy($bootloader, 0, $disk, 0, $bootloader.Length)
 
-# Write kernel at sector 66 (0x21 * 512 = 0x4200)
+# Write kernel at sector 66 (offset 0x21 × 512 = 33280 bytes)
 $kernel = [System.IO.File]::ReadAllBytes("kernel.bin")
 [Array]::Copy($kernel, 0, $disk, 33280, $kernel.Length)
 
+# Save the disk image
 [System.IO.File]::WriteAllBytes("disk.img", $disk)
+
+Write-Host "Disk image created successfully!" -ForegroundColor Green
+Write-Host "Bootloader size: $($bootloader.Length) bytes" -ForegroundColor Cyan
+Write-Host "Kernel size: $($kernel.Length) bytes" -ForegroundColor Cyan
 ```
 
-**Linux/macOS:**
+**Linux/macOS (Bash):**
 ```bash
-# Create 10MB disk image
-dd if=/dev/zero of=disk.img bs=512 count=20000
+# Create 10MB disk image (20000 sectors × 512 bytes)
+dd if=/dev/zero of=disk.img bs=512 count=20000 2>/dev/null
 
 # Write bootloader at sector 0
-dd if=boot/bootloader.img of=disk.img conv=notrunc
+dd if=boot/bootloader.img of=disk.img conv=notrunc 2>/dev/null
 
-# Write kernel at sector 66
-dd if=kernel.bin of=disk.img bs=512 seek=65 conv=notrunc
+# Write kernel at sector 66 (sector 65 with dd's 0-based seek)
+dd if=kernel.bin of=disk.img bs=512 seek=65 conv=notrunc 2>/dev/null
+
+echo "Disk image created successfully!"
+echo "Bootloader size: $(stat -c%s boot/bootloader.img 2>/dev/null || stat -f%z boot/bootloader.img) bytes"
+echo "Kernel size: $(stat -c%s kernel.bin 2>/dev/null || stat -f%z kernel.bin) bytes"
 ```
 
-### Step 3: Test with QEMU
+#### Step 4: Test with QEMU
 
-```bash
+**Windows (PowerShell):**
+```powershell
+# Basic test
 qemu-system-x86_64 -drive format=raw,file=disk.img
+
+# With more options for debugging
+qemu-system-x86_64 -drive format=raw,file=disk.img -serial stdio -no-reboot
 ```
+
+**Linux/macOS (Bash):**
+```bash
+# Basic test
+qemu-system-x86_64 -drive format=raw,file=disk.img
+
+# With more options for debugging
+qemu-system-x86_64 -drive format=raw,file=disk.img -serial stdio -no-reboot
+
+# With memory size specified
+qemu-system-x86_64 -drive format=raw,file=disk.img -m 512M
+```
+
+**QEMU Keyboard Shortcuts:**
+- `Ctrl+Alt+G` - Release mouse capture
+- `Ctrl+Alt+F` - Toggle fullscreen
+- `Ctrl+Alt+2` - Switch to QEMU monitor
+- `Ctrl+Alt+1` - Switch back to VM display
 
 ## Switching Between Bootloaders
 

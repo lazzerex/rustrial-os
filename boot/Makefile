@@ -1,4 +1,9 @@
-# Makefile for RustrialOS Custom Bootloader
+# ============================================================================
+# RustrialOS Custom Bootloader Build Script - LINUX/macOS (Make)
+# ============================================================================
+# This Makefile is designed for Linux and macOS systems.
+# For Windows, use build.ps1 instead.
+# 
 # Requires: nasm, dd
 
 .PHONY: all clean
