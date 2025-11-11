@@ -91,6 +91,12 @@ Also checkout ```boot/custombootloader.md``` if you want to use a custom bootloa
 
 ### VGA Buffer & I/O
 - **VGA Text Output**: Direct memory-mapped VGA buffer (0xb8000) for console printing
+- **Graphics System**: Text-mode enhancements with box drawing, progress bars, and UI components
+  - Box drawing with single/double lines and shadow effects
+  - Progress bars with percentage display
+  - Pre-built UI components (message boxes, status bars, menus)
+  - Splash screens with ASCII art and animations
+  - VGA 320x200 graphics mode framework (experimental)
 - **Serial Port I/O**: UART 16550 serial communication for test output and debugging
 - **Keyboard Input**: Async keyboard task for processing PS/2 keyboard scancodes
 
