@@ -51,6 +51,12 @@ pub async fn interactive_menu() {
                                     menu_state = MenuState::ScriptChoice;
                                 }
                                 '3' => {
+                                    println!("\n→ Running Graphics Demo...\n");
+                                    crate::graphics::demo::run_graphics_demo();
+                                    println!("\n→ Press any key to return to menu...");
+                                    menu_state = MenuState::HelpMode;
+                                }
+                                '4' => {
                                     println!("\n→ Showing Help...\n");
                                     show_help();
                                     println!("\nPress any key to return to menu...");
@@ -132,6 +138,7 @@ pub async fn interactive_menu() {
                             }
                         }
                     }
+
                 }
             }
         }
@@ -146,7 +153,8 @@ fn show_menu_screen() {
     println!();
     println!("  [1] Continue with normal operation");
     println!("  [2] RustrialScript");
-    println!("  [3] Show Help");
+    println!("  [3] Graphics Demo");
+    println!("  [4] Show Help");
     println!();
     println!("Press a number key (1-3) to select...");
     println!("(Press ESC anytime in normal mode to return to this menu)");
