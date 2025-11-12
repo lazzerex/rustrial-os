@@ -8,21 +8,33 @@ use crate::vga_buffer::Color;
 
 /// Run a graphics demonstration
 pub fn run_graphics_demo() {
+    use crate::vga_buffer::clear_screen;
+    
     println!("\n=== Graphics Demonstration ===\n");
+    println!("This demo will show various graphics features...\n");
     
     // Demo 1: Box drawing
+    wait_for_keypress("");
     demo_boxes();
-    wait_for_keypress("Press Enter to continue...");
+    wait_for_keypress("");
     
     // Demo 2: Progress bars
     demo_progress_bars();
-    wait_for_keypress("Press Enter to continue...");
+    wait_for_keypress("");
     
     // Demo 3: Fancy UI elements
     demo_ui_elements();
-    wait_for_keypress("Press Enter to continue...");
+    wait_for_keypress("");
     
-    println!("\nGraphics demo complete!");
+    clear_screen();
+    println!("\n╔═══════════════════════════════════════╗");
+    println!("║     Graphics Demo Complete!           ║");
+    println!("╚═══════════════════════════════════════╝");
+    println!("\nDemo showcased:");
+    println!("  • Box drawing (single/double lines)");
+    println!("  • Progress bars and animations");
+    println!("  • UI elements (message boxes, status bars)");
+    println!("  • Terminal windows and spinners");
 }
 
 fn demo_boxes() {
@@ -122,11 +134,10 @@ fn demo_ui_elements() {
     }
 }
 
-fn wait_for_keypress(message: &str) {
-    println!("\n{}", message);
-    // In a real implementation, this would wait for actual keyboard input
-    // For now, just add a delay
-    for _ in 0..50_000_000 {
+fn wait_for_keypress(_message: &str) {
+    // Simplified: just add a delay for demo purposes
+    // The menu system will handle the actual keypress to return
+    for _ in 0..30_000_000 {
         unsafe { core::arch::asm!("nop") };
     }
 }

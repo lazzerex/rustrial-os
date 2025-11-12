@@ -91,14 +91,39 @@ Also checkout ```boot/custombootloader.md``` if you want to use a custom bootloa
 
 ### VGA Buffer & I/O
 - **VGA Text Output**: Direct memory-mapped VGA buffer (0xb8000) for console printing
-- **Graphics System**: Text-mode enhancements with box drawing, progress bars, and UI components
-  - Box drawing with single/double lines and shadow effects
-  - Progress bars with percentage display
-  - Pre-built UI components (message boxes, status bars, menus)
-  - Splash screens with ASCII art and animations
-  - VGA 320x200 graphics mode framework (experimental)
+- **Graphics System** (`src/graphics/`): Text-mode visual enhancements
+  - Box drawing (single/double lines, shadow effects) using IBM PC box-drawing characters
+  - Progress bars with percentage display and animations
+  - UI components (message boxes, status bars, terminal windows, menus)
+  - Splash screens with ASCII art and loading animations
+  - Interactive graphics demo showcasing all features
+  - VGA Mode 13h (320x200x256) pixel graphics framework (experimental)
 - **Serial Port I/O**: UART 16550 serial communication for test output and debugging
 - **Keyboard Input**: Async keyboard task for processing PS/2 keyboard scancodes
+
+#### Graphics Quick Start
+```rust
+use rustrial_os::graphics::{text_graphics::*, demo::*, splash::*};
+use rustrial_os::vga_buffer::Color;
+
+// Box drawing
+draw_box(10, 5, 40, 10, Color::Cyan, Color::Black);
+draw_double_box(15, 8, 50, 8, Color::Yellow, Color::Blue);
+
+// Progress bar
+draw_progress_bar(10, 12, 50, 75, 100, Color::Green, Color::Black);
+
+// UI elements
+show_message_box("Success", "Operation complete!", 20, 10, 40);
+show_status_bar("Rustrial OS v0.1.0 | F1=Help");
+
+// Run full demo
+run_graphics_demo();
+
+// Splash screen
+show_boot_splash();
+```
+See `src/graphics/README.md` for detailed API documentation and examples.
 
 ### Filesystem & Storage
 - **In-Memory Filesystem (RAMfs)**: Complete virtual filesystem implementation with:
@@ -139,6 +164,13 @@ src/
 ├── allocator.rs             # Heap allocator interface
 ├── rustrial_menu.rs         # Interactive menu system with script browser
 ├── script_loader.rs         # Compile-time script embedding and loading
+├── graphics/                # Graphics system (text-mode and VGA)
+│   ├── mod.rs               # Graphics module interface
+│   ├── text_graphics.rs     # Box drawing, progress bars, UI components
+│   ├── vga_graphics.rs      # VGA Mode 13h pixel graphics (experimental)
+│   ├── splash.rs            # Splash screens and fancy UI elements
+│   ├── demo.rs              # Interactive graphics demonstrations
+│   └── README.md            # Graphics API documentation and examples
 ├── fs/                      # Filesystem implementation
 │   ├── mod.rs               # Filesystem initialization and mounting
 │   ├── vfs.rs               # Virtual File System abstraction layer
@@ -620,7 +652,7 @@ qemu-system-x86_64 -s -S -drive format=raw,file=target/.../bootimage-rustrial_os
 - No user-space programs or process isolation
 - No pre-emptive multitasking (cooperative async/await only)
 - Limited memory: 100KB heap by default (configurable)
-- Text mode only (no graphics mode)
+- VGA graphics mode experimental (320x200 only, may not work on all hardware)
 - No network support
 - Scripts are read-only (can't edit at runtime)
 - Minimal error handling in some areas
@@ -638,26 +670,28 @@ qemu-system-x86_64 -s -S -drive format=raw,file=target/.../bootimage-rustrial_os
 - Dynamic task creation and management
 - ACPI support for power management
 - USB driver framework
+- Higher resolution graphics modes (VESA/VBE support)
+- Font rendering and bitmap image support
+- Window management system
 
 ## Roadmap
 
 ### Planned Features
 
 - [x] ~~Basic filesystem support (RAMfs)~~ ✅ **Completed!**
+- [x] ~~Minimal scripting interpreter (RustrialScript)~~ ✅ **Completed!**
+- [x] ~~Interactive boot menu system~~ ✅ **Completed!**
+- [x] ~~Text-mode graphics enhancements~~ ✅ **Completed!**
 - [ ] Block device abstraction layer
 - [ ] FAT32 filesystem implementation
 - [ ] Read files from bootloader disk
 - [ ] Multitasking and process scheduler
 - [ ] User-space programs
 - [ ] System calls interface
-- [ ] Filesystem support (FAT32)
 - [ ] Network stack (basic TCP/IP)
 - [ ] ACPI support
 - [ ] USB driver framework
-- [ ] Graphics mode support
-
-- [x] Minimal scripting interpreter (RustrialScript)
-- [x] Interactive boot menu system
+- [ ] Higher resolution graphics (VESA/VBE)
 
 ## Contributing
 
@@ -787,12 +821,17 @@ Main Menu:
   [2] RustrialScript       → Sub-menu for scripts
       [1] Run Demo         → Fibonacci demonstration
       [2] Browse Scripts   → Interactive file browser
-  [3] Help                 → Documentation
+  [3] Graphics Demo        → Interactive graphics showcase
+  [4] Help                 → Documentation
 
 Script Browser:
   ↑/↓ or W/S  - Navigate scripts
   Enter       - Execute selected script
   ESC         - Return to previous menu
+  
+Graphics Demo:
+  Automatic   - Shows box drawing, progress bars, UI elements
+  Any Key     - Return to main menu after demo
 ```
 
 ### Common Commands
