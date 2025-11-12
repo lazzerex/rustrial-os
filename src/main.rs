@@ -29,7 +29,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use rustrial_os::memory::{self, BootInfoFrameAllocator}; 
 
 
-    println!("Hello From the Rustrial Kernel{}", "!");
+    //println!("Hello From the Rustrial Kernel{}", "!");
     rustrial_os::init();
 
    
