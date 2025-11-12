@@ -37,13 +37,22 @@ Also checkout ```boot/custombootloader.md``` if you want to use a custom bootloa
 
 ## Showcase
 
-<details markdown="1"> <summary>Menu Screen & Filesystem</summary>
+**Menu Screen & Filesystem**
 
 <img width="722" height="389" alt="os-1" src="https://github.com/user-attachments/assets/5bf0b6a0-b3e6-4494-85ad-4b16e5f1779d" />
 
 <img width="699" height="368" alt="os-2" src="https://github.com/user-attachments/assets/d36d6064-ecb4-41c6-ba16-d1fd1c10af1e" />
 
 <img width="722" height="386" alt="os-3" src="https://github.com/user-attachments/assets/7b7c1e10-fe0e-43a1-a7f9-d67ad33ef67c" />
+
+<img width="609" height="310" alt="os-1-new" src="https://github.com/user-attachments/assets/c7848646-9612-41c9-a692-c7a20f14fb63" />
+
+<img width="555" height="239" alt="os-2-new" src="https://github.com/user-attachments/assets/c24ecfb6-82be-43ca-8d75-b606a86a3d7a" />
+
+<img width="624" height="340" alt="os-2-1-new" src="https://github.com/user-attachments/assets/f61e9d80-7899-49e8-acb6-b22e6ac2be90" />
+
+<img width="656" height="349" alt="os-3-new" src="https://github.com/user-attachments/assets/207436f1-c7bd-49a7-b955-088cb61d304b" />
+
 
 <img width="723" height="389" alt="os-4" src="https://github.com/user-attachments/assets/40df0234-8f02-4e79-b71e-a3db7b4e83e5" />
 
