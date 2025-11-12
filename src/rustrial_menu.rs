@@ -1,6 +1,15 @@
 use crate::{print, println};
 use crate::task::keyboard;
 use crate::fs::FileSystem; // Import the FileSystem trait
+use crate::graphics::text_graphics::{
+    draw_filled_box,
+    draw_hline,
+    draw_shadow_box,
+    write_at,
+    write_centered,
+};
+use crate::graphics::splash::show_status_bar;
+use crate::vga_buffer::Color;
 use futures_util::stream::StreamExt;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
 use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
@@ -51,6 +60,12 @@ pub async fn interactive_menu() {
                                     menu_state = MenuState::ScriptChoice;
                                 }
                                 '3' => {
+                                    println!("\n→ Running Graphics Demo...\n");
+                                    crate::graphics::demo::run_graphics_demo();
+                                    println!("\n→ Press any key to return to menu...");
+                                    menu_state = MenuState::HelpMode;
+                                }
+                                '4' => {
                                     println!("\n→ Showing Help...\n");
                                     show_help();
                                     println!("\nPress any key to return to menu...");
@@ -132,6 +147,7 @@ pub async fn interactive_menu() {
                             }
                         }
                     }
+
                 }
             }
         }
@@ -140,16 +156,53 @@ pub async fn interactive_menu() {
 
 
 fn show_menu_screen() {
-    println!("\n╔═════════════════════════════════════════╗");
-    println!("║         RustrialOS - Main Menu            ║");
-    println!("╚═══════════════════════════════════════════╝");
-    println!();
-    println!("  [1] Continue with normal operation");
-    println!("  [2] RustrialScript");
-    println!("  [3] Show Help");
-    println!();
-    println!("Press a number key (1-3) to select...");
-    println!("(Press ESC anytime in normal mode to return to this menu)");
+    crate::vga_buffer::clear_screen();
+
+    const FRAME_X: usize = 8;
+    const FRAME_Y: usize = 2;
+    const FRAME_WIDTH: usize = 64;
+    const FRAME_HEIGHT: usize = 18;
+
+    draw_shadow_box(FRAME_X, FRAME_Y, FRAME_WIDTH, FRAME_HEIGHT, Color::LightCyan, Color::Black);
+
+    // Header band
+    draw_filled_box(FRAME_X + 1, FRAME_Y + 1, FRAME_WIDTH - 2, 3, Color::White, Color::Blue);
+    write_centered(FRAME_Y + 2, "RustrialOS // Main Menu", Color::Yellow, Color::Blue);
+    write_centered(FRAME_Y + 3, "Select a mode to explore the system", Color::LightGray, Color::Blue);
+
+    draw_hline(FRAME_X + 2, FRAME_Y + 4, FRAME_WIDTH - 4, Color::Cyan, Color::Black);
+
+    let menu_items = [
+        ("[1]", "Continue with normal operation", "System information and keyboard echo mode"),
+        ("[2]", "RustrialScript", "Run the demo or browse the embedded script library"),
+        ("[3]", "Graphics Demo", "Showcase the text-mode UI and visual effects"),
+        ("[4]", "Show Help", "Keyboard shortcuts and feature overview"),
+    ];
+
+    for (index, (label, title, description)) in menu_items.iter().enumerate() {
+        let base_y = FRAME_Y + 6 + index * 3;
+        draw_filled_box(FRAME_X + 2, base_y - 1, FRAME_WIDTH - 4, 3, Color::Black, Color::Black);
+
+        let accent_color = match index {
+            0 => Color::LightGreen,
+            1 => Color::LightBlue,
+            2 => Color::LightRed,
+            _ => Color::Magenta,
+        };
+
+        draw_filled_box(FRAME_X + 3, base_y - 1, 4, 3, Color::Black, accent_color);
+
+        write_at(FRAME_X + 4, base_y, label, Color::Black, accent_color);
+        write_at(FRAME_X + 10, base_y, title, Color::White, Color::Black);
+        write_at(FRAME_X + 10, base_y + 1, description, Color::LightGray, Color::Black);
+
+        if index < menu_items.len() - 1 {
+            draw_hline(FRAME_X + 3, base_y + 2, FRAME_WIDTH - 6, Color::DarkGray, Color::Black);
+        }
+    }
+
+    write_centered(FRAME_Y + FRAME_HEIGHT + 1, "Welcome to the Rustrial OS playground", Color::LightCyan, Color::Black);
+    show_status_bar("Press 1-4 to select  •  ESC returns from other views");
 }
 
 fn show_script_choice() {

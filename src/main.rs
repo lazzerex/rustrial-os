@@ -29,7 +29,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use rustrial_os::memory::{self, BootInfoFrameAllocator}; 
 
 
-    println!("Hello From the Rustrial Kernel{}", "!");
+    //println!("Hello From the Rustrial Kernel{}", "!");
     rustrial_os::init();
 
    
@@ -117,6 +117,9 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     #[cfg(test)]
     test_main();
+
+    // Display boot splash with staged progress before entering the main menu
+    rustrial_os::graphics::splash::run_boot_sequence();
 
     // clear screen and show interactive menu
     use rustrial_os::vga_buffer::clear_screen;

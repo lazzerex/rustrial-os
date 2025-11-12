@@ -22,6 +22,7 @@ pub mod rustrial_script;
 pub mod rustrial_menu;
 pub mod fs;
 pub mod script_loader;
+pub mod graphics;
 
 pub fn init() {
     gdt::init();
