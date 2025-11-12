@@ -39,21 +39,15 @@ Also checkout ```boot/custombootloader.md``` if you want to use a custom bootloa
 
 <details markdown="1"> <summary>Menu Screen & Filesystem</summary>
 
-**Main Menu**
+<img width="722" height="389" alt="os-1" src="https://github.com/user-attachments/assets/5bf0b6a0-b3e6-4494-85ad-4b16e5f1779d" />
 
-<img width="530" height="272" alt="Main Menu" src="https://github.com/user-attachments/assets/5f740132-ee68-4cde-aa5e-f111b29dd1d8" />
+<img width="699" height="368" alt="os-2" src="https://github.com/user-attachments/assets/d36d6064-ecb4-41c6-ba16-d1fd1c10af1e" />
 
-**RustrialScript Options**
+<img width="722" height="386" alt="os-3" src="https://github.com/user-attachments/assets/7b7c1e10-fe0e-43a1-a7f9-d67ad33ef67c" />
 
-<img width="623" height="250" alt="Script Options" src="https://github.com/user-attachments/assets/4bcb576d-c964-4565-8a3a-19454cef231e" />
+<img width="723" height="389" alt="os-4" src="https://github.com/user-attachments/assets/40df0234-8f02-4e79-b71e-a3db7b4e83e5" />
 
-**Script Browser - Navigate and Run Scripts**
-
-<img width="624" height="361" alt="Script Browser" src="https://github.com/user-attachments/assets/fcb6cf2b-094a-4663-b3e9-b0974babf838" />
-
-**Help Screen**
-
-<img width="563" height="391" alt="Help Screen" src="https://github.com/user-attachments/assets/5d1d8490-089d-444a-9440-40db87c48795" />
+<img width="459" height="311" alt="os-5" src="https://github.com/user-attachments/assets/8b5b62d4-ebc0-4bcf-bc76-2639bfd9d39f" />
 
 </details>
 
