@@ -4,37 +4,47 @@
 use crate::println;
 use crate::graphics::text_graphics::*;
 use crate::graphics::splash::*;
+use crate::task::keyboard;
 use crate::vga_buffer::Color;
 
 /// Run a graphics demonstration
 pub fn run_graphics_demo() {
     use crate::vga_buffer::clear_screen;
-    
+
     println!("\n=== Graphics Demonstration ===\n");
-    println!("This demo will show various graphics features...\n");
-    
-    // Demo 1: Box drawing
-    wait_for_keypress("");
+    println!("Press ESC at any time to return to the main menu.\n");
+
+    let mut aborted = false;
+
     demo_boxes();
-    wait_for_keypress("");
-    
-    // Demo 2: Progress bars
-    demo_progress_bars();
-    wait_for_keypress("");
-    
-    // Demo 3: Fancy UI elements
-    demo_ui_elements();
-    wait_for_keypress("");
-    
+    if delay_with_escape(12_000_000) {
+        aborted = true;
+    }
+
+    if !aborted {
+        aborted = !demo_progress_bars();
+    }
+
+    if !aborted {
+        aborted = !demo_ui_elements();
+    }
+
     clear_screen();
-    println!("\n╔═══════════════════════════════════════╗");
-    println!("║     Graphics Demo Complete!           ║");
-    println!("╚═══════════════════════════════════════╝");
-    println!("\nDemo showcased:");
-    println!("  • Box drawing (single/double lines)");
-    println!("  • Progress bars and animations");
-    println!("  • UI elements (message boxes, status bars)");
-    println!("  • Terminal windows and spinners");
+
+    if aborted {
+        println!("\n╔═══════════════════════════════════════╗");
+        println!("║  Graphics Demo cancelled (ESC pressed) ║");
+        println!("╚═══════════════════════════════════════╝");
+    } else {
+        println!("\n╔═══════════════════════════════════════╗");
+        println!("║     Graphics Demo Complete!           ║");
+        println!("╚═══════════════════════════════════════╝");
+        println!("\nDemo showcased:");
+        println!("  • Box drawing (single/double lines)");
+        println!("  • Progress bars and animations");
+        println!("  • UI elements (message boxes, status bars)");
+        println!("  • Terminal windows and spinners");
+    }
 }
 
 fn demo_boxes() {
@@ -63,9 +73,11 @@ fn demo_boxes() {
     write_at(2, 12, "Shadow box:", Color::White, Color::Black);
     draw_shadow_box(2, 13, 30, 6, Color::Magenta, Color::Black);
     write_at(4, 15, "3D effect with shadow", Color::LightRed, Color::Black);
+
+    show_escape_hint();
 }
 
-fn demo_progress_bars() {
+fn demo_progress_bars() -> bool {
     use crate::vga_buffer::clear_screen;
     clear_screen();
     
@@ -95,14 +107,16 @@ fn demo_progress_bars() {
     for i in 0..=100 {
         draw_progress_bar(5, 19, 70, i, 100, Color::Cyan, Color::Black);
         
-        // Simple delay
-        for _ in 0..500_000 {
-            unsafe { core::arch::asm!("nop") };
+        if delay_with_escape(80_000) {
+            return false;
         }
     }
+
+    show_escape_hint();
+    true
 }
 
-fn demo_ui_elements() {
+fn demo_ui_elements() -> bool {
     use crate::vga_buffer::clear_screen;
     clear_screen();
     
@@ -128,29 +142,48 @@ fn demo_ui_elements() {
     // Spinners
     for i in 0..16 {
         show_spinner(75, 5, i);
-        for _ in 0..2_000_000 {
-            unsafe { core::arch::asm!("nop") };
+        if delay_with_escape(150_000) {
+            return false;
         }
     }
+
+    show_escape_hint();
+    true
 }
 
-fn wait_for_keypress(_message: &str) {
-    // Simplified: just add a delay for demo purposes
-    // The menu system will handle the actual keypress to return
-    for _ in 0..30_000_000 {
+fn delay_with_escape(iterations: usize) -> bool {
+    for _ in 0..iterations {
+        if escape_pressed() {
+            return true;
+        }
         unsafe { core::arch::asm!("nop") };
     }
+    false
+}
+
+fn escape_pressed() -> bool {
+    const ESC_MAKE: u8 = 0x01;
+    const ESC_BREAK: u8 = 0x81;
+
+    let mut pressed = false;
+
+    while let Some(scancode) = keyboard::try_pop_scancode() {
+        if scancode == ESC_MAKE || scancode == ESC_BREAK {
+            pressed = true;
+        }
+    }
+
+    pressed
+}
+
+fn show_escape_hint() {
+    draw_filled_box(8, 23, 64, 1, Color::Black, Color::Black);
+    write_centered(23, "Press ESC to return to the main menu", Color::LightGray, Color::Black);
 }
 
 /// Show the full splash screen with loading animation
 pub fn show_boot_splash() {
-    show_splash_screen();
-    show_loading_progress(50);
-    
-    // Wait a moment
-    for _ in 0..50_000_000 {
-        unsafe { core::arch::asm!("nop") };
-    }
+    run_boot_sequence();
 }
 
 /// Display enhanced menu using graphics

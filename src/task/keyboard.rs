@@ -59,6 +59,15 @@ impl Stream for ScancodeStream {
     }
 }
 
+/// Attempt to pop a scancode without blocking.
+/// Returns `Some(scancode)` if a value was available, otherwise `None`.
+pub fn try_pop_scancode() -> Option<u8> {
+    SCANCODE_QUEUE
+        .try_get()
+        .ok()
+        .and_then(|queue| queue.pop())
+}
+
 pub async fn print_keypresses() {
     let mut scancodes = ScancodeStream::new();
     let mut keyboard = Keyboard::new(ScancodeSet1::new(),
