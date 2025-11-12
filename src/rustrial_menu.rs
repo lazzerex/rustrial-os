@@ -10,9 +10,10 @@ use crate::graphics::text_graphics::{
 };
 use crate::graphics::splash::show_status_bar;
 use crate::vga_buffer::Color;
+use core::cmp::min;
 use futures_util::stream::StreamExt;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
-use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
+use alloc::{boxed::Box, vec, vec::Vec, rc::Rc, string::String};
 
 
 #[derive(PartialEq)]
@@ -46,29 +47,24 @@ pub async fn interactive_menu() {
                         if let DecodedKey::Unicode(ch) = key {
                             match ch {
                                 '1' => {
-                                    println!("\n→ Continuing with normal operation...\n");
                                     show_system_info();
-                                    println!("\nNow in normal operation mode.");
-                                    println!("Type characters to see them echoed, or press ESC to return to menu:");
                                     menu_state = MenuState::NormalMode;
                                 }
                                 '2' => {
-                                    println!("\n→ RustrialScript Options...\n");
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_script_choice();
                                     menu_state = MenuState::ScriptChoice;
                                 }
                                 '3' => {
-                                    println!("\n→ Running Graphics Demo...\n");
+                                    show_status_bar("Launching graphics showcase… any key returns afterwards");
                                     crate::graphics::demo::run_graphics_demo();
-                                    println!("\n→ Press any key to return to menu...");
+                                    show_status_bar("Press any key to return to the main menu");
                                     menu_state = MenuState::HelpMode;
                                 }
                                 '4' => {
-                                    println!("\n→ Showing Help...\n");
                                     show_help();
-                                    println!("\nPress any key to return to menu...");
+                                    show_status_bar("Press any key to return to the main menu");
                                     menu_state = MenuState::HelpMode;
                                 }
                                 _ => {
@@ -101,7 +97,6 @@ pub async fn interactive_menu() {
                         }
                         // Handle ESC key
                         if let DecodedKey::RawKey(KeyCode::Escape) = key {
-                            println!("\n→ Returning to main menu...\n");
                             use crate::vga_buffer::clear_screen;
                             clear_screen();
                             show_menu_screen();
@@ -120,7 +115,6 @@ pub async fn interactive_menu() {
                             menu_state = MenuState::ScriptBrowser;
                             return_to_browser = false;
                         } else {
-                            println!("\n\n→ Returning to main menu...\n");
                             use crate::vga_buffer::clear_screen;
                             clear_screen();
                             show_menu_screen();
@@ -130,7 +124,6 @@ pub async fn interactive_menu() {
                     MenuState::NormalMode => {
                         match key {
                             DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b') => {
-                                println!("\n\n→ Returning to main menu...\n");
                                 use crate::vga_buffer::clear_screen;
                                 clear_screen();
                                 show_menu_screen();
@@ -206,56 +199,102 @@ fn show_menu_screen() {
 }
 
 fn show_script_choice() {
-    println!("\n╔═════════════════════════════════════════╗");
-    println!("║         RustrialScript Options            ║");
-    println!("╚═══════════════════════════════════════════╝");
-    println!();
-    println!("  [1] Run Demo (Fibonacci)");
-    println!("  [2] Browse & Run Scripts from Filesystem");
-    println!();
-    println!("Press 1 or 2 to select, or ESC to return...");
+    use crate::vga_buffer::clear_screen;
+    clear_screen();
+
+    const FRAME_X: usize = 10;
+    const FRAME_Y: usize = 3;
+    const FRAME_WIDTH: usize = 60;
+    const FRAME_HEIGHT: usize = 14;
+
+    draw_shadow_box(FRAME_X, FRAME_Y, FRAME_WIDTH, FRAME_HEIGHT, Color::LightBlue, Color::Black);
+
+    draw_filled_box(FRAME_X + 1, FRAME_Y + 1, FRAME_WIDTH - 2, 3, Color::White, Color::Blue);
+    write_centered(FRAME_Y + 2, "RustrialScript Options", Color::Yellow, Color::Blue);
+    write_centered(FRAME_Y + 3, "Choose how to explore the scripting engine", Color::LightGray, Color::Blue);
+
+    draw_hline(FRAME_X + 2, FRAME_Y + 4, FRAME_WIDTH - 4, Color::Cyan, Color::Black);
+
+    let options = [
+        ("[1] Run Demo", "Guided Fibonacci walk-through", Color::LightGreen),
+        ("[2] Browse Scripts", "Interactive filesystem-powered browser", Color::LightCyan),
+    ];
+
+    for (index, (title, description, accent)) in options.iter().enumerate() {
+        let base_y = FRAME_Y + 6 + index * 4;
+
+        draw_filled_box(FRAME_X + 3, base_y - 1, FRAME_WIDTH - 6, 4, Color::Black, Color::Black);
+        draw_filled_box(FRAME_X + 4, base_y - 1, 4, 4, Color::Black, *accent);
+
+        write_at(FRAME_X + 5, base_y, title, Color::Black, *accent);
+        write_at(FRAME_X + 11, base_y, description, Color::White, Color::Black);
+        write_at(FRAME_X + 11, base_y + 1, "- Press corresponding number to continue", Color::LightGray, Color::Black);
+    }
+
+    show_status_bar("Press 1-2 to choose  •  ESC returns to the main menu");
 }
 
 fn show_script_browser(selected_index: usize) {
-    println!("╔══════════════════════════════════════════════╗");
-    println!("║          Script Browser - /scripts/         ║");
-    println!("╚══════════════════════════════════════════════╝");
-    println!();
-    
-    // Get list of scripts from filesystem
-    if let Some(fs) = crate::fs::root_fs() {
-        let fs = fs.lock();
-        match fs.list_dir("/scripts") {
-            Ok(scripts) => {
-                if scripts.is_empty() {
-                    println!("  No scripts found in /scripts directory");
-                } else {
-                    println!("  Available scripts:");
-                    println!();
-                    for (i, script_path) in scripts.iter().enumerate() {
-                        // Extract just the filename from the full path
-                        let filename = script_path.trim_start_matches("/scripts/");
-                        if i == selected_index {
-                            println!("  → [{}] {}", i + 1, filename);
-                        } else {
-                            println!("    [{}] {}", i + 1, filename);
-                        }
-                    }
-                }
-            }
-            Err(e) => {
-                println!("  Error reading scripts directory: {}", e);
-            }
-        }
-    } else {
-        println!("  Error: Filesystem not initialized");
+    use crate::vga_buffer::clear_screen;
+    clear_screen();
+
+    const FRAME_X: usize = 6;
+    const FRAME_Y: usize = 2;
+    const FRAME_WIDTH: usize = 68;
+    const FRAME_HEIGHT: usize = 20;
+    const MAX_VISIBLE: usize = 10;
+
+    draw_shadow_box(FRAME_X, FRAME_Y, FRAME_WIDTH, FRAME_HEIGHT, Color::LightCyan, Color::Black);
+    draw_filled_box(FRAME_X + 1, FRAME_Y + 1, FRAME_WIDTH - 2, 3, Color::White, Color::Blue);
+    write_centered(FRAME_Y + 2, "Script Browser", Color::Yellow, Color::Blue);
+    write_centered(FRAME_Y + 3, "Browse /scripts and run embedded examples", Color::LightGray, Color::Blue);
+
+    draw_hline(FRAME_X + 2, FRAME_Y + 4, FRAME_WIDTH - 4, Color::Cyan, Color::Black);
+
+    let scripts: Vec<String> = crate::fs::root_fs()
+        .and_then(|fs| fs.lock().list_dir("/scripts").ok())
+        .unwrap_or_else(Vec::new);
+
+    if scripts.is_empty() {
+        write_centered(FRAME_Y + FRAME_HEIGHT / 2, "No scripts found in /scripts", Color::LightRed, Color::Black);
+        show_status_bar("ESC returns to main menu");
+        return;
     }
-    
-    println!();
-    println!("═══ Controls ═══");
-    println!("  ↑/↓ or W/S - Navigate");
-    println!("  Enter      - Run selected script");
-    println!("  ESC        - Return to main menu");
+
+    let total = scripts.len();
+    let window_start = if selected_index >= MAX_VISIBLE {
+        selected_index + 1 - MAX_VISIBLE
+    } else {
+        0
+    };
+    let window_end = min(window_start + MAX_VISIBLE, total);
+
+    for (visible_row, script_idx) in (window_start..window_end).enumerate() {
+        let filename = scripts[script_idx].trim_start_matches("/scripts/");
+        let truncated = if filename.len() > 44 {
+            let mut name = String::from(&filename[..44]);
+            name.push_str("...");
+            name
+        } else {
+            String::from(filename)
+        };
+
+        let base_y = FRAME_Y + 6 + visible_row * 2;
+        let highlight = script_idx == selected_index;
+
+        if highlight {
+            draw_filled_box(FRAME_X + 3, base_y - 1, FRAME_WIDTH - 6, 2, Color::Black, Color::LightBlue);
+            write_at(FRAME_X + 5, base_y, &alloc::format!("→ [{:02}] {}", script_idx + 1, truncated), Color::Black, Color::LightBlue);
+        } else {
+            draw_filled_box(FRAME_X + 3, base_y - 1, FRAME_WIDTH - 6, 2, Color::Black, Color::Black);
+            write_at(FRAME_X + 5, base_y, &alloc::format!("  [{:02}] {}", script_idx + 1, truncated), Color::White, Color::Black);
+        }
+    }
+
+    let footer_y = FRAME_Y + FRAME_HEIGHT - 4;
+    write_at(FRAME_X + 4, footer_y, &alloc::format!("Showing {} of {} scripts", window_end - window_start, total), Color::LightGray, Color::Black);
+    write_at(FRAME_X + 4, footer_y + 1, "Use ↑/↓ or W/S to navigate, Enter to run", Color::LightGray, Color::Black);
+    show_status_bar("ESC returns • Enter runs selection");
 }
 
 fn handle_script_browser_input(
@@ -266,7 +305,6 @@ fn handle_script_browser_input(
 ) {
     match key {
         DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b') => {
-            println!("\n→ Returning to script options...\n");
             use crate::vga_buffer::clear_screen;
             clear_screen();
             show_script_choice();
@@ -311,7 +349,7 @@ fn handle_script_browser_input(
         DecodedKey::Unicode('\n') | DecodedKey::RawKey(KeyCode::Return) => {
             // Run the selected script
             run_selected_script(*selected_index);
-            println!("\nPress any key to return to script browser...");
+            show_status_bar("Press any key to return to the script browser");
             *return_to_browser = true;
             *menu_state = MenuState::HelpMode; // Reuse help mode for "press any key to continue"
         }
@@ -361,24 +399,52 @@ fn run_selected_script(index: usize) {
 
 
 fn show_system_info() {
-    println!("=== System Information ===\n");
-    
-    let heap_value = Box::new(41);
-    println!("heap_value at {:p}", heap_value);
+    use crate::vga_buffer::clear_screen;
+    clear_screen();
 
-    let mut vec = Vec::new();
+    const FRAME_X: usize = 6;
+    const FRAME_Y: usize = 2;
+    const FRAME_WIDTH: usize = 68;
+    const FRAME_HEIGHT: usize = 20;
+
+    draw_shadow_box(FRAME_X, FRAME_Y, FRAME_WIDTH, FRAME_HEIGHT, Color::LightGreen, Color::Black);
+    draw_filled_box(FRAME_X + 1, FRAME_Y + 1, FRAME_WIDTH - 2, 3, Color::White, Color::Green);
+    write_centered(FRAME_Y + 2, "System Diagnostics", Color::Yellow, Color::Green);
+    write_centered(FRAME_Y + 3, "Live snapshot of allocator, collections, and async tasks", Color::LightGray, Color::Green);
+
+    draw_hline(FRAME_X + 2, FRAME_Y + 4, FRAME_WIDTH - 4, Color::LightGreen, Color::Black);
+
+    let heap_value = Box::new(41);
+    let heap_line = alloc::format!("Heap sample (Box<i32>) @ {:p}", heap_value);
+
+    let mut vec_buffer = Vec::new();
     for i in 0..500 {
-        vec.push(i);
+        vec_buffer.push(i);
     }
-    println!("vec at {:p}", vec.as_slice());
+    let vec_line = alloc::format!("Vec capacity {} elements • buffer @ {:p}", vec_buffer.capacity(), vec_buffer.as_ptr());
 
     let reference_counted = Rc::new(vec![1, 2, 3]);
     let cloned_reference = reference_counted.clone();
-    println!("current reference count is {}", Rc::strong_count(&cloned_reference));
+    let rc_line_before = alloc::format!("Rc strong count before drop: {}", Rc::strong_count(&cloned_reference));
     core::mem::drop(reference_counted);
-    println!("reference count is {} now", Rc::strong_count(&cloned_reference));
-    
-    println!("\nasync number: 42");
+    let rc_line_after = alloc::format!("Rc strong count after drop: {}", Rc::strong_count(&cloned_reference));
+
+    let info_lines = [
+        heap_line,
+        vec_line,
+        rc_line_before,
+        rc_line_after,
+        alloc::format!("Async demo value: {}", 42),
+    ];
+
+    for (index, line) in info_lines.iter().enumerate() {
+        write_at(FRAME_X + 4, FRAME_Y + 6 + index, line, Color::White, Color::Black);
+    }
+
+    write_at(FRAME_X + 4, FRAME_Y + 12, "Keyboard echo mode active:", Color::LightCyan, Color::Black);
+    write_at(FRAME_X + 4, FRAME_Y + 13, "Type to see characters appear; ESC returns to the main menu", Color::LightGray, Color::Black);
+
+    show_status_bar("Normal mode • Type freely • ESC returns to main menu");
 }
 
 
@@ -412,39 +478,67 @@ fn run_demo() {
 
 
 fn show_help() {
-    println!("╔════════════════════════════════════════════════╗");
-    println!("║              RustrialOS - Help                ║");
-    println!("╚════════════════════════════════════════════════╝");
-    println!();
-    println!("RustrialOS is a hobby x86-64 bare-metal operating system");
-    println!("written in Rust, featuring:");
-    println!();
-    println!("• Custom memory management and heap allocation");
-    println!("• Interrupt handling and async task execution");
-    println!("• In-memory filesystem (RAMfs) support");
-    println!("• RustrialScript: A minimal stack-based interpreter");
-    println!("• Interactive menu and script browser system");
-    println!();
-    println!("═══ Menu Options ═══");
-    println!();
-    println!("[1] Normal Operation");
-    println!("    - Shows system information (heap, memory)");
-    println!("    - Enters keyboard echo mode");
-    println!();
-    println!("[2] RustrialScript");
-    println!("    - Run a Fibonacci demo");
-    println!("    - Browse and run scripts from the filesystem");
-    println!("    - 6 example scripts available");
-    println!();
-    println!("[3] Help (this screen)");
-    println!();
-    println!("═══ Keyboard Commands ═══");
-    println!();
-    println!("  ESC       - Return to previous menu");
-    println!("  Backspace - Delete last character");
-    println!("  ↑/↓ or W/S - Navigate in script browser");
-    println!("  Enter     - Run selected script");
-    println!();
-    println!("For more information, see the documentation at:");
-    println!("github.com/lazzerex/rustrial-os");
+    use crate::vga_buffer::clear_screen;
+    clear_screen();
+
+    const FRAME_X: usize = 4;
+    const FRAME_Y: usize = 1;
+    const FRAME_WIDTH: usize = 72;
+    const FRAME_HEIGHT: usize = 22;
+
+    draw_shadow_box(FRAME_X, FRAME_Y, FRAME_WIDTH, FRAME_HEIGHT, Color::Pink, Color::Black);
+    draw_filled_box(FRAME_X + 1, FRAME_Y + 1, FRAME_WIDTH - 2, 3, Color::White, Color::Magenta);
+    write_centered(FRAME_Y + 2, "RustrialOS Help Center", Color::Yellow, Color::Magenta);
+    write_centered(FRAME_Y + 3, "Quick reference for navigation and system features", Color::LightGray, Color::Magenta);
+
+    draw_hline(FRAME_X + 2, FRAME_Y + 4, FRAME_WIDTH - 4, Color::Pink, Color::Black);
+
+    let mut section_y = FRAME_Y + 6;
+    write_at(FRAME_X + 4, section_y, "Core Capabilities", Color::White, Color::Black);
+    section_y += 1;
+    let capabilities = [
+        "• Custom memory management and heap allocation",
+        "• Interrupt handling with async task executor",
+        "• In-memory filesystem (RAMfs) with VFS layer",
+        "• RustrialScript interpreter and demos",
+        "• Styled text-mode UI with graphics showcase",
+    ];
+    for line in &capabilities {
+        write_at(FRAME_X + 6, section_y, line, Color::LightGray, Color::Black);
+        section_y += 1;
+    }
+
+    section_y += 1;
+    write_at(FRAME_X + 4, section_y, "Menu Overview", Color::White, Color::Black);
+    section_y += 1;
+    let menu_lines = [
+        "[1] Normal Operation  - System diagnostics + keyboard echo",
+        "[2] RustrialScript    - Demo runner and script browser",
+        "[3] Graphics Demo    - Animated showcase of UI elements",
+        "[4] Help             - You're here right now!",
+    ];
+    for line in &menu_lines {
+        write_at(FRAME_X + 6, section_y, line, Color::LightGray, Color::Black);
+        section_y += 1;
+    }
+
+    section_y += 1;
+    write_at(FRAME_X + 4, section_y, "Keyboard Shortcuts", Color::White, Color::Black);
+    section_y += 1;
+    let shortcut_lines = [
+        "ESC  - Return to previous screen",
+        "Enter - Activate highlighted option",
+        "↑/↓ or W/S - Navigate lists",
+        "Backspace - Delete last character in echo mode",
+    ];
+    for line in &shortcut_lines {
+        write_at(FRAME_X + 6, section_y, line, Color::LightGray, Color::Black);
+        section_y += 1;
+    }
+
+    section_y += 1;
+    write_at(FRAME_X + 4, section_y, "Docs & Source", Color::White, Color::Black);
+    write_at(FRAME_X + 6, section_y + 1, "github.com/lazzerex/rustrial-os", Color::LightCyan, Color::Black);
+
+    show_status_bar("Press any key to return to the main menu");
 }
