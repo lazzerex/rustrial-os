@@ -1,5 +1,6 @@
 /// Splash screen and boot animations for Rustrial OS
 
+use alloc::format;
 use crate::graphics::text_graphics::*;
 use crate::vga_buffer::Color;
 
@@ -55,14 +56,53 @@ pub fn show_splash_screen() {
     }
 }
 
+/// Run the full boot splash sequence with staged loading messages.
+pub fn run_boot_sequence() {
+    show_splash_screen();
+
+    let stages: [(&str, usize); 10] = [
+        ("Bootloader hand-off", 5),
+        ("Detecting CPU features", 10),
+        ("Setting up memory map", 15),
+        ("Initializing heap allocator", 10),
+        ("Mounting /scripts filesystem", 10),
+        ("Loading RustrialScript runtime", 10),
+        ("Configuring interrupt controllers", 10),
+        ("Activating graphics subsystem", 10),
+        ("Spinning up task executor", 10),
+        ("Finalizing boot", 10),
+    ];
+
+    let mut progress = 0;
+    let mut spinner_frame = 0;
+
+    for (label, amount) in stages.iter() {
+        draw_filled_box(8, 21, 64, 1, Color::Black, Color::Black);
+        let status = format!("{}...", label);
+        write_centered(21, &status, Color::LightGray, Color::Black);
+
+        for _ in 0..*amount {
+            progress += 1;
+            draw_progress_bar(16, 20, 48, progress, 100, Color::Green, Color::Black);
+            show_spinner(62, 20, spinner_frame);
+            spinner_frame = spinner_frame.wrapping_add(1);
+            short_delay(120_000);
+        }
+    }
+
+    draw_progress_bar(16, 20, 48, 100, 100, Color::Green, Color::Black);
+    draw_filled_box(8, 21, 64, 1, Color::Black, Color::Black);
+    write_centered(21, "Boot sequence complete!", Color::LightGreen, Color::Black);
+    show_spinner(62, 20, spinner_frame);
+    short_delay(4_000_000);
+}
+
 /// Animated loading progress bar
 pub fn show_loading_progress(steps: usize) {
     for i in 0..=steps {
         draw_progress_bar(16, 20, 48, i, steps, Color::Green, Color::Black);
         // Delay (would need a proper timer in real implementation)
-        for _ in 0..1_000_000 {
-            unsafe { core::arch::asm!("nop") };
-        }
+        short_delay(1_000_000);
     }
 }
 
@@ -92,6 +132,12 @@ pub fn show_simple_logo() {
     }
     
     write_centered(15, "Kernel v0.1.0 - Initializing...", Color::Yellow, Color::Black);
+}
+
+fn short_delay(iterations: usize) {
+    for _ in 0..iterations {
+        unsafe { core::arch::asm!("nop") };
+    }
 }
 
 /// Display system information box

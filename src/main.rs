@@ -118,9 +118,8 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     #[cfg(test)]
     test_main();
 
-    // Optional: Show fancy boot splash screen with loading animation
-    // Uncomment the next line to enable the splash screen at boot
-    // rustrial_os::graphics::demo::show_boot_splash();
+    // Display boot splash with staged progress before entering the main menu
+    rustrial_os::graphics::splash::run_boot_sequence();
 
     // clear screen and show interactive menu
     use rustrial_os::vga_buffer::clear_screen;
