@@ -78,7 +78,7 @@ This directory contains a custom x86-64 bootloader written in Assembly for Rustr
 - Loaded at address 0x7E00 by Stage 1
 - Enables A20 line for accessing memory above 1MB
 - Verifies CPU supports 64-bit Long Mode via CPUID
-- Loads kernel binary from disk to 0x100000 (1MB)
+- Loads kernel binary from disk using BIOS INT 13h extensions (AH=0x42) from configurable LBA 65 to 0x100000 (1MB)
 - Configures page tables with identity mapping for first 4MB
 - Sets up Global Descriptor Table (GDT)
 - Transitions through Protected Mode to Long Mode
@@ -106,6 +106,7 @@ BIOS Power-On
     |
     v
 Load boot sector (Stage 1) to 0x7C00
+
     |
     v
 Stage 1: Load Stage 2 from disk to 0x7E00
@@ -244,7 +245,7 @@ The bootloader expects the kernel to meet these specifications:
 3. **Load Address:** Must be position-independent or linked for 0x100000
 4. **Execution Mode:** Code must be 64-bit Long Mode compatible
 5. **Memory Model:** Identity-mapped first 4MB available
-6. **Disk Location:** Kernel binary starts at sector 66 on disk
+6. **Disk Location:** Kernel binary starts at LBA 65 (sector 66 one-based) as configured by the `KERNEL_LBA` and `KERNEL_SECTORS` constants in `stage2.asm`
 
 ### Sample Linker Script
 
@@ -394,7 +395,7 @@ $bootloader = [System.IO.File]::ReadAllBytes("boot\bootloader.img")
 $disk = [System.IO.File]::ReadAllBytes("disk.img")
 [Array]::Copy($bootloader, 0, $disk, 0, $bootloader.Length)
 
-# Write kernel at sector 66 (offset 0x21 × 512 = 33280 bytes)
+# Write kernel at LBA 65 (sector 66 one-based, offset 0x8200)
 $kernel = [System.IO.File]::ReadAllBytes("kernel.bin")
 [Array]::Copy($kernel, 0, $disk, 33280, $kernel.Length)
 
@@ -414,13 +415,15 @@ dd if=/dev/zero of=disk.img bs=512 count=20000 2>/dev/null
 # Write bootloader at sector 0
 dd if=boot/bootloader.img of=disk.img conv=notrunc 2>/dev/null
 
-# Write kernel at sector 66 (sector 65 with dd's 0-based seek)
+# Write kernel at LBA 65 (sector 66 in BIOS numbering)
 dd if=kernel.bin of=disk.img bs=512 seek=65 conv=notrunc 2>/dev/null
 
 echo "Disk image created successfully!"
 echo "Bootloader size: $(stat -c%s boot/bootloader.img 2>/dev/null || stat -f%z boot/bootloader.img) bytes"
 echo "Kernel size: $(stat -c%s kernel.bin 2>/dev/null || stat -f%z kernel.bin) bytes"
 ```
+
+> **Tip:** The loader reads `KERNEL_SECTORS` (default 128, i.e. 64 KiB) starting at `KERNEL_LBA` (default 65). If your kernel binary is larger or lives elsewhere, adjust those constants in `boot/stage2.asm`, rebuild the bootloader, and regenerate `disk.img`.
 
 #### Step 4: Test with QEMU
 
@@ -530,11 +533,12 @@ Keep both bootloaders available:
 
 ### Kernel Not Loading
 
-**Symptom:** "Loading kernel..." message appears but system hangs
+**Symptom:** "Loading kernel..." message appears but system hangs or "Kernel load error!" is printed
 
 **Solutions:**
 - Confirm kernel.bin exists and is valid
-- Verify kernel starts at sector 66 on disk
+- Verify kernel starts at LBA 65 (sector 66 one-based)
+- Ensure `KERNEL_SECTORS` in `stage2.asm` is large enough for the kernel binary
 - Check kernel is flat binary format (not ELF)
 - Ensure kernel load address matches linker script (0x100000)
 
@@ -586,9 +590,9 @@ Key operations performed by stage2.asm:
    - Verify LM bit in feature flags
 
 3. **Kernel Loading:** Read kernel from disk
-   - Load from sector 66 to address 0x100000
-   - Use BIOS INT 0x13h with LBA addressing
-   - Read in chunks to avoid BIOS limitations
+  - Load from configurable LBA 65 (sector 66 one-based) to address 0x10000 and later relocate to 0x100000
+  - Use BIOS INT 0x13h Extensions (AH=0x42) with a Disk Address Packet
+  - Adjust `KERNEL_SECTORS` in `stage2.asm` if your kernel binary exceeds the default 64 KiB window
 
 4. **Page Table Setup:** Configure 4-level paging
    - PML4 at 0x1000 (1 entry)

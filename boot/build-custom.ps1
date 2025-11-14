@@ -55,7 +55,7 @@ $bootloader = [System.IO.File]::ReadAllBytes("boot\bootloader.img")
 $disk = [System.IO.File]::ReadAllBytes("disk.img")
 [Array]::Copy($bootloader, 0, $disk, 0, $bootloader.Length)
 
-# Write kernel at sector 66 (0x4200 bytes offset)
+# Write kernel at LBA 65 (sector 66 one-based, byte offset 0x8200)
 $kernel = [System.IO.File]::ReadAllBytes("kernel.bin")
 [Array]::Copy($kernel, 0, $disk, 33280, $kernel.Length)
 

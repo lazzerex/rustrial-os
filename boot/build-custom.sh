@@ -47,7 +47,7 @@ dd if=/dev/zero of=disk.img bs=512 count=20000 2>/dev/null
 # Write bootloader at sector 0
 dd if=boot/bootloader.img of=disk.img conv=notrunc 2>/dev/null
 
-# Write kernel at sector 66
+# Write kernel at LBA 65 (sector 66 one-based)
 dd if=kernel.bin of=disk.img bs=512 seek=65 conv=notrunc 2>/dev/null
 
 # Get sizes for display
