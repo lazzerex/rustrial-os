@@ -20,7 +20,19 @@
 [BITS 16]
 [ORG 0x7E00]
 
+KERNEL_LBA       equ 65                     ; LBA index for the first kernel sector
+KERNEL_SECTORS   equ 128                    ; Number of sectors to read for the kernel (64 KiB)
+KERNEL_BYTES     equ KERNEL_SECTORS * 512
+
 stage2_start:
+    ; Make sure segment registers are sane and remember boot drive
+    cli
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov [boot_drive], dl
+    sti
+
     ; Print Stage 2 message
     mov si, msg_stage2
     call print_string_16
@@ -147,18 +159,18 @@ check_long_mode:
 ; Function: Load kernel from disk
 load_kernel:
     pusha
-    ; Load 128 sectors (64KB) to 0x10000 temporarily
-    ; (We'll move it to 1MB later in protected mode)
-    mov bx, 0x1000          ; Segment
-    mov es, bx
-    mov bx, 0x0000          ; Offset
-    mov ah, 0x02            ; Read sectors
-    mov al, 128             ; Number of sectors
-    mov ch, 0x00            ; Cylinder
-    mov cl, 66              ; Start sector (after bootloader)
-    mov dh, 0x00            ; Head
+    ; Prepare Disk Address Packet for INT 13h Extensions (AH=0x42)
+    push ds
+    xor ax, ax
+    mov ds, ax              ; DAP lives in the same segment as this code (0x0000)
+    mov word [dap_packet + 2], KERNEL_SECTORS
+    mov word [dap_packet + 4], 0x0000      ; Target offset
+    mov word [dap_packet + 6], 0x1000      ; Target segment => 0x10000 physical
+    mov ah, 0x42            ; Extended read sectors
     mov dl, [boot_drive]
+    mov si, dap_packet
     int 0x13
+    pop ds
     jc .error
     popa
     mov si, msg_kernel_loaded
@@ -263,7 +275,7 @@ long_mode_start:
     ; Move kernel from 0x10000 to 0x100000 (1MB)
     mov rsi, 0x10000
     mov rdi, 0x100000
-    mov rcx, 0x8000         ; Copy 64KB (128 sectors * 512 bytes / 4)
+    mov rcx, KERNEL_BYTES / 4
     rep movsd
 
     ; Jump to kernel entry point
@@ -310,6 +322,14 @@ DATA64_SEG equ 0x10
 
 ; Data section
 boot_drive:             db 0x80
+align 16
+dap_packet:
+    db 0x10                  ; Size of packet
+    db 0x00                  ; Reserved
+    dw KERNEL_SECTORS        ; Number of sectors to read
+    dw 0x0000                ; Buffer offset
+    dw 0x1000                ; Buffer segment (0x10000 physical)
+    dq KERNEL_LBA            ; Starting LBA
 msg_stage2:             db 'Stage 2 initializing...', 0x0D, 0x0A, 0
 msg_a20_ok:             db 'A20 line enabled', 0x0D, 0x0A, 0
 msg_a20_fail:           db 'A20 line failed!', 0x0D, 0x0A, 0
