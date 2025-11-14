@@ -333,7 +333,7 @@ $bootloader = [System.IO.File]::ReadAllBytes("boot\bootloader.img")
 $disk = [System.IO.File]::ReadAllBytes("disk.img")
 [Array]::Copy($bootloader, 0, $disk, 0, $bootloader.Length)
 
-# Write kernel at sector 66 (0x4200 bytes offset)
+# Write kernel at LBA 65 (sector 66 in BIOS numbering, byte offset 0x8200)
 $kernel = [System.IO.File]::ReadAllBytes("kernel.bin")
 [Array]::Copy($kernel, 0, $disk, 33280, $kernel.Length)
 
@@ -351,18 +351,20 @@ dd if=/dev/zero of=disk.img bs=512 count=20000
 # Write bootloader at sector 0
 dd if=boot/bootloader.img of=disk.img conv=notrunc
 
-# Write kernel at sector 66
+# Write kernel at LBA 65 (sector 66 one-based)
 dd if=kernel.bin of=disk.img bs=512 seek=65 conv=notrunc
 
 # Run in QEMU
 qemu-system-x86_64 -drive format=raw,file=disk.img
 ```
 
+> **Note:** The custom stage 2 loader uses BIOS INT 13h extensions to read `KERNEL_SECTORS` (128 by default) starting at `KERNEL_LBA` (65 by default). If your `kernel.bin` grows beyond 64 KiB, increase `KERNEL_SECTORS` in `boot/stage2.asm`, rebuild the bootloader, and recreate `disk.img`.
+
 **Why Sector 66?**
 - Sector 0: Boot signature (Stage 1)
 - Sectors 1-64: Stage 2 bootloader
 - Sector 65+: Reserved
-- Sector 66+: Kernel binary
+- Sector 66+: Kernel binary loaded via BIOS INT 13h extensions (modifiable through `KERNEL_LBA`/`KERNEL_SECTORS` in `boot/stage2.asm`)
 
 **Complete Build Script (PowerShell)**
 
