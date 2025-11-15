@@ -10,7 +10,7 @@ use x86_64::structures::idt::PageFaultErrorCode;
 use crate::hlt_loop;
 use crate::gdt;
 use crate::println;
-use crate::print;
+//use crate::print;
 
 
 

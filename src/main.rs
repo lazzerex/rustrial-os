@@ -25,7 +25,7 @@ entry_point!(kernel_main);
 
 // Custom bootloader entry point - no BootInfo available
 #[cfg(feature = "custom_bootloader")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     kernel_main_custom()
 }
@@ -181,8 +181,6 @@ fn kernel_main_custom() -> ! {
     let mut executor = Executor::new();
     executor.spawn(Task::new(rustrial_os::rustrial_menu::interactive_menu()));
     executor.run();
-
-    println!("It did not crash!");
 }
 
 #[cfg(test)]
