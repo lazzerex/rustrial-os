@@ -80,7 +80,7 @@ impl fmt::Display for CpuInfo {
 
 pub fn print_cpu_info() {
     let info = CpuInfo::get();
-    crate::println!("{}", info);
+    crate::print!("{}", info);
 }
 
 pub fn has_sse2_native() -> bool {
@@ -162,20 +162,18 @@ pub fn enumerate_pci_devices() -> Vec<PciDevice> {
 }
 
 pub fn print_pci_devices() {
-    crate::println!("PCI Device Enumeration (via C):");
-    crate::println!("{}", "=".repeat(70));
-    
     let devices = enumerate_pci_devices();
     if devices.is_empty() {
-        crate::println!("No PCI devices found.");
+        crate::println!("  │ No PCI devices found.");
         return;
     }
     
     for device in &devices {
-        crate::println!("{}", device);
+        crate::println!("  │ {}", device);
     }
     
-    crate::println!("\nTotal devices found: {}", devices.len());
+    crate::println!("  │");
+    crate::println!("  │ Total devices found: {}", devices.len());
 }
 
 // ============================================================================
@@ -247,5 +245,5 @@ impl fmt::Display for DateTime {
 
 pub fn print_datetime() {
     let dt = DateTime::read();
-    crate::println!("Current Date & Time (via C): {}", dt);
+    crate::print!("{}", dt);
 }
