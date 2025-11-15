@@ -24,6 +24,9 @@ pub mod fs;
 pub mod script_loader;
 pub mod graphics;
 
+// Phase 1 Hardware Detection - Native Implementation (C + Assembly)
+pub mod native_ffi; // FFI bindings to C/Assembly code
+
 pub fn init() {
     gdt::init();
     interrupts::init_idt();

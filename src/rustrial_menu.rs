@@ -22,6 +22,7 @@ enum MenuState {
     ScriptChoice,     // New state for choosing demo or browse
     ScriptBrowser,
     NormalMode,
+    HardwareMenu,     // New state for hardware information
     HelpMode,
 }
 
@@ -63,6 +64,12 @@ pub async fn interactive_menu() {
                                     menu_state = MenuState::HelpMode;
                                 }
                                 '4' => {
+                                    use crate::vga_buffer::clear_screen;
+                                    clear_screen();
+                                    show_hardware_submenu();
+                                    menu_state = MenuState::HardwareMenu;
+                                }
+                                '5' => {
                                     show_help();
                                     show_status_bar("Press any key to return to the main menu");
                                     menu_state = MenuState::HelpMode;
@@ -106,6 +113,56 @@ pub async fn interactive_menu() {
                     MenuState::ScriptBrowser => {
                         handle_script_browser_input(key, &mut selected_script_index, &mut menu_state, &mut return_to_browser);
                     }
+                    MenuState::HardwareMenu => {
+                        // Handle hardware menu input
+                        if let DecodedKey::Unicode(ch) = key {
+                            match ch {
+                                '1' => {
+                                    use crate::vga_buffer::clear_screen;
+                                    clear_screen();
+                                    show_all_hardware_info();
+                                    println!("\nPress any key to continue...");
+                                }
+                                '2' => {
+                                    use crate::vga_buffer::clear_screen;
+                                    clear_screen();
+                                    show_cpu_info();
+                                    println!("\nPress any key to continue...");
+                                }
+                                '3' => {
+                                    use crate::vga_buffer::clear_screen;
+                                    clear_screen();
+                                    show_rtc_info();
+                                    println!("\nPress any key to continue...");
+                                }
+                                '4' => {
+                                    use crate::vga_buffer::clear_screen;
+                                    clear_screen();
+                                    show_pci_info();
+                                    println!("\nPress any key to continue...");
+                                }
+                                'q' | 'Q' => {
+                                    use crate::vga_buffer::clear_screen;
+                                    clear_screen();
+                                    show_menu_screen();
+                                    menu_state = MenuState::MainMenu;
+                                }
+                                _ => {}
+                            }
+                        }
+                        // ESC returns to main menu
+                        if let DecodedKey::RawKey(KeyCode::Escape) = key {
+                            use crate::vga_buffer::clear_screen;
+                            clear_screen();
+                            show_menu_screen();
+                            menu_state = MenuState::MainMenu;
+                        }
+                        // Display hardware submenu after each action
+                        if menu_state == MenuState::HardwareMenu && 
+                           matches!(key, DecodedKey::Unicode('1'..='4')) {
+                            show_hardware_submenu();
+                        }
+                    }
                     MenuState::HelpMode => {
                         // Any key returns to menu from help
                         if return_to_browser {
@@ -147,6 +204,37 @@ pub async fn interactive_menu() {
     }
 }
 
+// Hardware menu helper functions (native C/Assembly implementation)
+fn show_all_hardware_info() {
+    println!("\n╔════════════════════════════════════════════════════════════════════╗");
+    println!("║              RUSTRIAL OS - HARDWARE INFORMATION                    ║");
+    println!("╚════════════════════════════════════════════════════════════════════╝\n");
+    
+    show_cpu_info();
+    println!();
+    show_rtc_info();
+    println!();
+    show_pci_info();
+}
+
+fn show_cpu_info() {
+    println!("┌─ CPU INFORMATION (Assembly) ──────────────────────────────────────┐");
+    crate::native_ffi::print_cpu_info();
+    println!("└───────────────────────────────────────────────────────────────────┘");
+}
+
+fn show_rtc_info() {
+    println!("┌─ REAL-TIME CLOCK (C) ─────────────────────────────────────────────┐");
+    crate::native_ffi::print_datetime();
+    println!("└───────────────────────────────────────────────────────────────────┘");
+}
+
+fn show_pci_info() {
+    println!("┌─ PCI DEVICES (C) ─────────────────────────────────────────────────┐");
+    crate::native_ffi::print_pci_devices();
+    println!("└───────────────────────────────────────────────────────────────────┘");
+}
+
 
 fn show_menu_screen() {
     crate::vga_buffer::clear_screen();
@@ -169,7 +257,8 @@ fn show_menu_screen() {
         ("[1]", "Continue with normal operation", "System information and keyboard echo mode"),
         ("[2]", "RustrialScript", "Run the demo or browse the embedded script library"),
         ("[3]", "Graphics Demo", "Showcase the text-mode UI and visual effects"),
-        ("[4]", "Show Help", "Keyboard shortcuts and feature overview"),
+        ("[4]", "Hardware Info", "Native C/Assembly implementation (Phase 1)"),
+        ("[5]", "Show Help", "Keyboard shortcuts and feature overview"),
     ];
 
     for (index, (label, title, description)) in menu_items.iter().enumerate() {
@@ -195,7 +284,20 @@ fn show_menu_screen() {
     }
 
     write_centered(FRAME_Y + FRAME_HEIGHT + 1, "Welcome to the Rustrial OS playground", Color::LightCyan, Color::Black);
-    show_status_bar("Press 1-4 to select  •  ESC returns from other views");
+    show_status_bar("Press 1-5 to select  •  ESC returns from other views");
+}
+
+fn show_hardware_submenu() {
+    println!("\n╔════════════════════════════════════════════════════════════════════╗");
+    println!("║              HARDWARE INFORMATION MENU (Native C/ASM)              ║");
+    println!("╠════════════════════════════════════════════════════════════════════╣");
+    println!("║  [1] Show All Hardware Information                                 ║");
+    println!("║  [2] CPU Information (Assembly CPUID)                              ║");
+    println!("║  [3] Date & Time (C RTC Driver)                                    ║");
+    println!("║  [4] PCI Devices (C PCI Driver)                                    ║");
+    println!("║  [Q] Return to Main Menu                                           ║");
+    println!("╚════════════════════════════════════════════════════════════════════╝");
+    println!("\nSelect option: ");
 }
 
 fn show_script_choice() {

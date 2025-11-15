@@ -949,6 +949,16 @@ src/
 - Modern language features (pattern matching, traits)
 - Excellent for OS development
 
+## Early Development Notice
+
+The current C and assembly implementations  (`pci.c`, `rtc.c`, etc.) are in a very early development stage.  
+
+As a result, the current program output (more specifically if you choose option 4 which is HardWare Info in the menu screen) may be incomplete, inconsistent, or look incorrect. Many features are experimental and may not work as expected, crashes or unexpected behavior are possible.  
+
+However, Menu options **1, 2, 3, and 5** are mostly functional, but the output may not perfect.
+
+Contributions and feedback are always welcome.
+
 ### Future Phases
 
 **Phase 2** (Next):

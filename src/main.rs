@@ -18,7 +18,30 @@ use core::panic::PanicInfo;
 use rustrial_os::println;
 use rustrial_os::task::Task;
 use rustrial_os::task::executor::Executor;
+use rustrial_os::native_ffi;
 //use x86_64::structures::paging::PageTable;
+
+fn print_hardware_summary() {
+    let cpu_info = native_ffi::CpuInfo::get();
+    let dt = native_ffi::DateTime::read();
+    let devices = native_ffi::enumerate_pci_devices();
+    
+    println!("╔════════════════════════════════════════════════════════════════════╗");
+    println!("║              HARDWARE DETECTION SUMMARY (Native C/ASM)            ║");
+    println!("╠════════════════════════════════════════════════════════════════════╣");
+    println!("║ CPU:  {:<60} ║", truncate_str(cpu_info.brand_str(), 60));
+    println!("║ Date: {:<60} ║", truncate_str(&alloc::format!("{}", dt), 60));
+    println!("║ PCI:  {} devices detected{:<46} ║", devices.len(), "");
+    println!("╚════════════════════════════════════════════════════════════════════╝");
+}
+
+fn truncate_str(s: &str, max_len: usize) -> alloc::string::String {
+    if s.len() <= max_len {
+        alloc::format!("{:width$}", s, width = max_len)
+    } else {
+        alloc::format!("{}...", &s[..max_len-3])
+    }
+}
 
 #[cfg(not(feature = "custom_bootloader"))]
 entry_point!(kernel_main);
@@ -139,6 +162,11 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     clear_screen();
     
     println!("Hello From the Rustrial Kernel!");
+    println!();
+    
+    // Phase 1: Display hardware detection summary (Native C/Assembly)
+    print_hardware_summary();
+    println!();
     
     let mut executor = Executor::new();
     executor.spawn(Task::new(rustrial_os::rustrial_menu::interactive_menu()));
