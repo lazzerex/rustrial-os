@@ -150,11 +150,14 @@ pub async fn interactive_menu() {
                             }
                         }
                         // ESC returns to main menu
-                        if let DecodedKey::RawKey(KeyCode::Escape) = key {
-                            use crate::vga_buffer::clear_screen;
-                            clear_screen();
-                            show_menu_screen();
-                            menu_state = MenuState::MainMenu;
+                        match key {
+                            DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b') => {
+                                use crate::vga_buffer::clear_screen;
+                                clear_screen();
+                                show_menu_screen();
+                                menu_state = MenuState::MainMenu;
+                            }
+                            _ => {}
                         }
                         // Hardware submenu will be shown after returning from HelpMode
                     }
