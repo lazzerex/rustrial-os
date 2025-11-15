@@ -807,6 +807,162 @@ Located in `src/rustrial_script/examples/`:
 - `prime_checker.rscript` - Prime number tester
 - `sum_of_squares.rscript` - Sum of squares calculator
 
+---
+
+## Phase 1: Hardware Detection (Multi-Language Implementation)
+
+Rustrial OS now includes **Phase 1** hardware detection using a hybrid approach with **Rust, C, and Assembly**:
+
+### Implementation Approaches
+
+**Dual Implementation Strategy:**
+- **Pure Rust** (`src/cpu.rs`, `src/pci.rs`, `src/rtc.rs`) - Safe, idiomatic Rust
+- **Native C/ASM** (`src/native/`) - Performance-critical code in Assembly + C
+
+### Phase 1 Modules
+
+#### 1. CPU Feature Detection
+- **Rust**: `src/cpu.rs` - CPUID using `core::arch::x86_64`
+- **Assembly**: `src/native/cpu_asm.asm` - Direct CPUID instructions (NASM)
+- **Features**: SSE, SSE2, SSE3, SSE4, AVX, AVX2, AES-NI, RDRAND, BMI1/2
+- **Info**: Vendor ID, brand string, feature flags
+
+```rust
+// Rust API
+use rustrial_os::cpu;
+let info = cpu::CpuInfo::get();
+println!("CPU: {}", info.brand_str());
+if cpu::has_avx2() { /* use AVX2 */ }
+```
+
+#### 2. PCI Device Enumeration
+- **Rust**: `src/pci.rs` - Type-safe PCI access
+- **C**: `src/native/pci.c` - Direct I/O port operations
+- **Features**: Full bus scanning, device info, BAR reading
+- **Classes**: Mass storage, network, display, multimedia, etc.
+
+```rust
+// Rust API
+use rustrial_os::pci;
+let devices = pci::enumerate_devices();
+for dev in devices {
+    println!("{}", dev);
+}
+```
+
+#### 3. Real-Time Clock (RTC)
+- **Rust**: `src/rtc.rs` - Safe CMOS access
+- **C**: `src/native/rtc.c` - BCD conversion and time reading
+- **Features**: Date/time, BCD/binary modes, 12/24h support
+
+```rust
+// Rust API
+use rustrial_os::rtc;
+let dt = rtc::read_datetime();
+println!("Date: {}", dt);
+```
+
+#### 4. VESA Framebuffer Framework
+- **Rust**: `src/vesa.rs` - Pixel operations and drawing
+- **Status**: Framework ready (requires UEFI bootloader)
+
+### Building with Native Code
+
+**Prerequisites:**
+- NASM (Netwide Assembler) - https://www.nasm.us/
+- Clang or GCC with freestanding support
+- ar (archiver tool)
+
+**Build Process:**
+```bash
+# Install NASM on Windows
+choco install nasm
+
+# Install NASM on Linux
+sudo apt install nasm
+
+# Install Clang
+# Windows: choco install llvm
+# Linux: sudo apt install clang
+
+# Build normally - build.rs handles C/ASM compilation
+cargo build
+```
+
+The build script (`build.rs`) automatically:
+1. Compiles `cpu_asm.asm` with NASM
+2. Compiles `pci.c` and `rtc.c` with Clang/GCC
+3. Creates `libnative.a` static library
+4. Links with Rust code
+
+**Note**: If NASM/Clang isn't available, the project still builds using pure Rust implementations.
+
+### Menu Integration
+
+Access hardware info through main menu option **[4]**:
+```
+Hardware Information Menu:
+  [1] Show All Hardware Information
+  [2] CPU Information (Vendor, Brand, Features)
+  [3] Date & Time (RTC)
+  [4] PCI Devices (All detected hardware)
+  [5] VESA Framebuffer Status
+  [6] Test VESA Graphics
+  [Q] Return to Main Menu
+```
+
+### Project Structure
+```
+src/
+├── cpu.rs              - CPU detection (Rust)
+├── pci.rs              - PCI enumeration (Rust)
+├── rtc.rs              - RTC driver (Rust)
+├── vesa.rs             - VESA framework (Rust)
+├── hardware.rs         - Hardware display module
+├── native_ffi.rs       - FFI bindings to C/ASM
+└── native/
+    ├── cpu_asm.asm     - CPUID (NASM Assembly)
+    ├── pci.c           - PCI access (C)
+    ├── rtc.c           - RTC driver (C)
+    └── include/
+        ├── cpu_asm.h   - CPU function prototypes
+        ├── pci.h       - PCI structures/functions
+        └── rtc.h       - RTC structures/functions
+```
+
+### Why Multi-Language?
+
+**Assembly (NASM)**:
+- Direct CPU instruction access (CPUID)
+- Zero overhead for critical operations
+- Educational: See how CPUs work at lowest level
+
+**C**:
+- Portable hardware abstraction
+- Familiar to systems programmers
+- Good performance with compiler optimizations
+- Easy integration with existing drivers
+
+**Rust**:
+- Memory safety without garbage collection
+- Type safety prevents common bugs
+- Modern language features (pattern matching, traits)
+- Excellent for OS development
+
+### Future Phases
+
+**Phase 2** (Next):
+- AHCI/SATA disk driver (C/Rust)
+- E1000 network card (C)
+- PS/2 mouse driver (Assembly/Rust)
+- AC'97 sound driver (C)
+
+**Phase 3** (Later):
+- TCP/IP networking stack
+- FAT32 filesystem
+- GUI window manager
+- Multi-process support
+
 This project is provided as-is for educational purposes.
 
 ## Acknowledgments
@@ -829,7 +985,8 @@ Main Menu:
       [1] Run Demo         → Fibonacci demonstration
       [2] Browse Scripts   → Interactive file browser
   [3] Graphics Demo        → Interactive graphics showcase
-  [4] Help                 → Documentation
+  [4] Hardware Info        → CPU, PCI, RTC detection (Phase 1)
+  [5] Help                 → Documentation
 
 Script Browser:
   ↑/↓ or W/S  - Navigate scripts
