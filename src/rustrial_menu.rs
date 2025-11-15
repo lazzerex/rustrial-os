@@ -38,6 +38,7 @@ pub async fn interactive_menu() {
     let mut menu_state = MenuState::MainMenu;
     let mut selected_script_index: usize = 0;
     let mut return_to_browser = false; // Track if we should return to browser after help mode
+    let mut return_to_hardware = false; // Track if we should return to hardware menu after help mode
     show_menu_screen();
     
     while let Some(scancode) = scancodes.next().await {
@@ -121,31 +122,29 @@ pub async fn interactive_menu() {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_all_hardware_info();
-                                    println!("\nPress any key to continue...");
+                                    return_to_hardware = true;
+                                    menu_state = MenuState::HelpMode;
                                 }
                                 '2' => {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_cpu_info();
-                                    println!("\nPress any key to continue...");
+                                    return_to_hardware = true;
+                                    menu_state = MenuState::HelpMode;
                                 }
                                 '3' => {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_rtc_info();
-                                    println!("\nPress any key to continue...");
+                                    return_to_hardware = true;
+                                    menu_state = MenuState::HelpMode;
                                 }
                                 '4' => {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_pci_info();
-                                    println!("\nPress any key to continue...");
-                                }
-                                'q' | 'Q' => {
-                                    use crate::vga_buffer::clear_screen;
-                                    clear_screen();
-                                    show_menu_screen();
-                                    menu_state = MenuState::MainMenu;
+                                    return_to_hardware = true;
+                                    menu_state = MenuState::HelpMode;
                                 }
                                 _ => {}
                             }
@@ -157,15 +156,20 @@ pub async fn interactive_menu() {
                             show_menu_screen();
                             menu_state = MenuState::MainMenu;
                         }
-                        // Display hardware submenu after each action
-                        if menu_state == MenuState::HardwareMenu && 
-                           matches!(key, DecodedKey::Unicode('1'..='4')) {
-                            show_hardware_submenu();
-                        }
+                        // Hardware submenu will be shown after returning from HelpMode
                     }
                     MenuState::HelpMode => {
-                        // Any key returns to menu from help
-                        if return_to_browser {
+                        // ESC or any key returns to menu from help
+                        if return_to_hardware {
+                            // For hardware menu, only accept ESC
+                            if matches!(key, DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b')) {
+                                use crate::vga_buffer::clear_screen;
+                                clear_screen();
+                                show_hardware_submenu();
+                                menu_state = MenuState::HardwareMenu;
+                                return_to_hardware = false;
+                            }
+                        } else if return_to_browser {
                             use crate::vga_buffer::clear_screen;
                             clear_screen();
                             show_script_browser(selected_script_index);
@@ -230,7 +234,7 @@ fn show_all_hardware_info() {
     write_at(BOX_X + 3, BOX_Y + 6, &alloc::format!("Brand:  {}", brand_display), Color::White, Color::Black);
     
     // RTC Section
-    write_at(BOX_X + 2, BOX_Y + 8, "[Real-Time Clock - C RTC Driver]", Color::LightMagenta, Color::Black);
+    write_at(BOX_X + 2, BOX_Y + 8, "[Real-Time Clock - C RTC Driver]", Color::Magenta, Color::Black);
     let datetime = crate::native_ffi::DateTime::read();
     write_at(BOX_X + 3, BOX_Y + 9, &alloc::format!("{}", datetime), Color::LightCyan, Color::Black);
     
@@ -251,6 +255,8 @@ fn show_all_hardware_info() {
             write_at(BOX_X + 3, BOX_Y + 20, &alloc::format!("...and {} more devices", devices.len() - MAX_VISIBLE), Color::Yellow, Color::Black);
         }
     }
+    
+    write_centered(BOX_Y + BOX_HEIGHT - 1, "Press ESC to return to Hardware Menu", Color::LightGray, Color::Black);
 }
 
 fn show_cpu_info() {
@@ -279,6 +285,8 @@ fn show_cpu_info() {
     if cpu_info.has_avx() { features.push("AVX"); }
     
     write_at(BOX_X + 3, BOX_Y + 6, &alloc::format!("Features:   {}", features.join(", ")), Color::LightGreen, Color::Black);
+    
+    write_centered(BOX_Y + BOX_HEIGHT - 1, "Press ESC to return to Hardware Menu", Color::LightGray, Color::Black);
 }
 
 fn show_rtc_info() {
@@ -299,6 +307,8 @@ fn show_rtc_info() {
     let datetime = crate::native_ffi::DateTime::read();
     let dt_str = alloc::format!("{}", datetime);
     write_at(BOX_X + 3, BOX_Y + 4, &dt_str, Color::LightCyan, Color::Black);
+    
+    write_centered(BOX_Y + BOX_HEIGHT - 1, "Press ESC to return to Hardware Menu", Color::LightGray, Color::Black);
 }
 
 fn show_pci_info() {
@@ -320,6 +330,7 @@ fn show_pci_info() {
     
     if devices.is_empty() {
         write_at(BOX_X + 3, BOX_Y + 4, "No PCI devices found.", Color::LightRed, Color::Black);
+        write_centered(BOX_Y + BOX_HEIGHT - 1, "Press ESC to return to Hardware Menu", Color::LightGray, Color::Black);
         return;
     }
     
@@ -339,6 +350,8 @@ fn show_pci_info() {
     } else {
         write_at(BOX_X + 3, footer_y, &alloc::format!("Total: {} devices", total), Color::LightGreen, Color::Black);
     }
+    
+    write_centered(BOX_Y + BOX_HEIGHT - 1, "Press ESC to return to Hardware Menu", Color::LightGray, Color::Black);
 }
 
 
@@ -435,8 +448,8 @@ fn show_hardware_submenu() {
         write_at(FRAME_X + 10, base_y + 1, description, Color::LightGray, Color::Black);
     }
 
-    write_centered(FRAME_Y + FRAME_HEIGHT - 2, "[Q] Return to Main Menu", Color::LightCyan, Color::Black);
-    show_status_bar("Press 1-4 to select  •  Q/ESC returns to main menu");
+    write_centered(FRAME_Y + FRAME_HEIGHT - 2, "Press ESC to return to Main Menu", Color::LightCyan, Color::Black);
+    show_status_bar("Press 1-4 to select  •  ESC returns to main menu");
 }
 
 fn show_script_choice() {
