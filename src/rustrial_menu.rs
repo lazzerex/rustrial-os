@@ -206,37 +206,55 @@ pub async fn interactive_menu() {
 
 // Hardware menu helper functions (native C/Assembly implementation)
 fn show_all_hardware_info() {
-    use crate::graphics::text_graphics::{draw_shadow_box, write_centered, draw_hline};
+    use crate::graphics::text_graphics::{draw_shadow_box, write_centered, draw_hline, write_at};
     use crate::vga_buffer::Color;
     
     crate::vga_buffer::clear_screen();
     
-    const BOX_X: usize = 3;
+    const BOX_X: usize = 2;
     const BOX_Y: usize = 1;
-    const BOX_WIDTH: usize = 74;
-    const BOX_HEIGHT: usize = 22;
+    const BOX_WIDTH: usize = 76;
+    const BOX_HEIGHT: usize = 23;
     
     draw_shadow_box(BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT, Color::LightCyan, Color::Black);
     write_centered(BOX_Y + 1, "HARDWARE INFORMATION - Native C/Assembly", Color::Yellow, Color::Black);
     draw_hline(BOX_X + 2, BOX_Y + 2, BOX_WIDTH - 4, Color::Cyan, Color::Black);
     
-    println!("\n  ┌─ CPU INFORMATION (Assembly CPUID) ───────────────────────────────┐");
-    print!("  │ ");
-    crate::native_ffi::print_cpu_info();
-    println!("  └──────────────────────────────────────────────────────────────────┘\n");
+    // CPU Section
+    write_at(BOX_X + 2, BOX_Y + 4, "[CPU - Assembly CPUID]", Color::LightBlue, Color::Black);
+    let cpu_info = crate::native_ffi::CpuInfo::get();
+    write_at(BOX_X + 3, BOX_Y + 5, &alloc::format!("Vendor: {}", cpu_info.vendor_str()), Color::White, Color::Black);
     
-    println!("  ┌─ REAL-TIME CLOCK (C RTC Driver) ─────────────────────────────────┐");
-    print!("  │ ");
-    crate::native_ffi::print_datetime();
-    println!("  └──────────────────────────────────────────────────────────────────┘\n");
+    let brand = cpu_info.brand_str();
+    let brand_display = if brand.len() > 60 { &brand[..60] } else { brand };
+    write_at(BOX_X + 3, BOX_Y + 6, &alloc::format!("Brand:  {}", brand_display), Color::White, Color::Black);
     
-    println!("  ┌─ PCI DEVICES (C PCI Enumeration) ────────────────────────────────┐");
-    crate::native_ffi::print_pci_devices();
-    println!("  └──────────────────────────────────────────────────────────────────┘");
+    // RTC Section
+    write_at(BOX_X + 2, BOX_Y + 8, "[Real-Time Clock - C RTC Driver]", Color::LightMagenta, Color::Black);
+    let datetime = crate::native_ffi::DateTime::read();
+    write_at(BOX_X + 3, BOX_Y + 9, &alloc::format!("{}", datetime), Color::LightCyan, Color::Black);
+    
+    // PCI Section
+    write_at(BOX_X + 2, BOX_Y + 11, "[PCI Devices - C PCI Enumeration]", Color::LightGreen, Color::Black);
+    let devices = crate::native_ffi::enumerate_pci_devices();
+    
+    if devices.is_empty() {
+        write_at(BOX_X + 3, BOX_Y + 12, "No PCI devices found.", Color::LightRed, Color::Black);
+    } else {
+        const MAX_VISIBLE: usize = 8;
+        for (i, device) in devices.iter().take(MAX_VISIBLE).enumerate() {
+            let device_str = alloc::format!("{}", device);
+            write_at(BOX_X + 3, BOX_Y + 12 + i, &device_str, Color::White, Color::Black);
+        }
+        
+        if devices.len() > MAX_VISIBLE {
+            write_at(BOX_X + 3, BOX_Y + 20, &alloc::format!("...and {} more devices", devices.len() - MAX_VISIBLE), Color::Yellow, Color::Black);
+        }
+    }
 }
 
 fn show_cpu_info() {
-    use crate::graphics::text_graphics::{draw_shadow_box, write_centered, draw_hline};
+    use crate::graphics::text_graphics::{draw_shadow_box, write_centered, draw_hline, write_at};
     use crate::vga_buffer::Color;
     
     crate::vga_buffer::clear_screen();
@@ -250,12 +268,21 @@ fn show_cpu_info() {
     write_centered(BOX_Y + 1, "CPU INFORMATION - Assembly CPUID", Color::Yellow, Color::Black);
     draw_hline(BOX_X + 2, BOX_Y + 2, BOX_WIDTH - 4, Color::Cyan, Color::Black);
     
-    println!("\n\n  ");
-    crate::native_ffi::print_cpu_info();
+    let cpu_info = crate::native_ffi::CpuInfo::get();
+    write_at(BOX_X + 3, BOX_Y + 4, &alloc::format!("CPU Vendor: {}", cpu_info.vendor_str()), Color::White, Color::Black);
+    write_at(BOX_X + 3, BOX_Y + 5, &alloc::format!("CPU Brand:  {}", cpu_info.brand_str()), Color::White, Color::Black);
+    
+    let mut features = alloc::vec::Vec::new();
+    if cpu_info.has_sse() { features.push("SSE"); }
+    if cpu_info.has_sse2() { features.push("SSE2"); }
+    if cpu_info.has_sse3() { features.push("SSE3"); }
+    if cpu_info.has_avx() { features.push("AVX"); }
+    
+    write_at(BOX_X + 3, BOX_Y + 6, &alloc::format!("Features:   {}", features.join(", ")), Color::LightGreen, Color::Black);
 }
 
 fn show_rtc_info() {
-    use crate::graphics::text_graphics::{draw_shadow_box, write_centered, draw_hline};
+    use crate::graphics::text_graphics::{draw_shadow_box, write_centered, draw_hline, write_at};
     use crate::vga_buffer::Color;
     
     crate::vga_buffer::clear_screen();
@@ -269,12 +296,13 @@ fn show_rtc_info() {
     write_centered(BOX_Y + 1, "REAL-TIME CLOCK - C RTC Driver", Color::Yellow, Color::Black);
     draw_hline(BOX_X + 2, BOX_Y + 2, BOX_WIDTH - 4, Color::Cyan, Color::Black);
     
-    println!("\n\n  ");
-    crate::native_ffi::print_datetime();
+    let datetime = crate::native_ffi::DateTime::read();
+    let dt_str = alloc::format!("{}", datetime);
+    write_at(BOX_X + 3, BOX_Y + 4, &dt_str, Color::LightCyan, Color::Black);
 }
 
 fn show_pci_info() {
-    use crate::graphics::text_graphics::{draw_shadow_box, write_centered, draw_hline};
+    use crate::graphics::text_graphics::{draw_shadow_box, write_centered, draw_hline, write_at};
     use crate::vga_buffer::Color;
     
     crate::vga_buffer::clear_screen();
@@ -288,8 +316,29 @@ fn show_pci_info() {
     write_centered(BOX_Y + 1, "PCI DEVICES - C PCI Enumeration", Color::Yellow, Color::Black);
     draw_hline(BOX_X + 2, BOX_Y + 2, BOX_WIDTH - 4, Color::Cyan, Color::Black);
     
-    println!("\n");
-    crate::native_ffi::print_pci_devices();
+    let devices = crate::native_ffi::enumerate_pci_devices();
+    
+    if devices.is_empty() {
+        write_at(BOX_X + 3, BOX_Y + 4, "No PCI devices found.", Color::LightRed, Color::Black);
+        return;
+    }
+    
+    const MAX_VISIBLE: usize = 15;
+    let total = devices.len();
+    let display_count = core::cmp::min(total, MAX_VISIBLE);
+    
+    for (i, device) in devices.iter().take(display_count).enumerate() {
+        let device_str = alloc::format!("{}", device);
+        let y_pos = BOX_Y + 4 + i;
+        write_at(BOX_X + 3, y_pos, &device_str, Color::White, Color::Black);
+    }
+    
+    let footer_y = BOX_Y + BOX_HEIGHT - 2;
+    if total > MAX_VISIBLE {
+        write_at(BOX_X + 3, footer_y, &alloc::format!("Showing {} of {} devices", display_count, total), Color::Yellow, Color::Black);
+    } else {
+        write_at(BOX_X + 3, footer_y, &alloc::format!("Total: {} devices", total), Color::LightGreen, Color::Black);
+    }
 }
 
 
