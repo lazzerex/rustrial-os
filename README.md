@@ -310,14 +310,16 @@ This creates:
 **Step 2: Build the Kernel**
 
 ```bash
-# Build kernel for release (optimized)
-cargo build --target x86_64-rustrial_os.json --release
+# Build kernel for release with custom bootloader feature
+cargo build --target x86_64-rustrial_os.json --release --features custom_bootloader
 
 # Convert ELF to flat binary
 cargo install cargo-binutils
 rustup component add llvm-tools-preview
 rust-objcopy target/x86_64-rustrial_os/release/rustrial_os -O binary kernel.bin
 ```
+
+> **Important:** The `--features custom_bootloader` flag enables a simplified entry point that doesn't require `BootInfo` from the bootloader crate. Without this flag, the kernel will crash immediately after the custom bootloader loads it.
 
 **Step 3: Create Bootable Disk Image**
 
