@@ -375,7 +375,7 @@ fn show_hardware_submenu() {
         let accent_color = match index {
             0 => Color::LightGreen,
             1 => Color::LightBlue,
-            2 => Color::LightMagenta,
+            2 => Color::Magenta,
             3 => Color::LightRed,
             _ => Color::Cyan,
         };
