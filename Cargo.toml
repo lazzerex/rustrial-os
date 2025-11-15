@@ -3,6 +3,10 @@ name = "rustrial_os"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+custom_bootloader = []
+
 [package.metadata.bootimage]
 test-args = [
     "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04", "-serial", "stdio",

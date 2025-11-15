@@ -6,18 +6,31 @@
 
 extern crate alloc;
 
-use bootloader::{BootInfo, entry_point};
+#[cfg(feature = "custom_bootloader")]
 use core::panic::PanicInfo;
+
+#[cfg(not(feature = "custom_bootloader"))]
+use bootloader::{BootInfo, entry_point};
+
+#[cfg(not(feature = "custom_bootloader"))]
+use core::panic::PanicInfo;
+
 use rustrial_os::println;
 use rustrial_os::task::Task;
 use rustrial_os::task::executor::Executor;
 //use x86_64::structures::paging::PageTable;
 
+#[cfg(not(feature = "custom_bootloader"))]
 entry_point!(kernel_main);
 
-//no more mangle and extern C since we are using the bootloader crate's entry_point macro (which is good)
-// #[unsafe(no_mangle)]
-// pub extern "C" fn _start(boot_info: &'static BootInfo) -> ! {
+// Custom bootloader entry point - no BootInfo available
+#[cfg(feature = "custom_bootloader")]
+#[no_mangle]
+pub extern "C" fn _start() -> ! {
+    kernel_main_custom()
+}
+
+#[cfg(not(feature = "custom_bootloader"))]
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
     //use rustrial_os::memory::active_level_4_table;
     //use x86_64::VirtAddr;
@@ -140,6 +153,36 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
     rustrial_os::hlt_loop();
+}
+
+// Custom bootloader kernel entry - no BootInfo, simplified initialization
+#[cfg(feature = "custom_bootloader")]
+fn kernel_main_custom() -> ! {
+    //println!("Hello From the Rustrial Kernel{}", "!");
+    rustrial_os::init();
+
+    // Initialize filesystem and load scripts (no heap required for basic operation)
+    rustrial_os::fs::init();
+    rustrial_os::script_loader::load_scripts()
+        .expect("failed to load scripts");
+
+    #[cfg(test)]
+    test_main();
+
+    // Display boot splash with staged progress before entering the main menu
+    rustrial_os::graphics::splash::run_boot_sequence();
+
+    // clear screen and show interactive menu
+    use rustrial_os::vga_buffer::clear_screen;
+    clear_screen();
+    
+    println!("Hello From the Rustrial Kernel (Custom Bootloader)!");
+    
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(rustrial_os::rustrial_menu::interactive_menu()));
+    executor.run();
+
+    println!("It did not crash!");
 }
 
 #[cfg(test)]

@@ -360,8 +360,8 @@ cd boot
 .\build.ps1
 cd ..
 
-# Build kernel in release mode
-cargo build --target x86_64-rustrial_os.json --release
+# Build kernel in release mode with custom bootloader feature
+cargo build --target x86_64-rustrial_os.json --release --features custom_bootloader
 
 # Convert kernel ELF to flat binary
 rust-objcopy target\x86_64-rustrial_os\release\rustrial_os -O binary kernel.bin
@@ -374,12 +374,14 @@ cd boot
 make
 cd ..
 
-# Build kernel in release mode
-cargo build --target x86_64-rustrial_os.json --release
+# Build kernel in release mode with custom bootloader feature
+cargo build --target x86_64-rustrial_os.json --release --features custom_bootloader
 
 # Convert kernel ELF to flat binary
 rust-objcopy target/x86_64-rustrial_os/release/rustrial_os -O binary kernel.bin
 ```
+
+> **Important:** The `--features custom_bootloader` flag is required when building for the custom bootloader. This enables a simplified entry point (`_start`) that doesn't require `BootInfo`. The default build uses the bootloader crate's `entry_point!` macro which is incompatible with the custom bootloader.
 
 #### Step 3: Create Disk Image
 

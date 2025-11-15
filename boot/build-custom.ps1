@@ -24,8 +24,8 @@ Pop-Location
 Write-Host "✓ Bootloader built successfully" -ForegroundColor Green
 
 # Step 2: Build kernel
-Write-Host "`n[2/4] Building kernel (release mode)..." -ForegroundColor Yellow
-cargo build --target x86_64-rustrial_os.json --release
+Write-Host "`n[2/4] Building kernel (release mode with custom_bootloader feature)..." -ForegroundColor Yellow
+cargo build --target x86_64-rustrial_os.json --release --features custom_bootloader
 if (-not $?) {
     Write-Host "✗ Kernel build failed!" -ForegroundColor Red
     exit 1

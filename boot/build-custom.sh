@@ -22,8 +22,8 @@ cd boot && make && cd .. || {
 echo -e "\e[32m✓ Bootloader built successfully\e[0m"
 
 # Step 2: Build kernel
-echo -e "\n\e[33m[2/4] Building kernel (release mode)...\e[0m"
-cargo build --target x86_64-rustrial_os.json --release || {
+echo -e "\n\e[33m[2/4] Building kernel (release mode with custom_bootloader feature)...\e[0m"
+cargo build --target x86_64-rustrial_os.json --release --features custom_bootloader || {
     echo -e "\e[31m✗ Kernel build failed!\e[0m"
     exit 1
 }
