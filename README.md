@@ -496,18 +496,6 @@ Contributions welcome! Open an issue or PR for:
 - Increase timeout in `Cargo.toml`: `test-timeout = 600`
 - Run single test: `cargo test --test heap_allocation`
 
-## Resources & Learning
-
-This project is heavily inspired by and follows guidance from:
-
-- **[Writing an OS in Rust](https://os.phil-opp.com/)** by Philipp Oppermann - Comprehensive blog series on OS development
-- **[OSDev Wiki](https://wiki.osdev.org/)** - Extensive operating system development resources
-- **[The Rust Book](https://doc.rust-lang.org/book/)** - Official Rust programming guide
-- **[Rust Embedded Book](https://rust-embedded.github.io/book/)** - Embedded Rust programming
-
-## License
-
-
 ## Documentation
 
 ### Main Documentation
@@ -661,17 +649,14 @@ cargo run -- -serial stdio   # With serial output
 - `docs/` - Documentation
 - `tests/` - Integration tests
 
-## Resources
+## Resources & Learning
 
-**Learning Materials:**
-- [Writing an OS in Rust](https://os.phil-opp.com/) by Philipp Oppermann
-- [OSDev Wiki](https://wiki.osdev.org/)
-- [Rust Embedded Book](https://rust-embedded.github.io/book/)
+This project is heavily inspired by and follows guidance from:
 
-**Inspiration:**
-- Philipp Oppermann's blog_os
-- Redox OS
-- SerenityOS
+- **[Writing an OS in Rust](https://os.phil-opp.com/)** by Philipp Oppermann - Comprehensive blog series on OS development
+- **[OSDev Wiki](https://wiki.osdev.org/)** - Extensive operating system development resources
+- **[The Rust Book](https://doc.rust-lang.org/book/)** - Official Rust programming guide
+- **[Rust Embedded Book](https://rust-embedded.github.io/book/)** - Embedded Rust programming
 
 ## License
 
