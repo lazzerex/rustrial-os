@@ -30,10 +30,14 @@ A hobby x86-64 bare-metal operating system kernel written in Rust, built from sc
 
 ## Overview
 
-Rustrial OS is an educational operating system project that demonstrates modern systems programming techniques using Rust. The kernel boots from bare metal on x86-64 architecture and provides core OS functionality including memory management, interrupt handling, task scheduling, and keyboard input processing.
+Rustrial OS is an educational operating system project that demonstrates modern systems programming techniques using Rust. The kernel boots from bare metal on x86-64 architecture and provides core OS functionality including memory management, interrupt handling, task scheduling, hardware detection, and keyboard input processing.
 
-You can refer to ```src/rustrial_script/docs``` to know more about how RustrialScripts is implemented.
-Also checkout ```boot/custombootloader.md``` if you want to use a custom bootloader instead of the prebuilt bootloader crate.
+**Quick Links:**
+- RustrialScript Documentation: `docs/scriptdocs.md`
+- Custom Bootloader Guide: `docs/custombootloader.md`
+- Graphics API: `docs/graphicsdemo.md`
+- Filesystem Architecture: Documented in `src/fs/`
+- Native Hardware Detection: `docs/native.md`
 
 ## Showcase
 
@@ -73,681 +77,401 @@ Also checkout ```boot/custombootloader.md``` if you want to use a custom bootloa
 ## Features
 
 ### Core Kernel Features
-- **Bare Metal x86-64 Architecture**: Custom bootloader integration using the Bootloader crate, supporting both real hardware and QEMU emulation
-- **Interrupt Handling**: Complete IDT (Interrupt Descriptor Table) setup with handlers for:
-  - Breakpoint exceptions
-  - Double fault handling with dedicated stack
-  - Timer interrupts (PIC 8259 chained controller)
-  - Keyboard input interrupts
-  - Page fault exceptions with detailed error reporting
+- **x86-64 Bare Metal Architecture**: Boots on real hardware and QEMU using the Bootloader crate
+- **Interrupt Handling**: Complete IDT with handlers for breakpoints, double faults, page faults, timer, and keyboard interrupts
 - **Memory Management**: 
-  - Paging support with virtual to physical address translation
-  - Configurable heap allocation at `0x_4444_4444_0000` with 100KB default size
-  - Multiple allocator strategies available (bump allocator, linked list allocator, fixed-size block allocator)
-  - Frame allocation from bootloader memory map
-- **Global Descriptor Table (GDT)**: CPU segmentation setup with double fault IST (Interrupt Stack Table) support
-- **Async Task System**: 
-  - Futures-based async/await support with custom executor
-  - Keyboard event handling as async tasks
-  - Waker-based task scheduling
+  - Page table support with virtual-to-physical address translation
+  - Heap allocator at `0x_4444_4444_0000` (100 KiB default)
+  - Multiple allocator strategies: bump, linked list, and fixed-size block
+- **Global Descriptor Table (GDT)**: CPU segmentation with double fault IST support
+- **Async/Await Task System**: Custom executor with waker-based scheduling for cooperative multitasking
 
+### Hardware Detection (Native C/Assembly)
+- **CPU Information**: Brand string, vendor ID, and feature flags via CPUID instruction
+- **Real-Time Clock**: Date/time reading from CMOS RTC chip
+- **PCI Device Enumeration**: Detection and listing of PCI devices on the bus
+- **FFI Architecture**: Rust bindings to optimized C and x86-64 assembly code
+- **Hardware Summary Display**: Integrated into boot menu for system information
 
-### VGA Buffer & I/O
-- **VGA Text Output**: Direct memory-mapped VGA buffer (0xb8000) for console printing
-- **Graphics System** (`src/graphics/`): Text-mode visual enhancements
-  - Box drawing (single/double lines, shadow effects) using IBM PC box-drawing characters
-  - Progress bars with percentage display and animations
-  - UI components (message boxes, status bars, terminal windows, menus)
-  - Splash screens with ASCII art and loading animations
-  - Interactive graphics demo showcasing all features
-  - VGA Mode 13h (320x200x256) pixel graphics framework (experimental)
-- **Serial Port I/O**: UART 16550 serial communication for test output and debugging
-- **Keyboard Input**: Async keyboard task for processing PS/2 keyboard scancodes
+### Graphics & UI
+- **VGA Text Mode**: Direct memory-mapped buffer access at `0xb8000`
+- **Text Graphics Library** (`src/graphics/text_graphics.rs`):
+  - Box drawing with single/double lines and shadows
+  - Progress bars with animations
+  - Message boxes, status bars, and menus
+- **Splash Screens**: ASCII art and loading animations
+- **Interactive Graphics Demo**: Showcases all visual features (Menu Option 3)
+- **VGA Mode 13h** (Experimental): 320x200 pixel graphics framework
 
-#### Graphics Quick Start
-```rust
-use rustrial_os::graphics::{text_graphics::*, demo::*, splash::*};
-use rustrial_os::vga_buffer::Color;
+### Filesystem
+- **RAMfs**: Full-featured in-memory filesystem with file/directory operations
+- **VFS Layer**: Virtual filesystem abstraction for future storage backends
+- **Script Embedding**: Compile-time inclusion of `.rscript` files into kernel binary
+- **Interactive Browser**: Navigate and execute scripts with keyboard controls
 
-// Box drawing
-draw_box(10, 5, 40, 10, Color::Cyan, Color::Black);
-draw_double_box(15, 8, 50, 8, Color::Yellow, Color::Blue);
+### RustrialScript Language
+- **Stack-Based VM**: Minimal scripting language with 256-value stack
+- **Type System**: Integer, boolean, and nil types
+- **Control Flow**: If statements, while loops, and arithmetic operations
+- **No-Std Compatible**: Runs in bare-metal environment with `alloc` only
+- **VGA Integration**: Direct output to screen during script execution
+- **Example Scripts**: Fibonacci, factorial, GCD, prime checker, Collatz conjecture, sum of squares
 
-// Progress bar
-draw_progress_bar(10, 12, 50, 75, 100, Color::Green, Color::Black);
+### Interactive Menu System
+The OS boots into a feature-rich menu:
+1. **Normal Mode**: System info with hardware detection summary + keyboard echo
+2. **RustrialScript**:
+   - Run Demo: Fibonacci sequence demonstration
+   - Browse Scripts: Interactive file browser with 6 embedded scripts
+3. **Graphics Demo**: Comprehensive showcase of text graphics capabilities
+4. **Hardware Info**: Detailed CPU, RTC, and PCI device information
+5. **Help**: Documentation and usage instructions
 
-// UI elements
-show_message_box("Success", "Operation complete!", 20, 10, 40);
-show_status_bar("Rustrial OS v0.1.0 | F1=Help");
+**Navigation:**
+- Number keys: Select menu options
+- ↑/↓ or W/S: Navigate script browser
+- Enter: Execute selection
+- ESC: Return to previous menu
 
-// Run full demo
-run_graphics_demo();
-
-// Splash screen
-show_boot_splash();
-```
-See `src/graphics/README.md` for detailed API documentation and examples.
-
-### Filesystem & Storage
-- **In-Memory Filesystem (RAMfs)**: Complete virtual filesystem implementation with:
-  - File creation, reading, writing, and deletion
-  - Directory support and navigation
-  - Virtual File System (VFS) abstraction layer
-  - Embedded script loading at boot time
-- **Script Loader**: Compile-time embedding of `.rscript` files into the kernel binary
-- **Interactive Script Browser**: Navigate and execute scripts from the filesystem with keyboard controls
-
-### RustrialScript Interpreter & Interactive Menu
-- **RustrialScript Interpreter**: Minimal, stack-based scripting language for RustrialOS. Runs scripts directly in the OS, with no_std and alloc-only dependencies. Features integer, boolean, and nil types, arithmetic and control flow, and direct integration with VGA output.
-- **Interactive Menu System**: Enhanced boot menu with nested navigation:
-  - **Option 1**: Normal operation with system information and keyboard echo mode
-  - **Option 2**: RustrialScript with two sub-options:
-    - Run Demo: Execute pre-coded Fibonacci demonstration
-    - Browse Scripts: Interactive filesystem browser with 6 embedded scripts
-  - **Option 3**: Comprehensive help documentation
-- **Script Browser Features**:
-  - Navigate with arrow keys (↑/↓) or W/S
-  - Visual selection indicator (→ symbol)
-  - Press Enter to execute selected script
-  - Real-time script execution with VGA output
-  - Smart menu flow: returns to browser after execution
-- **Integration**: The interpreter is modular, with lexer, parser, VM, and value modules. Example scripts (fibonacci, factorial, collatz, gcd, prime checker, sum of squares) are embedded at compile time and loaded into the filesystem. See `src/rustrial_script/docs/` for detailed documentation and `FILESYSTEM.md` for filesystem architecture.
+### I/O & Serial
+- **Serial Port**: UART 16550 (COM1) for debugging and test output
+- **Keyboard**: Async PS/2 scancode processing with US layout support
 
 ## Project Structure
 
 ```
 src/
-├── main.rs                  # Kernel entry point and initialization
-├── lib.rs                   # Kernel library with core setup and test infrastructure
-├── vga_buffer.rs            # VGA text mode buffer and print macros
-├── serial.rs                # Serial port (UART) I/O for debugging
-├── gdt.rs                   # Global Descriptor Table configuration
-├── interrupts.rs            # Interrupt Descriptor Table and exception handlers
-├── memory.rs                # Paging, page tables, and memory translation
-├── allocator.rs             # Heap allocator interface
-├── rustrial_menu.rs         # Interactive menu system with script browser
-├── script_loader.rs         # Compile-time script embedding and loading
-├── graphics/                # Graphics system (text-mode and VGA)
-│   ├── mod.rs               # Graphics module interface
-│   ├── text_graphics.rs     # Box drawing, progress bars, UI components
-│   ├── vga_graphics.rs      # VGA Mode 13h pixel graphics (experimental)
-│   ├── splash.rs            # Splash screens and fancy UI elements
-│   ├── demo.rs              # Interactive graphics demonstrations
-│   └── README.md            # Graphics API documentation and examples
-├── fs/                      # Filesystem implementation
-│   ├── mod.rs               # Filesystem initialization and mounting
-│   ├── vfs.rs               # Virtual File System abstraction layer
-│   └── ramfs.rs             # RAM-based in-memory filesystem
-├── rustrial_script/         # RustrialScript interpreter modules
-│   ├── mod.rs               # Main interpreter interface
-│   ├── lexer.rs             # Tokenizer for script parsing
-│   ├── parser.rs            # Bytecode compiler
-│   ├── vm.rs                # Stack-based virtual machine
-│   ├── value.rs             # Value types (int, bool, nil)
-│   ├── examples/            # Example scripts (*.rscript files)
-│   └── docs/                # Language and integration documentation
+├── main.rs                  # Kernel entry point and boot sequence
+├── lib.rs                   # Core initialization and test infrastructure
+├── vga_buffer.rs            # VGA text buffer and print! macros
+├── serial.rs                # UART serial I/O for debugging
+├── gdt.rs                   # Global Descriptor Table setup
+├── interrupts.rs            # IDT and exception handlers
+├── memory.rs                # Paging and address translation
+├── allocator.rs             # Heap allocator selection
+├── rustrial_menu.rs         # Interactive menu with hardware info
+├── script_loader.rs         # Compile-time script embedding
+├── native_ffi.rs            # FFI bindings to C/Assembly code
+├── graphics.rs              # Graphics subsystem interface
+│
 ├── allocator/               # Memory allocator implementations
 │   ├── bump.rs              # Simple bump allocator
-│   ├── linked_list.rs       # Linked list allocator
+│   ├── linked_list.rs       # Free-list allocator
 │   └── fixed_size_block.rs  # Fixed-size block allocator (default)
-└── task/                    # Async task execution system
-    ├── mod.rs               # Task structure and TaskId
-    ├── executor.rs          # Waker-based task executor
-    ├── simple_executor.rs   # Basic single-threaded executor
-    └── keyboard.rs          # Async keyboard input processing
+│
+├── fs/                      # Filesystem layer
+│   ├── mod.rs               # FS initialization and mounting
+│   ├── vfs.rs               # Virtual filesystem abstraction
+│   └── ramfs.rs             # In-memory filesystem
+│
+├── graphics/                # Visual enhancements
+│   ├── text_graphics.rs     # Box drawing and UI components
+│   ├── vga_graphics.rs      # VGA Mode 13h (experimental)
+│   ├── splash.rs            # Boot splash and status bars
+│   ├── demo.rs              # Interactive demos
+│   └── graphicsdemo.md      # Graphics API reference
+│
+├── native/                  # Native C and Assembly code
+│   ├── cpu_asm.asm          # CPUID and feature detection
+│   ├── pci.c                # PCI bus enumeration
+│   ├── rtc.c                # Real-time clock access
+│   ├── native.md            # Native code documentation
+│   └── include/             # C header files
+│
+├── rustrial_script/         # Scripting language
+│   ├── mod.rs               # Interpreter interface
+│   ├── lexer.rs             # Tokenizer
+│   ├── parser.rs            # Bytecode compiler
+│   ├── vm.rs                # Stack-based VM
+│   ├── value.rs             # Value types (int/bool/nil)
+│   ├── examples/            # Example .rscript files
+│   └── docs/                # Language documentation
+│
+└── task/                    # Async runtime
+    ├── mod.rs               # Task structures
+    ├── executor.rs          # Waker-based executor
+    ├── simple_executor.rs   # Basic executor
+    └── keyboard.rs          # Async keyboard processing
 
 tests/                       # Integration tests
-├── basic_boot.rs            # Kernel boot verification
-├── heap_allocation.rs       # Heap allocator tests
-├── should_panic.rs          # Panic handling tests
-└── stack_overflow.rs        # Stack overflow exception tests
+├── basic_boot.rs            # Boot verification
+├── heap_allocation.rs       # Allocator tests
+├── should_panic.rs          # Panic handling
+└── stack_overflow.rs        # Exception tests
 
 boot/                        # Custom bootloader (optional)
-├── boot.asm                 # Stage 1 bootloader (512 bytes)
-├── stage2.asm               # Stage 2 bootloader (Long Mode setup)
+├── boot.asm                 # Stage 1 (512 bytes)
+├── stage2.asm               # Stage 2 (Long Mode)
 ├── build.ps1                # Windows build script
-├── Makefile                 # Linux/macOS build script
-└── custombootloader.md      # Bootloader documentation
+├── build.sh                 # Linux/macOS build script
+└── custombootloader.md      # Documentation
 
-Cargo.toml                   # Project dependencies and configuration
-x86_64-rustrial_os.json      # Custom target specification
-FILESYSTEM.md                # Filesystem architecture documentation
+Cargo.toml                   # Dependencies and configuration
+x86_64-rustrial_os.json      # Custom bare-metal target
+build.rs                     # Build script (NASM + Clang)
 ```
-### Memory Layout
-- **VGA Buffer**: `0xb8000` - Text mode framebuffer
-- **Heap**: `0x_4444_4444_0000` - `0x_4444_4445_9000` (100 KiB)
-- **Serial Port**: `0x3F8` (COM1)
-- **IST Stack**: 20 KiB dedicated stack for double fault handler
+
+### Memory Map
+| Address Range | Usage |
+|--------------|-------|
+| `0xb8000` | VGA text buffer (80x25) |
+| `0x3F8` | Serial port (COM1) |
+| `0x_4444_4444_0000` - `0x_4444_4445_9000` | Heap (100 KiB) |
+| IST Entry 0 | Double fault stack (20 KiB) |
 
 ## Prerequisites
-You should first have ```rustup``` and ```cargo``` installed on your machine. After that, installed all the required tools below. For Linux, you might want to use ```Rustup``` to avoid problems relating to the cargo versions conflicting.
+
 ### Required Tools
 
-1. **Rust Nightly Toolchain**
+1. **Rust Toolchain** (Nightly)
    ```bash
    rustup install nightly
    rustup override set nightly
    rustup component add rust-src llvm-tools-preview
    ```
 
-2. **Bootimage Tool**
+2. **Bootimage**
    ```bash
    cargo install bootimage
    ```
 
-3. **QEMU Emulator**
-   - **Linux**: `sudo apt install qemu-system-x86` (Debian/Ubuntu) or `sudo pacman -S qemu` (Arch)
+3. **QEMU x86-64 Emulator**
+   - **Linux**: `sudo apt install qemu-system-x86` or `sudo pacman -S qemu-system-x86`
    - **macOS**: `brew install qemu`
    - **Windows**: Download from [qemu.org](https://www.qemu.org/download/)
 
-### System Requirements
+4. **NASM** (for custom bootloader or native code)
+   - **Linux**: `sudo apt install nasm` or `sudo pacman -S nasm`
+   - **macOS**: `brew install nasm`
+   - **Windows**: Download from [nasm.us](https://www.nasm.us/)
 
-- Rust 1.70+ (nightly)
-- LLVM tools (included with Rust toolchain)
-- At least 2 GB RAM for building
-- Internet connection for dependency downloads
+5. **Clang** (for native C code compilation)
+   - **Linux**: `sudo apt install clang` or `sudo pacman -S clang`
+   - **macOS**: Included with Xcode Command Line Tools
+   - **Windows**: Install LLVM from [llvm.org](https://llvm.org/)
+
+### System Requirements
+- Rust 1.70+ nightly (edition 2024)
+- 2 GB RAM minimum
+- Internet connection for initial dependency download
 
 ## Build & Run
 
-### Quick Start (Using Bootloader Crate)
-
-This is the recommended method for development and testing:
+### Quick Start
 
 ```bash
 # Clone the repository
 git clone https://github.com/lazzerex/rustrial-os.git
 cd rustrial-os
 
-# Build and run in QEMU (all-in-one command)
+# Build and run (all-in-one)
 cargo run
 ```
 
-The OS will boot and display an interactive menu where you can:
-- Press **1** for normal operation mode
-- Press **2** to access RustrialScript (demo or script browser)
-- Press **3** to view help documentation
+The OS boots into an interactive menu:
+1. **Normal Mode**: System info + keyboard echo
+2. **RustrialScript**: Run demo or browse embedded scripts
+3. **Graphics Demo**: Showcase text-mode graphics
+4. **Hardware Info**: CPU, RTC, and PCI device details
+5. **Help**: Usage instructions
 
-### Using Custom Bootloader (Advanced)
-
-The custom bootloader is written in x86-64 assembly and provides educational insight into the boot process. See `boot/custombootloader.md` for detailed documentation.
-
-#### Prerequisites for Custom Bootloader
-
-1. **NASM (Netwide Assembler)**
-   - Windows: Download from [nasm.us](https://www.nasm.us/) and add to PATH
-   - Linux: `sudo apt install nasm` (Debian/Ubuntu) or `sudo pacman -S qemu` (Arch)
-   - macOS: `brew install nasm`
-
-2. **Verify NASM installation:**
-   ```bash
-   nasm -v
-   # Should output: NASM version 2.xx.xx or higher
-   ```
-
-#### Building with Custom Bootloader
-
-**Step 1: Build the Custom Bootloader**
-
-```powershell
-# Windows (PowerShell)
-cd boot
-.\build.ps1
-cd ..
-```
+### Manual Build Commands
 
 ```bash
-# Linux/macOS
-cd boot
-make
-cd ..
-```
-
-This creates:
-- `boot/boot.bin` - Stage 1 bootloader (512 bytes)
-- `boot/stage2.bin` - Stage 2 bootloader (~8KB)
-- `boot/bootloader.img` - Combined bootloader image
-
-**Step 2: Build the Kernel**
-
-```bash
-# Build kernel for release with custom bootloader feature
-cargo build --target x86_64-rustrial_os.json --release --features custom_bootloader
-
-# Convert ELF to flat binary
-cargo install cargo-binutils
-rustup component add llvm-tools-preview
-rust-objcopy target/x86_64-rustrial_os/release/rustrial_os -O binary kernel.bin
-```
-
-> **Important:** The `--features custom_bootloader` flag enables a simplified entry point that doesn't require `BootInfo` from the bootloader crate. Without this flag, the kernel will crash immediately after the custom bootloader loads it.
-
-**Step 3: Create Bootable Disk Image**
-
-```powershell
-# Windows (PowerShell)
-# Create 10MB disk image filled with zeros
-$diskSize = 20000 * 512
-$zeros = New-Object byte[] $diskSize
-[System.IO.File]::WriteAllBytes("disk.img", $zeros)
-
-# Write bootloader at sector 0
-$bootloader = [System.IO.File]::ReadAllBytes("boot\bootloader.img")
-$disk = [System.IO.File]::ReadAllBytes("disk.img")
-[Array]::Copy($bootloader, 0, $disk, 0, $bootloader.Length)
-
-# Write kernel at LBA 65 (sector 66 in BIOS numbering, byte offset 0x8200)
-$kernel = [System.IO.File]::ReadAllBytes("kernel.bin")
-[Array]::Copy($kernel, 0, $disk, 33280, $kernel.Length)
-
-[System.IO.File]::WriteAllBytes("disk.img", $disk)
-
-# Run in QEMU
-qemu-system-x86_64 -drive format=raw,file=disk.img
-```
-
-```bash
-# Linux/macOS
-# Create 10MB disk image
-dd if=/dev/zero of=disk.img bs=512 count=20000
-
-# Write bootloader at sector 0
-dd if=boot/bootloader.img of=disk.img conv=notrunc
-
-# Write kernel at LBA 65 (sector 66 one-based)
-dd if=kernel.bin of=disk.img bs=512 seek=65 conv=notrunc
-
-# Run in QEMU
-qemu-system-x86_64 -drive format=raw,file=disk.img
-```
-
-> **Note:** The custom stage 2 loader uses BIOS INT 13h extensions to read `KERNEL_SECTORS` (128 by default) starting at `KERNEL_LBA` (65 by default). If your `kernel.bin` grows beyond 64 KiB, increase `KERNEL_SECTORS` in `boot/stage2.asm`, rebuild the bootloader, and recreate `disk.img`.
-
-**Why Sector 66?**
-- Sector 0: Boot signature (Stage 1)
-- Sectors 1-64: Stage 2 bootloader
-- Sector 65+: Reserved
-- Sector 66+: Kernel binary loaded via BIOS INT 13h extensions (modifiable through `KERNEL_LBA`/`KERNEL_SECTORS` in `boot/stage2.asm`)
-
-**Complete Build Script (PowerShell)**
-
-Create `build-custom.ps1` in the project root:
-
-```powershell
-#!/usr/bin/env pwsh
-# Complete custom bootloader build script
-
-Write-Host "Building RustrialOS with Custom Bootloader..." -ForegroundColor Cyan
-
-# Step 1: Build bootloader
-Write-Host "`n[1/4] Building custom bootloader..." -ForegroundColor Yellow
-cd boot
-.\build.ps1
-if (-not $?) { exit 1 }
-cd ..
-
-# Step 2: Build kernel
-Write-Host "`n[2/4] Building kernel..." -ForegroundColor Yellow
-cargo build --target x86_64-rustrial_os.json --release
-if (-not $?) { exit 1 }
-
-# Step 3: Convert kernel to binary
-Write-Host "`n[3/4] Converting kernel to flat binary..." -ForegroundColor Yellow
-rust-objcopy target/x86_64-rustrial_os/release/rustrial_os -O binary kernel.bin
-
-# Step 4: Create disk image
-Write-Host "`n[4/4] Creating bootable disk image..." -ForegroundColor Yellow
-$diskSize = 20000 * 512
-$zeros = New-Object byte[] $diskSize
-[System.IO.File]::WriteAllBytes("disk.img", $zeros)
-
-$bootloader = [System.IO.File]::ReadAllBytes("boot\bootloader.img")
-$disk = [System.IO.File]::ReadAllBytes("disk.img")
-[Array]::Copy($bootloader, 0, $disk, 0, $bootloader.Length)
-
-$kernel = [System.IO.File]::ReadAllBytes("kernel.bin")
-[Array]::Copy($kernel, 0, $disk, 33280, $kernel.Length)
-
-[System.IO.File]::WriteAllBytes("disk.img", $disk)
-
-Write-Host "`nBuild complete! disk.img created." -ForegroundColor Green
-Write-Host "Run with: qemu-system-x86_64 -drive format=raw,file=disk.img" -ForegroundColor Cyan
-```
-
-Then run:
-```powershell
-.\build-custom.ps1
-```
-
-**Complete Build Script (Bash)**
-
-Create `build-custom.sh` in the project root:
-
-```bash
-#!/bin/bash
-# Complete custom bootloader build script
-
-echo -e "\e[36mBuilding RustrialOS with Custom Bootloader...\e[0m"
-
-# Step 1: Build bootloader
-echo -e "\n\e[33m[1/4] Building custom bootloader...\e[0m"
-cd boot && make && cd .. || exit 1
-
-# Step 2: Build kernel
-echo -e "\n\e[33m[2/4] Building kernel...\e[0m"
-cargo build --target x86_64-rustrial_os.json --release || exit 1
-
-# Step 3: Convert kernel to binary
-echo -e "\n\e[33m[3/4] Converting kernel to flat binary...\e[0m"
-rust-objcopy target/x86_64-rustrial_os/release/rustrial_os -O binary kernel.bin
-
-# Step 4: Create disk image
-echo -e "\n\e[33m[4/4] Creating bootable disk image...\e[0m"
-dd if=/dev/zero of=disk.img bs=512 count=20000 2>/dev/null
-dd if=boot/bootloader.img of=disk.img conv=notrunc 2>/dev/null
-dd if=kernel.bin of=disk.img bs=512 seek=65 conv=notrunc 2>/dev/null
-
-echo -e "\n\e[32mBuild complete! disk.img created.\e[0m"
-echo -e "\e[36mRun with: qemu-system-x86_64 -drive format=raw,file=disk.img\e[0m"
-```
-
-Make it executable and run:
-```bash
-chmod +x build-custom.sh
-./build-custom.sh
-```
-
-### Manual Build Steps (Bootloader Crate)
-
-```bash
-# Build the kernel
+# Build kernel only
 cargo build --target x86_64-rustrial_os.json
 
 # Create bootable image
 cargo bootimage --target x86_64-rustrial_os.json
 
-# Run in QEMU manually
-qemu-system-x86_64 -drive format=raw,file=target/x86_64-rustrial_os/debug/bootimage-rustrial_os.bin
+# Run with custom QEMU options
+qemu-system-x86_64 -drive format=raw,file=target/x86_64-rustrial_os/debug/bootimage-rustrial_os.bin -serial stdio
 ```
 
 ### Testing
 
 ```bash
-# Run all integration tests
+# Run all tests
 cargo test
 
 # Run specific test
 cargo test --test heap_allocation
 
-# Run with verbose output
+# Verbose output
 cargo test -- --nocapture
 ```
 
-### QEMU Options
+### Custom Bootloader (Advanced)
+
+A two-stage x86-64 assembly bootloader for educational purposes. Full documentation: `docs/custombootloader.md`
+
+**Quick Build:**
+
+```powershell
+# Windows - Use automated script
+.\boot\build-custom.ps1
+```
 
 ```bash
-# Run with serial output to terminal
-cargo run -- -serial stdio
-
-# Run with more memory
-qemu-system-x86_64 -m 256M -drive format=raw,file=disk.img
-
-# Run with debugging enabled
-qemu-system-x86_64 -s -S -drive format=raw,file=disk.img
-# Then in another terminal: gdb target/x86_64-rustrial_os/debug/rustrial_os
+# Linux/macOS - Use automated script  
+./boot/build-custom.sh
 ```
 
-## Key Implementation Details
+**Manual Steps:**
+1. Build bootloader: `cd boot && make` (Linux) or `.\build.ps1` (Windows)
+2. Build kernel with `--features custom_bootloader`
+3. Convert ELF to binary with `rust-objcopy`
+4. Create disk image and write bootloader + kernel at correct sectors
 
-### Filesystem Architecture
+See `docs/custombootloader.md` for detailed instructions and memory layout.
 
-The OS implements a complete virtual filesystem layer:
-
-**RAMfs (In-Memory Filesystem)**:
-- Files stored in heap-allocated data structures
-- Fast access (no disk I/O)
-- Directory support with path-based navigation
-- Full VFS abstraction for future filesystem implementations
-
-**Script Loading System**:
-- Scripts embedded at compile time using `include_bytes!`
-- Automatically mounted to `/scripts/` directory at boot
-- 6 example scripts available: fibonacci, factorial, collatz, gcd, prime_checker, sum_of_squares
-- Can be extended by modifying `src/script_loader.rs`
-
-**VFS API Example**:
-```rust
-use rustrial_os::fs::{self, FileSystem};
-
-// Get filesystem reference
-if let Some(fs) = fs::root_fs() {
-    let mut fs = fs.lock();
-    
-    // Create a file
-    fs.create_file("/test.txt", b"Hello, World!")?;
-    
-    // Read the file
-    let content = fs.read_file_to_string("/test.txt")?;
-    
-    // List directory
-    let files = fs.list_dir("/scripts")?;
-}
-```
-
-See `FILESYSTEM.md` for detailed architecture documentation.
+## Technical Details
 
 ### Memory Management
-The kernel implements a flexible allocator system:
-- **Bump Allocator**: Simple, fast allocation but no deallocation
-- **Linked List Allocator**: Maintains free list of deallocated blocks
-- **Fixed-Size Block Allocator** (Current): Pre-allocated block sizes for fast allocation with reduced fragmentation
+- **Allocators**: Choice of bump, linked list, or fixed-size block (default)
+- **Paging**: 4-level page tables with virtual-to-physical translation
+- **Heap**: 100 KiB at `0x_4444_4444_0000`, expandable via configuration
+- **Frame Allocation**: Uses bootloader-provided memory map
 
-### Interrupt Handling
-- **Timer Interrupt**: Triggered by hardware timer for periodic tasks
-- **Keyboard Interrupt**: Reads PS/2 scancodes and queues them for processing
-- **Page Fault Handler**: Displays fault address and error code before halting
-- **Double Fault Handler**: Dedicated stack prevents triple faults
+### Interrupt System
+- **IDT**: Handles exceptions (breakpoint, double fault, page fault) and hardware interrupts (timer, keyboard)
+- **PIC 8259**: Programmable Interrupt Controller for IRQ management
+- **IST**: Dedicated 20 KiB stack for double fault handler prevents triple faults
 
-### Async Tasks
-The kernel supports async/await using a custom executor:
-- Tasks are represented as pinned futures
-- Executor polls tasks via `Context` and `Waker`
-- Keyboard input is processed asynchronously as individual scancodes arrive
+### Async Runtime
+- **Custom Executor**: Waker-based task polling for cooperative multitasking
+- **Keyboard Task**: Async scancode processing with queue-based event handling
+- **Future Support**: Full async/await syntax with `no_std` compatibility
 
-### VGA Buffer
-- Direct memory access to VGA text buffer at `0xb8000`
-- Implements `Write` trait for `print!` and `println!` macros
-- Supports color attributes (foreground/background)
+### Filesystem
+- **RAMfs**: In-memory VFS with file/directory operations
+- **Script Loader**: Compile-time embedding via `include_bytes!` macro
+- **Mount Point**: Scripts loaded at `/scripts/` during boot
+- **Extensible**: VFS abstraction allows future storage backends
 
-### RustrialScript Interpreter
-- Stack-based VM with fixed-size stack (256 values)
-- Integer, boolean, and nil types
-- Simple syntax: variable assignment, arithmetic, control flow (if/while)
-- Example scripts demonstrate Fibonacci, factorials, GCD, prime checking, etc.
-- No_std, alloc-only: runs in bare-metal OS with no dependencies
-- Direct integration with VGA buffer for output
-- Modular design: separate lexer, parser, VM, and value modules
-- Bytecode compilation for efficient execution
-- See `src/rustrial_script/docs/ARCHITECTURE.md` for implementation details
-- See `src/rustrial_script/docs/scriptdocs.md` for language reference
-
-### Interactive Menu System
-- Async keyboard-driven navigation
-- Nested menu structure for better organization
-- Visual feedback with selection indicators
-- Smart state management for menu transitions
-- Script browser with real-time file listing from RAMfs
-- Keyboard controls:
-  - Number keys: Select menu options
-  - Arrow keys (↑/↓) or W/S: Navigate in script browser
-  - Enter: Execute selected item
-  - ESC: Return to previous menu/screen
-  - Backspace: Delete character (in echo mode)
-- See `src/rustrial_script/docs/INTERACTIVE_MENU.md` for user experience details
-
-### Custom Bootloader (Optional)
-- Two-stage boot process written in x86-64 assembly
-- Stage 1: 512-byte boot sector loaded by BIOS
-- Stage 2: ~8KB bootloader handling Long Mode transition
-- Features:
-  - A20 line enable for >1MB memory access
-  - CPUID checks for 64-bit CPU support
-  - 4-level paging setup with identity mapping
-  - GDT configuration for Protected/Long Mode
-  - Real Mode → Protected Mode → Long Mode transition
-- Educational resource for learning boot process
-- See `boot/custombootloader.md` for complete documentation
-- Production use: stick with the stable `bootloader` crate
+### Native Hardware Detection
+- **CPU Info**: CPUID instruction via assembly (`src/native/cpu_asm.asm`)
+- **PCI Enumeration**: Bus scanning in C (`src/native/pci.c`)
+- **RTC Access**: CMOS real-time clock in C (`src/native/rtc.c`)
+- **Build Integration**: NASM + Clang via `build.rs` script
 
 ## Dependencies
 
-Key external crates:
-- `bootloader`: Handles x86-64 bare-metal boot process
-- `x86_64`: x86-64 specific CPU instructions and structures
-- `volatile`: Memory access utilities to prevent compiler optimizations
-- `uart_16550`: UART serial communication
-- `pc-keyboard`: PS/2 keyboard decoding
-- `spin`: Spinlock for synchronization
-- `lazy_static`: Static initialization for IDT and PICS
-- `pic8259`: Programmable Interrupt Controller
-- `crossbeam-queue`: Lock-free concurrent queue (unused features available)
-- `futures-util`: Futures primitives for async
-
+| Crate | Purpose |
+|-------|---------|
+| `bootloader` | x86-64 boot process and memory mapping |
+| `x86_64` | CPU instructions and structures |
+| `volatile` | Prevent compiler optimizations on hardware access |
+| `uart_16550` | Serial port communication |
+| `pc-keyboard` | PS/2 scancode decoding |
+| `spin` | Spinlock synchronization primitives |
+| `lazy_static` | Static initialization (IDT, PIC) |
+| `pic8259` | Programmable Interrupt Controller |
+| `linked_list_allocator` | Heap allocator implementation |
+| `conquer-once` | One-time initialization |
+| `crossbeam-queue` | Lock-free concurrent queue |
+| `futures-util` | Async primitives |
 
 ## Configuration
 
-### Custom Target Specification
+**Custom Target** (`x86_64-rustrial_os.json`):
+- Bare-metal x86-64 with no OS
+- LLD linker, software floating-point
+- Red-zone disabled, panic=abort
 
-The OS uses a custom target (`x86_64-rustrial_os.json`) with:
-- **Architecture**: x86_64
-- **OS**: none (bare metal)
-- **Linker**: rust-lld
-- **Features**: Software floating-point, red-zone disabled
-- **Panic strategy**: Abort
-
-### Build Configuration
-
-Configured in `.cargo/config.toml`:
-- Custom runner using `bootimage`
-- Build-std for `core`, `compiler_builtins`, and `alloc`
-- Panic-abort for tests
+**Cargo Config** (`.cargo/config.toml`):
+- Custom runner via `bootimage`
+- Build-std for `core`, `compiler_builtins`, `alloc`
 
 ## Development
 
-### Adding New Features
+### Extending the OS
 
-1. **New Interrupt Handler**: Add to `interrupts.rs` IDT initialization
-2. **Memory Mapping**: Use the `Mapper` trait in `memory.rs`
-3. **Device Drivers**: Follow the pattern in `serial.rs` or `vga_buffer.rs`
-4. **Tests**: Create integration tests in `tests/` directory
+**Add Interrupt Handler:**
+```rust
+// In interrupts.rs
+idt.your_interrupt.set_handler_fn(your_handler);
+```
+
+**Add Device Driver:**
+Follow patterns in `serial.rs` or `vga_buffer.rs` - use volatile reads/writes for MMIO.
+
+**Add Test:**
+Create file in `tests/` with `#![no_std]`, `#![no_main]`, and test functions.
 
 ### Debugging
 
 ```bash
-# Enable serial output for debugging
+# Serial output
 cargo run -- -serial stdio
 
-# Run with GDB
-qemu-system-x86_64 -s -S -drive format=raw,file=target/.../bootimage-rustrial_os.bin
-# In another terminal: gdb target/.../rustrial_os
+# GDB debugging
+qemu-system-x86_64 -s -S -drive format=raw,file=disk.img
+# In another terminal:
+gdb target/x86_64-rustrial_os/debug/rustrial_os
+(gdb) target remote :1234
 ```
 
-### Known Limitations
-- Single-core only (no SMP support yet)
-- Filesystem is in-memory only (no persistence across reboots)
-- No block device drivers (ATA/AHCI not implemented)
-- Limited device driver support (VGA text mode, PS/2 keyboard, serial only)
-- No user-space programs or process isolation
-- No pre-emptive multitasking (cooperative async/await only)
-- Limited memory: 100KB heap by default (configurable)
-- VGA graphics mode experimental (320x200 only, may not work on all hardware)
-- No network support
-- Scripts are read-only (can't edit at runtime)
-- Minimal error handling in some areas
+### Limitations
 
-### Potential Improvements
-- Multi-core CPU support with proper synchronization
-- Pre-emptive task scheduling with time slicing
-- Larger heap with on-demand paging
-- Block device drivers (ATA PIO/DMA, AHCI)
-- Persistent filesystem (FAT32 or custom FS)
-- File caching and buffering layer
-- Network stack (basic TCP/IP)
-- Script editor and REPL interface
-- Enhanced error types and Result-based error handling
-- Dynamic task creation and management
-- ACPI support for power management
-- USB driver framework
-- Higher resolution graphics modes (VESA/VBE support)
-- Font rendering and bitmap image support
-- Window management system
+- **Single-core**: No SMP support
+- **No persistence**: RAMfs only, no disk I/O
+- **No user-space**: Kernel-only, no process isolation
+- **Cooperative multitasking**: Async/await only, no preemption
+- **Limited drivers**: VGA, PS/2, serial only
+- **100 KiB heap**: Configurable but fixed at build time
 
 ## Roadmap
 
-### Planned Features
+**Completed:**
+- RAMfs in-memory filesystem with VFS abstraction
+- RustrialScript interpreter (stack-based VM)
+- Interactive menu with hardware detection
+- Text-mode graphics library
+- Native C/Assembly hardware detection (CPU, PCI, RTC)
 
-- [x] ~~Basic filesystem support (RAMfs)~~ ✅ **Completed!**
-- [x] ~~Minimal scripting interpreter (RustrialScript)~~ ✅ **Completed!**
-- [x] ~~Interactive boot menu system~~ ✅ **Completed!**
-- [x] ~~Text-mode graphics enhancements~~ ✅ **Completed!**
-- [ ] Block device abstraction layer
-- [ ] FAT32 filesystem implementation
-- [ ] Read files from bootloader disk
-- [ ] Multitasking and process scheduler
-- [ ] User-space programs
-- [ ] System calls interface
-- [ ] Network stack (basic TCP/IP)
-- [ ] ACPI support
-- [ ] USB driver framework
+**In Progress / Planned:**
+- [ ] Block device drivers (ATA/AHCI)
+- [ ] Persistent filesystem (FAT32)
+- [ ] Pre-emptive multitasking
+- [ ] User-space programs with system calls
+- [ ] Network stack (TCP/IP)
+- [ ] ACPI and power management
+- [ ] USB support
 - [ ] Higher resolution graphics (VESA/VBE)
 
 ## Contributing
 
-Contributions are welcome! Whether you're:
-- Fixing bugs
-- Adding new features
-- Improving documentation
-- Writing tests
+Contributions welcome! Open an issue or PR for:
+- Bug fixes
+- New features (drivers, syscalls, etc.)
+- Documentation improvements
+- Tests
 
-Please feel free to open an issue or submit a pull request.
-
-### Development Guidelines
-
-1. Follow Rust naming conventions and style guidelines
+**Guidelines:**
+1. Follow Rust conventions and `cargo fmt`
 2. Add tests for new functionality
-3. Update documentation for API changes
-4. Ensure `cargo test` passes before submitting PRs
-5. Use meaningful commit messages
+3. Ensure `cargo test` passes
+4. Update relevant documentation
+5. Write clear commit messages
 
 ## Troubleshooting
 
-### Build Issues
+**Build Errors:**
+- `target not found`: Install rust-src with `rustup component add rust-src`
+- `bootimage not found`: Install with `cargo install bootimage`
+- `NASM not found`: Install NASM and add to PATH
+- `clang not found`: Install Clang/LLVM for native code compilation
 
-**Error: "target 'x86_64-rustrial_os' not found"**
-```bash
-# Ensure rust-src is installed
-rustup component add rust-src
-```
+**Runtime Issues:**
+- **Black screen**: Check QEMU installation, try `cargo run -- -serial stdio`
+- **Kernel panic**: Check serial output for error messages
+- **Triple fault**: Likely memory or interrupt configuration issue - check GDT/IDT setup
 
-**Error: "bootimage not found"**
-```bash
-# Install bootimage tool
-cargo install bootimage
-```
-
-**Error: "NASM not found" (Custom Bootloader)**
-- Windows: Download from [nasm.us](https://www.nasm.us/), install, and add to PATH
-- Linux: `sudo apt install nasm`
-- macOS: `brew install nasm`
-
-### Runtime Issues
-
-**QEMU doesn't start or shows black screen**
-- Verify QEMU installation: `qemu-system-x86_64 --version`
-- Check disk image exists: `ls -l disk.img` or `dir disk.img`
-- Try with verbose output: `cargo run -- -serial stdio`
-
-**Kernel panic or triple fault**
-- Check serial output for panic messages
+**Custom Bootloader Issues:**
+- **Won't boot**: Verify disk image has bootloader at sector 0
+- **Hangs after boot**: Ensure `--features custom_bootloader` was used during build
+- **Kernel too large**: Increase `KERNEL_SECTORS` in `boot/stage2.asm`
 - Verify heap is properly initialized in `main.rs`
 - Run tests to isolate issues: `cargo test`
 
@@ -873,184 +597,86 @@ println!("Date: {}", dt);
 - Clang or GCC with freestanding support
 - ar (archiver tool)
 
-**Build Process:**
-```bash
-# Install NASM on Windows
-choco install nasm
+## Graphics API Quick Reference
 
-# Install NASM on Linux
-sudo apt install nasm
+```rust
+use rustrial_os::graphics::text_graphics::*;
+use rustrial_os::vga_buffer::Color;
 
-# Install Clang
-# Windows: choco install llvm
-# Linux: sudo apt install clang
+// Box drawing
+draw_box(10, 5, 40, 10, Color::Cyan, Color::Black);
+draw_shadow_box(15, 8, 50, 8, Color::Yellow, Color::Blue);
 
-# Build normally - build.rs handles C/ASM compilation
-cargo build
+// Progress bar
+draw_progress_bar(10, 12, 50, 75, 100, Color::Green, Color::Black);
+
+// Status bar
+show_status_bar("Rustrial OS v0.1.0");
+
+// See docs/graphicsdemo.md for full API
 ```
 
-The build script (`build.rs`) automatically:
-1. Compiles `cpu_asm.asm` with NASM
-2. Compiles `pci.c` and `rtc.c` with Clang/GCC
-3. Creates `libnative.a` static library
-4. Links with Rust code
+## Hardware Detection
 
-**Note**: If NASM/Clang isn't available, the project still builds using pure Rust implementations.
+Native hardware detection uses **C + Assembly** for optimal performance:
 
-### Menu Integration
+**Build automatically compiles:**
+- `src/native/cpu_asm.asm` - CPUID via NASM
+- `src/native/pci.c` - PCI enumeration via Clang
+- `src/native/rtc.c` - Real-time clock via Clang
 
-Access hardware info through main menu option **[4]**:
-```
-Hardware Information Menu:
-  [1] Show All Hardware Information
-  [2] CPU Information (Vendor, Brand, Features)
-  [3] Date & Time (RTC)
-  [4] PCI Devices (All detected hardware)
-  [5] VESA Framebuffer Status
-  [6] Test VESA Graphics
-  [Q] Return to Main Menu
-```
+Access via **Menu Option 4** for CPU info, RTC date/time, and PCI device listing.
 
-### Project Structure
-```
-src/
-├── cpu.rs              - CPU detection (Rust)
-├── pci.rs              - PCI enumeration (Rust)
-├── rtc.rs              - RTC driver (Rust)
-├── vesa.rs             - VESA framework (Rust)
-├── hardware.rs         - Hardware display module
-├── native_ffi.rs       - FFI bindings to C/ASM
-└── native/
-    ├── cpu_asm.asm     - CPUID (NASM Assembly)
-    ├── pci.c           - PCI access (C)
-    ├── rtc.c           - RTC driver (C)
-    └── include/
-        ├── cpu_asm.h   - CPU function prototypes
-        ├── pci.h       - PCI structures/functions
-        └── rtc.h       - RTC structures/functions
-```
-
-### Why Multi-Language?
-
-**Assembly (NASM)**:
-- Direct CPU instruction access (CPUID)
-- Zero overhead for critical operations
-- Educational: See how CPUs work at lowest level
-
-**C**:
-- Portable hardware abstraction
-- Familiar to systems programmers
-- Good performance with compiler optimizations
-- Easy integration with existing drivers
-
-**Rust**:
-- Memory safety without garbage collection
-- Type safety prevents common bugs
-- Modern language features (pattern matching, traits)
-- Excellent for OS development
-
-## Early Development Notice
-
-The current C and assembly implementations  (`pci.c`, `rtc.c`, etc.) are in a very early development stage.  
-
-As a result, the current program output (more specifically if you choose option 4 which is HardWare Info in the menu screen) may be incomplete, inconsistent, or look incorrect. Many features are experimental and may not work as expected, crashes or unexpected behavior are possible.  
-
-However, Menu options **1, 2, 3, and 5** are mostly functional, but the output may not perfect.
-
-Contributions and feedback are always welcome.
-
-### Future Phases
-
-**Phase 2** (Next):
-- AHCI/SATA disk driver (C/Rust)
-- E1000 network card (C)
-- PS/2 mouse driver (Assembly/Rust)
-- AC'97 sound driver (C)
-
-**Phase 3** (Later):
-- TCP/IP networking stack
-- FAT32 filesystem
-- GUI window manager
-- Multi-process support
-
-This project is provided as-is for educational purposes.
-
-## Acknowledgments
-
-Special thanks to:
-- **Philipp Oppermann** for the excellent "Writing an OS in Rust" blog series
-- The **Rust Embedded Working Group** for embedded Rust tools
-- The **OSDev community** for OS development resources
-- All **contributors** to this project
-
----
+> **Note**: Native code is experimental. Menu options 1, 2, 3, and 5 are stable.
 
 ## Quick Reference
 
-### Boot Menu Navigation
-```
-Main Menu:
-  [1] Normal Operation     → System info + keyboard echo
-  [2] RustrialScript       → Sub-menu for scripts
-      [1] Run Demo         → Fibonacci demonstration
-      [2] Browse Scripts   → Interactive file browser
-  [3] Graphics Demo        → Interactive graphics showcase
-  [4] Hardware Info        → CPU, PCI, RTC detection (Phase 1)
-  [5] Help                 → Documentation
-
-Script Browser:
-  ↑/↓ or W/S  - Navigate scripts
-  Enter       - Execute selected script
-  ESC         - Return to previous menu
-  
-Graphics Demo:
-  Automatic   - Shows box drawing, progress bars, UI elements
-  Any Key     - Return to main menu after demo
-```
+### Menu Navigation
+| Key | Action |
+|-----|--------|
+| **1** | Normal mode (system info + keyboard) |
+| **2** | RustrialScript (demo or browser) |
+| **3** | Graphics showcase |
+| **4** | Hardware info (CPU, RTC, PCI) |
+| **5** | Help documentation |
+| **↑/↓** or **W/S** | Navigate browser |
+| **Enter** | Execute selection |
+| **ESC** | Return to previous menu |
 
 ### Common Commands
 ```bash
-# Quick start
-cargo run
-
-# Build with custom bootloader
-./build-custom.sh          # Linux/macOS
-.\build-custom.ps1         # Windows
-
-# Run tests
-cargo test
-
-# Build for release
-cargo build --target x86_64-rustrial_os.json --release
-
-# Run with serial output
-cargo run -- -serial stdio
+cargo run                    # Quick start
+cargo test                   # Run tests
+cargo run -- -serial stdio   # With serial output
+./boot/build-custom.ps1      # Build custom bootloader (Windows)
+./boot/build-custom.sh       # Build custom bootloader (Linux/macOS)
 ```
 
-### File Locations
-- Kernel source: `src/`
-- Scripts: `src/rustrial_script/examples/`
-- Bootloader: `boot/`
-- Tests: `tests/`
-- Documentation: `*.md` and `src/rustrial_script/docs/`
+### Key Directories
+- `src/` - Kernel source code
+- `src/rustrial_script/examples/` - Embedded scripts
+- `src/graphics/` - Graphics library
+- `src/native/` - C and Assembly code
+- `boot/` - Custom bootloader assembly files
+- `docs/` - Documentation
+- `tests/` - Integration tests
 
-### Memory Map
-```
-0x0000_0000 - 0x0000_7BFF   Free/BIOS
-0x0000_7C00 - 0x0000_7DFF   Boot sector (Stage 1)
-0x0000_7E00 - 0x0000_9FFF   Stage 2 bootloader
-0x0000_1000 - 0x0000_4FFF   Page tables
-0x0010_0000 - 0x001F_FFFF   Kernel binary
-0x4444_4444_0000            Heap start (100KB)
-0xB800_0000                 VGA buffer
-```
+## Resources
+
+**Learning Materials:**
+- [Writing an OS in Rust](https://os.phil-opp.com/) by Philipp Oppermann
+- [OSDev Wiki](https://wiki.osdev.org/)
+- [Rust Embedded Book](https://rust-embedded.github.io/book/)
+
+**Inspiration:**
+- Philipp Oppermann's blog_os
+- Redox OS
+- SerenityOS
+
+## License
+
+This project is open source and available for educational purposes. See individual file headers for specific licensing information.
 
 ---
 
-<p align="center">
-  <a href="https://github.com/lazzerex/rustrial-os/issues">Report Bug</a>
-  ·
-  <a href="https://github.com/lazzerex/rustrial-os/issues">Request Feature</a>
-  ·
-  <a href="https://github.com/lazzerex/rustrial-os/pulls">Submit PR</a>
-</p>
+**Made with Rust** | [Issues](https://github.com/lazzerex/rustrial-os/issues) | [Contributing](https://github.com/lazzerex/rustrial-os/pulls)
