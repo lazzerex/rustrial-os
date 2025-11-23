@@ -532,6 +532,12 @@ fn show_script_browser(selected_index: usize, page: usize) {
     let window_start = page * MAX_VISIBLE;
     let window_end = min(window_start + MAX_VISIBLE, total);
 
+    // Always clear all possible rows in the visible area
+    for visible_row in 0..MAX_VISIBLE {
+        let base_y = FRAME_Y + 6 + visible_row * 2;
+        draw_filled_box(FRAME_X + 3, base_y - 1, FRAME_WIDTH - 6, 2, Color::Black, Color::Black);
+    }
+
     for (visible_row, script_idx) in (window_start..window_end).enumerate() {
         let filename = scripts[script_idx].trim_start_matches("/scripts/");
         let truncated = if filename.len() > 44 {
@@ -549,14 +555,14 @@ fn show_script_browser(selected_index: usize, page: usize) {
             draw_filled_box(FRAME_X + 3, base_y - 1, FRAME_WIDTH - 6, 2, Color::Black, Color::LightBlue);
             write_at(FRAME_X + 5, base_y, &alloc::format!("→ [{:02}] {}", script_idx + 1, truncated), Color::Black, Color::LightBlue);
         } else {
-            draw_filled_box(FRAME_X + 3, base_y - 1, FRAME_WIDTH - 6, 2, Color::Black, Color::Black);
+            // Already cleared above
             write_at(FRAME_X + 5, base_y, &alloc::format!("  [{:02}] {}", script_idx + 1, truncated), Color::White, Color::Black);
         }
     }
 
     let footer_y = FRAME_Y + FRAME_HEIGHT - 4;
     write_at(FRAME_X + 4, footer_y, &alloc::format!("Page {}/{} | Showing {}-{} of {} scripts", page + 1, total_pages, window_start + 1, window_end, total), Color::LightGray, Color::Black);
-    write_at(FRAME_X + 4, footer_y + 1, "↑/↓: Move  PgUp/PgDn: Page  Enter: Run", Color::LightGray, Color::Black);
+    write_at(FRAME_X + 4, footer_y + 1, "↑/↓: Move  ←/→: Page  Enter: Run", Color::LightGray, Color::Black);
     show_status_bar("ESC returns • Enter runs selection");
 }
 
@@ -609,14 +615,14 @@ fn handle_script_browser_input(
                 show_script_browser(*selected_index, *page);
             }
         }
-        DecodedKey::RawKey(KeyCode::PageUp) => {
+        DecodedKey::RawKey(KeyCode::ArrowLeft) => {
             if *page > 0 {
                 *page -= 1;
                 *selected_index = *page * 10;
                 show_script_browser(*selected_index, *page);
             }
         }
-        DecodedKey::RawKey(KeyCode::PageDown) => {
+        DecodedKey::RawKey(KeyCode::ArrowRight) => {
             let max_index = crate::fs::root_fs()
                 .and_then(|fs| {
                     let fs_guard = fs.lock();
