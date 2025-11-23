@@ -37,6 +37,7 @@ pub async fn interactive_menu() {
     
     let mut menu_state = MenuState::MainMenu;
     let mut selected_script_index: usize = 0;
+    let mut script_browser_page: usize = 0;
     let mut return_to_browser = false; // Track if we should return to browser after help mode
     let mut return_to_hardware = false; // Track if we should return to hardware menu after help mode
     show_menu_screen();
@@ -95,7 +96,8 @@ pub async fn interactive_menu() {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     selected_script_index = 0;
-                                    show_script_browser(selected_script_index);
+                                    script_browser_page = 0;
+                                    show_script_browser(selected_script_index, script_browser_page);
                                     menu_state = MenuState::ScriptBrowser;
                                 }
                                 _ => {
@@ -112,7 +114,13 @@ pub async fn interactive_menu() {
                         }
                     }
                     MenuState::ScriptBrowser => {
-                        handle_script_browser_input(key, &mut selected_script_index, &mut menu_state, &mut return_to_browser);
+                        handle_script_browser_input(
+                            key,
+                            &mut selected_script_index,
+                            &mut script_browser_page,
+                            &mut menu_state,
+                            &mut return_to_browser,
+                        );
                     }
                     MenuState::HardwareMenu => {
                         // Handle hardware menu input
@@ -175,7 +183,7 @@ pub async fn interactive_menu() {
                         } else if return_to_browser {
                             use crate::vga_buffer::clear_screen;
                             clear_screen();
-                            show_script_browser(selected_script_index);
+                            show_script_browser(selected_script_index, script_browser_page);
                             menu_state = MenuState::ScriptBrowser;
                             return_to_browser = false;
                         } else {
@@ -491,7 +499,7 @@ fn show_script_choice() {
     show_status_bar("Press 1-2 to choose  •  ESC returns to the main menu");
 }
 
-fn show_script_browser(selected_index: usize) {
+fn show_script_browser(selected_index: usize, page: usize) {
     use crate::vga_buffer::clear_screen;
     clear_screen();
 
@@ -519,11 +527,9 @@ fn show_script_browser(selected_index: usize) {
     }
 
     let total = scripts.len();
-    let window_start = if selected_index >= MAX_VISIBLE {
-        selected_index + 1 - MAX_VISIBLE
-    } else {
-        0
-    };
+    let total_pages = (total + MAX_VISIBLE - 1) / MAX_VISIBLE;
+    let page = page.min(total_pages.saturating_sub(1));
+    let window_start = page * MAX_VISIBLE;
     let window_end = min(window_start + MAX_VISIBLE, total);
 
     for (visible_row, script_idx) in (window_start..window_end).enumerate() {
@@ -549,17 +555,19 @@ fn show_script_browser(selected_index: usize) {
     }
 
     let footer_y = FRAME_Y + FRAME_HEIGHT - 4;
-    write_at(FRAME_X + 4, footer_y, &alloc::format!("Showing {} of {} scripts", window_end - window_start, total), Color::LightGray, Color::Black);
-    write_at(FRAME_X + 4, footer_y + 1, "Use ↑/↓ or W/S to navigate, Enter to run", Color::LightGray, Color::Black);
+    write_at(FRAME_X + 4, footer_y, &alloc::format!("Page {}/{} | Showing {}-{} of {} scripts", page + 1, total_pages, window_start + 1, window_end, total), Color::LightGray, Color::Black);
+    write_at(FRAME_X + 4, footer_y + 1, "↑/↓: Move  PgUp/PgDn: Page  Enter: Run", Color::LightGray, Color::Black);
     show_status_bar("ESC returns • Enter runs selection");
 }
 
 fn handle_script_browser_input(
     key: DecodedKey,
     selected_index: &mut usize,
+    page: &mut usize,
     menu_state: &mut MenuState,
     return_to_browser: &mut bool,
-) {
+)
+{
     match key {
         DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b') => {
             use crate::vga_buffer::clear_screen;
@@ -568,23 +576,17 @@ fn handle_script_browser_input(
             *menu_state = MenuState::ScriptChoice;
         }
         DecodedKey::RawKey(KeyCode::ArrowUp) | DecodedKey::Unicode('w') | DecodedKey::Unicode('W') => {
-            if *selected_index == 0 {
-                return;
-            }
-
-            let can_navigate = crate::fs::root_fs()
-                .and_then(|fs| {
-                    let fs_guard = fs.lock();
-                    fs_guard.list_dir("/scripts").ok()
-                })
-                .map(|scripts| !scripts.is_empty())
-                .unwrap_or(false);
-
-            if can_navigate {
+            if *selected_index > 0 {
                 *selected_index -= 1;
+                let max_visible = 10;
+                if *selected_index < *page * max_visible {
+                    if *page > 0 {
+                        *page -= 1;
+                    }
+                }
                 use crate::vga_buffer::clear_screen;
                 clear_screen();
-                show_script_browser(*selected_index);
+                show_script_browser(*selected_index, *page);
             }
         }
         DecodedKey::RawKey(KeyCode::ArrowDown) | DecodedKey::Unicode('s') | DecodedKey::Unicode('S') => {
@@ -598,9 +600,35 @@ fn handle_script_browser_input(
 
             if max_index > 0 && *selected_index < max_index.saturating_sub(1) {
                 *selected_index += 1;
+                let max_visible = 10;
+                if *selected_index >= (*page + 1) * max_visible {
+                    *page += 1;
+                }
                 use crate::vga_buffer::clear_screen;
                 clear_screen();
-                show_script_browser(*selected_index);
+                show_script_browser(*selected_index, *page);
+            }
+        }
+        DecodedKey::RawKey(KeyCode::PageUp) => {
+            if *page > 0 {
+                *page -= 1;
+                *selected_index = *page * 10;
+                show_script_browser(*selected_index, *page);
+            }
+        }
+        DecodedKey::RawKey(KeyCode::PageDown) => {
+            let max_index = crate::fs::root_fs()
+                .and_then(|fs| {
+                    let fs_guard = fs.lock();
+                    fs_guard.list_dir("/scripts").ok()
+                })
+                .map(|scripts| scripts.len())
+                .unwrap_or(0);
+            let max_page = if max_index == 0 { 0 } else { (max_index - 1) / 10 };
+            if *page < max_page {
+                *page += 1;
+                *selected_index = *page * 10;
+                show_script_browser(*selected_index, *page);
             }
         }
         DecodedKey::Unicode('\n') | DecodedKey::RawKey(KeyCode::Return) => {
