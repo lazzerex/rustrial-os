@@ -38,7 +38,6 @@ pub async fn interactive_menu() {
     let mut menu_state = MenuState::MainMenu;
     let mut selected_script_index: usize = 0;
     let mut script_browser_page: usize = 0;
-    let mut help_page: usize = 0;
     let mut return_to_browser = false; // Track if we should return to browser after help mode
     let mut return_to_hardware = false; // Track if we should return to hardware menu after help mode
     show_menu_screen();
@@ -73,8 +72,8 @@ pub async fn interactive_menu() {
                                     menu_state = MenuState::HardwareMenu;
                                 }
                                 '5' => {
-                                    help_page = 0;
-                                    show_help_page(help_page);
+                                    show_help();
+                                    show_status_bar("Press any key to return to the main menu");
                                     menu_state = MenuState::HelpMode;
                                 }
                                 _ => {
@@ -171,42 +170,27 @@ pub async fn interactive_menu() {
                         // Hardware submenu will be shown after returning from HelpMode
                     }
                     MenuState::HelpMode => {
-                        use pc_keyboard::KeyCode;
-                        let total_pages = (HELP_LINES.len() + HELP_LINES_PER_PAGE - 1) / HELP_LINES_PER_PAGE;
-                        match key {
-                            DecodedKey::RawKey(KeyCode::ArrowRight) => {
-                                if help_page + 1 < total_pages {
-                                    help_page += 1;
-                                    show_help_page(help_page);
-                                }
+                        // ESC or any key returns to menu from help
+                        if return_to_hardware {
+                            // For hardware menu, only accept ESC
+                            if matches!(key, DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b')) {
+                                use crate::vga_buffer::clear_screen;
+                                clear_screen();
+                                show_hardware_submenu();
+                                menu_state = MenuState::HardwareMenu;
+                                return_to_hardware = false;
                             }
-                            DecodedKey::RawKey(KeyCode::ArrowLeft) => {
-                                if help_page > 0 {
-                                    help_page -= 1;
-                                    show_help_page(help_page);
-                                }
-                            }
-                            DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b') | DecodedKey::Unicode(_) => {
-                                if return_to_hardware {
-                                    use crate::vga_buffer::clear_screen;
-                                    clear_screen();
-                                    show_hardware_submenu();
-                                    menu_state = MenuState::HardwareMenu;
-                                    return_to_hardware = false;
-                                } else if return_to_browser {
-                                    use crate::vga_buffer::clear_screen;
-                                    clear_screen();
-                                    show_script_browser(selected_script_index, script_browser_page);
-                                    menu_state = MenuState::ScriptBrowser;
-                                    return_to_browser = false;
-                                } else {
-                                    use crate::vga_buffer::clear_screen;
-                                    clear_screen();
-                                    show_menu_screen();
-                                    menu_state = MenuState::MainMenu;
-                                }
-                            }
-                            _ => {}
+                        } else if return_to_browser {
+                            use crate::vga_buffer::clear_screen;
+                            clear_screen();
+                            show_script_browser(selected_script_index, script_browser_page);
+                            menu_state = MenuState::ScriptBrowser;
+                            return_to_browser = false;
+                        } else {
+                            use crate::vga_buffer::clear_screen;
+                            clear_screen();
+                            show_menu_screen();
+                            menu_state = MenuState::MainMenu;
                         }
                     }
                     MenuState::NormalMode => {
@@ -516,9 +500,14 @@ fn show_script_choice() {
 }
 
 fn show_script_browser(selected_index: usize, page: usize) {
+    use crate::vga_buffer::clear_screen;
+    clear_screen();
 
-    // Clear only the script browser frame area, not the whole screen
-    draw_filled_box(FRAME_X, FRAME_Y, FRAME_WIDTH, FRAME_HEIGHT, Color::Black, Color::Black);
+    const FRAME_X: usize = 6;
+    const FRAME_Y: usize = 2;
+    const FRAME_WIDTH: usize = 68;
+    const FRAME_HEIGHT: usize = 20;
+    const MAX_VISIBLE: usize = 10;
 
     draw_shadow_box(FRAME_X, FRAME_Y, FRAME_WIDTH, FRAME_HEIGHT, Color::LightCyan, Color::Black);
     draw_filled_box(FRAME_X + 1, FRAME_Y + 1, FRAME_WIDTH - 2, 3, Color::White, Color::Blue);
@@ -779,62 +768,68 @@ fn run_demo() {
 }
 
 
-const HELP_LINES: &[(&str, Color, Color)] = &[
-    ("RustrialOS Help Center", Color::Yellow, Color::Magenta),
-    ("Quick reference for navigation and system features", Color::LightGray, Color::Magenta),
-    ("", Color::White, Color::Black),
-    ("Core Capabilities", Color::White, Color::Black),
-    ("• Custom memory management and heap allocation", Color::LightGray, Color::Black),
-    ("• Interrupt handling with async task executor", Color::LightGray, Color::Black),
-    ("• In-memory filesystem (RAMfs) with VFS layer", Color::LightGray, Color::Black),
-    ("• RustrialScript interpreter and demos", Color::LightGray, Color::Black),
-    ("• Styled text-mode UI with graphics showcase", Color::LightGray, Color::Black),
-    ("", Color::White, Color::Black),
-    ("Menu Overview", Color::White, Color::Black),
-    ("[1] Normal Operation  - System diagnostics + keyboard echo", Color::LightGray, Color::Black),
-    ("[2] RustrialScript    - Demo runner and script browser", Color::LightGray, Color::Black),
-    ("[3] Graphics Demo    - Animated showcase of UI elements", Color::LightGray, Color::Black),
-    ("[4] Help             - You're here right now!", Color::LightGray, Color::Black),
-    ("", Color::White, Color::Black),
-    ("Keyboard Shortcuts", Color::White, Color::Black),
-    ("ESC  - Return to previous screen", Color::LightGray, Color::Black),
-    ("Enter - Activate highlighted option", Color::LightGray, Color::Black),
-    ("↑/↓ or W/S - Navigate lists", Color::LightGray, Color::Black),
-    ("Backspace - Delete last character in echo mode", Color::LightGray, Color::Black),
-    ("", Color::White, Color::Black),
-    ("Docs & Source", Color::White, Color::Black),
-    ("github.com/lazzerex/rustrial-os", Color::LightCyan, Color::Black),
-];
-
-const HELP_FRAME_X: usize = 4;
-const HELP_FRAME_Y: usize = 1;
-const HELP_FRAME_WIDTH: usize = 72;
-const HELP_FRAME_HEIGHT: usize = 22;
-const HELP_HEADER_LINES: usize = 4; // Title, subtitle, and header box
-const HELP_LINES_PER_PAGE: usize = HELP_FRAME_HEIGHT - HELP_HEADER_LINES - 2; // 16
-
-fn show_help_page(page: usize) {
+fn show_help() {
     use crate::vga_buffer::clear_screen;
     clear_screen();
 
-    draw_shadow_box(HELP_FRAME_X, HELP_FRAME_Y, HELP_FRAME_WIDTH, HELP_FRAME_HEIGHT, Color::Pink, Color::Black);
-    draw_filled_box(HELP_FRAME_X + 1, HELP_FRAME_Y + 1, HELP_FRAME_WIDTH - 2, 3, Color::White, Color::Magenta);
-    write_centered(HELP_FRAME_Y + 2, "RustrialOS Help Center", Color::Yellow, Color::Magenta);
-    write_centered(HELP_FRAME_Y + 3, "Quick reference for navigation and system features", Color::LightGray, Color::Magenta);
-    draw_hline(HELP_FRAME_X + 2, HELP_FRAME_Y + 4, HELP_FRAME_WIDTH - 4, Color::Pink, Color::Black);
+    const FRAME_X: usize = 4;
+    const FRAME_Y: usize = 1;
+    const FRAME_WIDTH: usize = 72;
+    const FRAME_HEIGHT: usize = 22;
 
-    let start = page * HELP_LINES_PER_PAGE;
-    let end = min(start + HELP_LINES_PER_PAGE, HELP_LINES.len());
-    let mut section_y = HELP_FRAME_Y + 6;
-    for &(line, fg, bg) in &HELP_LINES[start..end] {
-        write_at(HELP_FRAME_X + 4, section_y, line, fg, bg);
+    draw_shadow_box(FRAME_X, FRAME_Y, FRAME_WIDTH, FRAME_HEIGHT, Color::Pink, Color::Black);
+    draw_filled_box(FRAME_X + 1, FRAME_Y + 1, FRAME_WIDTH - 2, 3, Color::White, Color::Magenta);
+    write_centered(FRAME_Y + 2, "RustrialOS Help Center", Color::Yellow, Color::Magenta);
+    write_centered(FRAME_Y + 3, "Quick reference for navigation and system features", Color::LightGray, Color::Magenta);
+
+    draw_hline(FRAME_X + 2, FRAME_Y + 4, FRAME_WIDTH - 4, Color::Pink, Color::Black);
+
+    let mut section_y = FRAME_Y + 6;
+    write_at(FRAME_X + 4, section_y, "Core Capabilities", Color::White, Color::Black);
+    section_y += 1;
+    let capabilities = [
+        "• Custom memory management and heap allocation",
+        "• Interrupt handling with async task executor",
+        "• In-memory filesystem (RAMfs) with VFS layer",
+        "• RustrialScript interpreter and demos",
+        "• Styled text-mode UI with graphics showcase",
+    ];
+    for line in &capabilities {
+        write_at(FRAME_X + 6, section_y, line, Color::LightGray, Color::Black);
         section_y += 1;
     }
 
-    // Page indicator
-    let total_pages = (HELP_LINES.len() + HELP_LINES_PER_PAGE - 1) / HELP_LINES_PER_PAGE;
-    let page_str = alloc::format!("Page {}/{}  ←/→ to navigate", page + 1, total_pages.max(1));
-    write_centered(HELP_FRAME_Y + HELP_FRAME_HEIGHT - 2, &page_str, Color::LightMagenta, Color::Black);
+    section_y += 1;
+    write_at(FRAME_X + 4, section_y, "Menu Overview", Color::White, Color::Black);
+    section_y += 1;
+    let menu_lines = [
+        "[1] Normal Operation  - System diagnostics + keyboard echo",
+        "[2] RustrialScript    - Demo runner and script browser",
+        "[3] Graphics Demo    - Animated showcase of UI elements",
+        "[4] Help             - You're here right now!",
+    ];
+    for line in &menu_lines {
+        write_at(FRAME_X + 6, section_y, line, Color::LightGray, Color::Black);
+        section_y += 1;
+    }
+
+    section_y += 1;
+    write_at(FRAME_X + 4, section_y, "Keyboard Shortcuts", Color::White, Color::Black);
+    section_y += 1;
+    let shortcut_lines = [
+        "ESC  - Return to previous screen",
+        "Enter - Activate highlighted option",
+        "↑/↓ or W/S - Navigate lists",
+        "Backspace - Delete last character in echo mode",
+    ];
+    for line in &shortcut_lines {
+        write_at(FRAME_X + 6, section_y, line, Color::LightGray, Color::Black);
+        section_y += 1;
+    }
+
+    section_y += 1;
+    write_at(FRAME_X + 4, section_y, "Docs & Source", Color::White, Color::Black);
+    write_at(FRAME_X + 6, section_y + 1, "github.com/lazzerex/rustrial-os", Color::LightCyan, Color::Black);
 
     show_status_bar("Press any key to return to the main menu");
 }
