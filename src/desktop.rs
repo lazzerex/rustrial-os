@@ -106,17 +106,10 @@ impl DesktopIcon {
     }
 }
 
-/// Desktop state
-pub enum DesktopState {
-    Desktop,
-    InApplication,
-}
-
 /// Main desktop environment
 pub struct Desktop {
     icons: Vec<DesktopIcon>,
     selected_icon: Option<usize>,
-    state: DesktopState,
     last_mouse_x: i16,
     last_mouse_y: i16,
     mouse_visible: bool,
@@ -135,7 +128,6 @@ impl Desktop {
         Desktop {
             icons,
             selected_icon: None,
-            state: DesktopState::Desktop,
             last_mouse_x: 40,
             last_mouse_y: 12,
             mouse_visible: true,
