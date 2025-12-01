@@ -19,6 +19,7 @@ use rustrial_os::println;
 use rustrial_os::task::Task;
 use rustrial_os::task::executor::Executor;
 use rustrial_os::native_ffi;
+use rustrial_os::desktop::{run_desktop_environment, IconAction};
 //use x86_64::structures::paging::PageTable;
 
 fn print_hardware_summary() {
@@ -40,6 +41,116 @@ fn truncate_str(s: &str, max_len: usize) -> alloc::string::String {
         alloc::format!("{:width$}", s, width = max_len)
     } else {
         alloc::format!("{}...", &s[..max_len-3])
+    }
+}
+
+async fn desktop_loop() {
+    loop {
+        // Show desktop and wait for user action
+        let action = run_desktop_environment().await;
+        
+        // Handle the selected action
+        match action {
+            IconAction::OpenMenu => {
+                // Show the main menu
+                use rustrial_os::vga_buffer::clear_screen;
+                clear_screen();
+                
+                println!("Hello From the Rustrial Kernel!");
+                println!();
+                
+                // Display hardware detection summary
+                print_hardware_summary();
+                println!();
+                
+                // Run menu - if it returns true, user wants to go back to desktop
+                let return_to_desktop = rustrial_os::rustrial_menu::interactive_menu().await;
+                if !return_to_desktop {
+                    // If menu returns false, stay in menu (shouldn't happen normally)
+                    continue;
+                }
+            }
+            IconAction::SystemInfo => {
+                // Directly show system info
+                use rustrial_os::vga_buffer::clear_screen;
+                clear_screen();
+                print_hardware_summary();
+                println!("\nPress any key to return to desktop...");
+                
+                // Wait for any key
+                use rustrial_os::task::keyboard;
+                use futures_util::stream::StreamExt;
+                use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
+                
+                let mut scancodes = keyboard::ScancodeStream::new();
+                let mut kb = Keyboard::new(
+                    ScancodeSet1::new(),
+                    layouts::Us104Key,
+                    HandleControl::Ignore,
+                );
+                
+                while let Some(scancode) = scancodes.next().await {
+                    if let Ok(Some(key_event)) = kb.add_byte(scancode) {
+                        if let Some(_) = kb.process_keyevent(key_event) {
+                            break;
+                        }
+                    }
+                }
+            }
+            IconAction::Scripts => {
+                // Go to menu in script mode
+                use rustrial_os::vga_buffer::clear_screen;
+                clear_screen();
+                println!("Launching RustrialScript...\n");
+                
+                // You could directly launch script browser here
+                // For now, just go to menu
+                print_hardware_summary();
+                println!();
+                let _ = rustrial_os::rustrial_menu::interactive_menu().await;
+            }
+            IconAction::Hardware => {
+                // Show hardware info
+                use rustrial_os::vga_buffer::clear_screen;
+                clear_screen();
+                
+                let cpu_info = native_ffi::CpuInfo::get();
+                let dt = native_ffi::DateTime::read();
+                let devices = native_ffi::enumerate_pci_devices();
+                
+                println!("=== HARDWARE INFORMATION ===\n");
+                println!("CPU: {}", cpu_info.brand_str());
+                println!("Date/Time: {}", dt);
+                println!("\nPCI Devices:");
+                for device in devices.iter() {
+                    println!("  {:04x}:{:04x} - Class {:02x}:{:02x}",
+                             device.vendor_id, device.device_id,
+                             device.class_code, device.subclass);
+                }
+                
+                println!("\nPress any key to return to desktop...");
+                
+                // Wait for any key
+                use rustrial_os::task::keyboard;
+                use futures_util::stream::StreamExt;
+                use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
+                
+                let mut scancodes = keyboard::ScancodeStream::new();
+                let mut kb = Keyboard::new(
+                    ScancodeSet1::new(),
+                    layouts::Us104Key,
+                    HandleControl::Ignore,
+                );
+                
+                while let Some(scancode) = scancodes.next().await {
+                    if let Ok(Some(key_event)) = kb.add_byte(scancode) {
+                        if let Some(_) = kb.process_keyevent(key_event) {
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -154,22 +265,15 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     #[cfg(test)]
     test_main();
 
-    // Display boot splash with staged progress before entering the main menu
+    // Display boot splash with staged progress before entering the desktop
     rustrial_os::graphics::splash::run_boot_sequence();
 
-    // clear screen and show interactive menu
-    use rustrial_os::vga_buffer::clear_screen;
-    clear_screen();
+    // Initialize mouse support
+    rustrial_os::task::mouse::init();
     
-    println!("Hello From the Rustrial Kernel!");
-    println!();
-    
-    // Phase 1: Display hardware detection summary (Native C/Assembly)
-    print_hardware_summary();
-    println!();
-    
+    // Launch desktop environment with menu integration
     let mut executor = Executor::new();
-    executor.spawn(Task::new(rustrial_os::rustrial_menu::interactive_menu()));
+    executor.spawn(Task::new(desktop_loop()));
     executor.run();
 
     println!("It did not crash!");
@@ -197,17 +301,15 @@ fn kernel_main_custom() -> ! {
     #[cfg(test)]
     test_main();
 
-    // Display boot splash with staged progress before entering the main menu
+    // Display boot splash with staged progress before entering the desktop
     rustrial_os::graphics::splash::run_boot_sequence();
 
-    // clear screen and show interactive menu
-    use rustrial_os::vga_buffer::clear_screen;
-    clear_screen();
+    // Initialize mouse support
+    rustrial_os::task::mouse::init();
     
-    println!("Hello From the Rustrial Kernel (Custom Bootloader)!");
-    
+    // Launch desktop environment with menu integration
     let mut executor = Executor::new();
-    executor.spawn(Task::new(rustrial_os::rustrial_menu::interactive_menu()));
+    executor.spawn(Task::new(desktop_loop()));
     executor.run();
 }
 
