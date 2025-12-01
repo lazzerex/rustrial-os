@@ -318,8 +318,7 @@ impl Desktop {
                 
                 // Update cursor position
                 if mx != self.last_mouse_x || my != self.last_mouse_y {
-                    self.last_mouse_x = mx;
-                    self.last_mouse_y = my;
+                    self.update_cursor_position(mx, my);
                     self.update_mouse_selection(mx, my);
                 }
                 
@@ -357,6 +356,8 @@ impl Desktop {
                 if let Ok(Some(key_event)) = kb.add_byte(scancode) {
                     if let Some(key) = kb.process_keyevent(key_event) {
                         let mut cursor_moved = false;
+                        let mut new_x = self.last_mouse_x;
+                        let mut new_y = self.last_mouse_y;
                         
                         match key {
                             DecodedKey::Unicode('\n') | DecodedKey::Unicode(' ') => {
@@ -375,26 +376,26 @@ impl Desktop {
                             }
                             // Arrow keys move the cursor
                             DecodedKey::RawKey(KeyCode::ArrowLeft) => {
-                                if self.last_mouse_x > 0 {
-                                    self.last_mouse_x -= 1;
+                                if new_x > 0 {
+                                    new_x -= 1;
                                     cursor_moved = true;
                                 }
                             }
                             DecodedKey::RawKey(KeyCode::ArrowRight) => {
-                                if self.last_mouse_x < BUFFER_WIDTH as i16 - 1 {
-                                    self.last_mouse_x += 1;
+                                if new_x < BUFFER_WIDTH as i16 - 1 {
+                                    new_x += 1;
                                     cursor_moved = true;
                                 }
                             }
                             DecodedKey::RawKey(KeyCode::ArrowUp) => {
-                                if self.last_mouse_y > 0 {
-                                    self.last_mouse_y -= 1;
+                                if new_y > 0 {
+                                    new_y -= 1;
                                     cursor_moved = true;
                                 }
                             }
                             DecodedKey::RawKey(KeyCode::ArrowDown) => {
-                                if self.last_mouse_y < BUFFER_HEIGHT as i16 - 1 {
-                                    self.last_mouse_y += 1;
+                                if new_y < BUFFER_HEIGHT as i16 - 1 {
+                                    new_y += 1;
                                     cursor_moved = true;
                                 }
                             }
@@ -403,8 +404,8 @@ impl Desktop {
                         
                         // Update cursor efficiently if moved
                         if cursor_moved {
-                            self.update_cursor_position(self.last_mouse_x, self.last_mouse_y);
-                            self.update_mouse_selection(self.last_mouse_x, self.last_mouse_y);
+                            self.update_cursor_position(new_x, new_y);
+                            self.update_mouse_selection(new_x, new_y);
                         }
                     }
                 }
