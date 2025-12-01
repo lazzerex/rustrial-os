@@ -27,7 +27,7 @@ enum MenuState {
     HelpMode,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 enum HardwarePanel {
     Overview,
     Cpu,
