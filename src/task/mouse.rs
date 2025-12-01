@@ -6,7 +6,6 @@
 use conquer_once::spin::OnceCell;
 use core::sync::atomic::{AtomicI16, AtomicU8, Ordering};
 use crossbeam_queue::ArrayQueue;
-use spin::Mutex;
 
 /// Global mouse packet queue
 static MOUSE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
@@ -43,14 +42,14 @@ impl MousePacket {
         // Sign-extend the movement values
         let x_movement = if bytes[0] & 0x10 != 0 {
             // Negative X
-            (bytes[1] as i16) | 0xFF00
+            (bytes[1] as i16) | (0xFF00u16 as i16)
         } else {
             bytes[1] as i16
         };
         
         let y_movement = if bytes[0] & 0x20 != 0 {
             // Negative Y
-            (bytes[2] as i16) | 0xFF00
+            (bytes[2] as i16) | (0xFF00u16 as i16)
         } else {
             bytes[2] as i16
         };
@@ -174,7 +173,6 @@ pub fn is_right_button_pressed() -> bool {
 
 /// PS/2 Mouse controller ports
 const MOUSE_DATA_PORT: u16 = 0x60;
-const MOUSE_STATUS_PORT: u16 = 0x64;
 const MOUSE_COMMAND_PORT: u16 = 0x64;
 
 /// Initialize PS/2 mouse hardware
