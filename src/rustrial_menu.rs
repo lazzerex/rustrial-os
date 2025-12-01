@@ -26,7 +26,8 @@ enum MenuState {
     HelpMode,
 }
 
-pub async fn interactive_menu() {
+/// Interactive menu - returns true if user wants to return to desktop, false to stay in menu
+pub async fn interactive_menu() -> bool {
     
     let mut scancodes = keyboard::ScancodeStream::new();
     let mut kb = Keyboard::new(
@@ -75,6 +76,10 @@ pub async fn interactive_menu() {
                                     show_help();
                                     show_status_bar("Press any key to return to the main menu");
                                     menu_state = MenuState::HelpMode;
+                                }
+                                '0' => {
+                                    // Exit to desktop
+                                    return true;
                                 }
                                 _ => {
                                     // ignore other keys in menu mode
@@ -217,6 +222,9 @@ pub async fn interactive_menu() {
             }
         }
     }
+    
+    // Should never reach here, but return false by default
+    false
 }
 
 // Hardware menu helper functions (native C/Assembly implementation)
@@ -389,6 +397,7 @@ fn show_menu_screen() {
         ("[3]", "Graphics Demo", "Showcase the text-mode UI and visual effects"),
         ("[4]", "Hardware Info", "Native C/Assembly implementation (Phase 1)"),
         ("[5]", "Show Help", "Keyboard shortcuts and feature overview"),
+        ("[0]", "Exit to Desktop", "Return to the desktop environment"),
     ];
 
     for (index, (label, title, description)) in menu_items.iter().enumerate() {
@@ -414,7 +423,7 @@ fn show_menu_screen() {
     }
 
     write_centered(FRAME_Y + FRAME_HEIGHT + 1, "Welcome to the Rustrial OS playground", Color::LightCyan, Color::Black);
-    show_status_bar("Press 1-5 to select  •  ESC returns from other views");
+    show_status_bar("Press 1-5 to select, 0 to exit  •  ESC returns from other views");
 }
 
 fn show_hardware_submenu() {
