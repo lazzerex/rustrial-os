@@ -207,11 +207,15 @@ impl Desktop {
     }
 
     pub async fn run(&mut self) -> IconAction {
+        use crate::println;
+        
         // Initialize mouse hardware
         crate::task::mouse::init_hardware();
         
         // Render initial desktop
         self.render_desktop();
+        
+        println!("\n[DEBUG] Desktop initialized. Use arrow keys to move cursor, Enter to click.");
         
         let mut scancodes = keyboard::ScancodeStream::new();
         let mut kb = Keyboard::new(
@@ -269,36 +273,52 @@ impl Desktop {
                 }
             }
             
-            // Process keyboard input (for keyboard navigation)
+            // Process keyboard input (for keyboard navigation AND cursor control)
             if let Some(scancode) = scancodes.next().await {
                 if let Ok(Some(key_event)) = kb.add_byte(scancode) {
                     if let Some(key) = kb.process_keyevent(key_event) {
+                        use crate::println;
+                        // Debug: print the key
+                        println!("[DEBUG] Key pressed: {:?}", key);
+                        
                         match key {
                             DecodedKey::Unicode('\n') | DecodedKey::Unicode(' ') => {
-                                // Enter/Space activates selected icon
+                                // Enter/Space activates selected icon OR simulates click
                                 if let Some(icon_idx) = self.selected_icon {
-                                    if let Some(action) = self.handle_icon_click(icon_idx) {
-                                        return action;
+                                    // Check for double-press
+                                    if double_click_timer > 0 && last_clicked_icon == Some(icon_idx) {
+                                        if let Some(action) = self.handle_icon_click(icon_idx) {
+                                            return action;
+                                        }
+                                    } else {
+                                        last_clicked_icon = Some(icon_idx);
+                                        double_click_timer = 50;
                                     }
                                 }
                             }
+                            // Arrow keys move the cursor
                             DecodedKey::RawKey(KeyCode::ArrowLeft) => {
-                                if let Some(idx) = self.selected_icon {
-                                    if idx > 0 {
-                                        self.selected_icon = Some(idx - 1);
-                                        self.render_desktop();
-                                    }
+                                if self.last_mouse_x > 0 {
+                                    self.last_mouse_x -= 1;
+                                    self.update_mouse_selection(self.last_mouse_x, self.last_mouse_y);
                                 }
                             }
                             DecodedKey::RawKey(KeyCode::ArrowRight) => {
-                                if let Some(idx) = self.selected_icon {
-                                    if idx < self.icons.len() - 1 {
-                                        self.selected_icon = Some(idx + 1);
-                                        self.render_desktop();
-                                    }
-                                } else if !self.icons.is_empty() {
-                                    self.selected_icon = Some(0);
-                                    self.render_desktop();
+                                if self.last_mouse_x < BUFFER_WIDTH as i16 - 1 {
+                                    self.last_mouse_x += 1;
+                                    self.update_mouse_selection(self.last_mouse_x, self.last_mouse_y);
+                                }
+                            }
+                            DecodedKey::RawKey(KeyCode::ArrowUp) => {
+                                if self.last_mouse_y > 0 {
+                                    self.last_mouse_y -= 1;
+                                    self.update_mouse_selection(self.last_mouse_x, self.last_mouse_y);
+                                }
+                            }
+                            DecodedKey::RawKey(KeyCode::ArrowDown) => {
+                                if self.last_mouse_y < BUFFER_HEIGHT as i16 - 1 {
+                                    self.last_mouse_y += 1;
+                                    self.update_mouse_selection(self.last_mouse_x, self.last_mouse_y);
                                 }
                             }
                             _ => {}
