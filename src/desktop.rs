@@ -223,7 +223,6 @@ impl Desktop {
     
     fn redraw_cell(&self, x: i16, y: i16) {
         use crate::vga_buffer::{write_char_at, Color};
-        use crate::graphics::text_graphics::write_at;
         
         if x >= 0 && x < BUFFER_WIDTH as i16 && y >= 0 && y < BUFFER_HEIGHT as i16 {
             let ux = x as usize;
