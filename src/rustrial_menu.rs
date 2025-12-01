@@ -23,7 +23,16 @@ enum MenuState {
     ScriptBrowser,
     NormalMode,
     HardwareMenu,     // New state for hardware information
+    HardwareDetail(HardwarePanel),
     HelpMode,
+}
+
+#[derive(Clone, Copy)]
+enum HardwarePanel {
+    Overview,
+    Cpu,
+    Rtc,
+    Pci,
 }
 
 /// Interactive menu - returns true if user wants to return to desktop, false to stay in menu
@@ -40,7 +49,6 @@ pub async fn interactive_menu() -> bool {
     let mut selected_script_index: usize = 0;
     let mut script_browser_page: usize = 0;
     let mut return_to_browser = false; // Track if we should return to browser after help mode
-    let mut return_to_hardware = false; // Track if we should return to hardware menu after help mode
     show_menu_screen();
     
     while let Some(scancode) = scancodes.next().await {
@@ -135,29 +143,25 @@ pub async fn interactive_menu() -> bool {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_all_hardware_info();
-                                    return_to_hardware = true;
-                                    menu_state = MenuState::HelpMode;
+                                    menu_state = MenuState::HardwareDetail(HardwarePanel::Overview);
                                 }
                                 '2' => {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_cpu_info();
-                                    return_to_hardware = true;
-                                    menu_state = MenuState::HelpMode;
+                                    menu_state = MenuState::HardwareDetail(HardwarePanel::Cpu);
                                 }
                                 '3' => {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_rtc_info();
-                                    return_to_hardware = true;
-                                    menu_state = MenuState::HelpMode;
+                                    menu_state = MenuState::HardwareDetail(HardwarePanel::Rtc);
                                 }
                                 '4' => {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_pci_info();
-                                    return_to_hardware = true;
-                                    menu_state = MenuState::HelpMode;
+                                    menu_state = MenuState::HardwareDetail(HardwarePanel::Pci);
                                 }
                                 _ => {}
                             }
@@ -172,20 +176,55 @@ pub async fn interactive_menu() -> bool {
                             }
                             _ => {}
                         }
-                        // Hardware submenu will be shown after returning from HelpMode
+                        // Hardware submenu remains active until user leaves or selects details
                     }
-                    MenuState::HelpMode => {
-                        // ESC or any key returns to menu from help
-                        if return_to_hardware {
-                            // For hardware menu, only accept ESC
-                            if matches!(key, DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b')) {
+                    MenuState::HardwareDetail(_current_panel) => {
+                        match key {
+                            DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b') => {
                                 use crate::vga_buffer::clear_screen;
                                 clear_screen();
                                 show_hardware_submenu();
                                 menu_state = MenuState::HardwareMenu;
-                                return_to_hardware = false;
                             }
-                        } else if return_to_browser {
+                            DecodedKey::Unicode(ch) => {
+                                let next_panel = match ch {
+                                    '1' => Some(HardwarePanel::Overview),
+                                    '2' => Some(HardwarePanel::Cpu),
+                                    '3' => Some(HardwarePanel::Rtc),
+                                    '4' => Some(HardwarePanel::Pci),
+                                    'h' | 'H' => {
+                                        use crate::vga_buffer::clear_screen;
+                                        clear_screen();
+                                        show_hardware_submenu();
+                                        menu_state = MenuState::HardwareMenu;
+                                        None
+                                    }
+                                    '0' => {
+                                        use crate::vga_buffer::clear_screen;
+                                        clear_screen();
+                                        show_menu_screen();
+                                        menu_state = MenuState::MainMenu;
+                                        None
+                                    }
+                                    _ => None,
+                                };
+
+                                if let Some(panel) = next_panel {
+                                    match panel {
+                                        HardwarePanel::Overview => show_all_hardware_info(),
+                                        HardwarePanel::Cpu => show_cpu_info(),
+                                        HardwarePanel::Rtc => show_rtc_info(),
+                                        HardwarePanel::Pci => show_pci_info(),
+                                    }
+                                    menu_state = MenuState::HardwareDetail(panel);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    MenuState::HelpMode => {
+                        // ESC or any key returns to menu from help
+                        if return_to_browser {
                             use crate::vga_buffer::clear_screen;
                             clear_screen();
                             show_script_browser(selected_script_index, script_browser_page);
