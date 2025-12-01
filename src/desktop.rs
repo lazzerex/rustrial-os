@@ -159,7 +159,8 @@ impl Desktop {
         
         // Draw status bar at bottom
         draw_filled_box(0, BUFFER_HEIGHT - 1, BUFFER_WIDTH, 1, Color::White, Color::DarkGray);
-        write_at(2, BUFFER_HEIGHT - 1, "Double-click icons to launch | ESC to exit application", Color::White, Color::DarkGray);
+        let status_msg = alloc::format!("Mouse: ({:2},{:2}) | Double-click icons | ESC to exit", self.last_mouse_x, self.last_mouse_y);
+        write_at(2, BUFFER_HEIGHT - 1, &status_msg, Color::White, Color::DarkGray);
         
         // Render all icons
         for (idx, icon) in self.icons.iter().enumerate() {
@@ -173,10 +174,11 @@ impl Desktop {
     }
 
     fn render_cursor(&self, x: i16, y: i16) {
-        use crate::graphics::text_graphics::write_at;
+        use crate::vga_buffer::{write_char_at, Color};
         
         if x >= 0 && x < BUFFER_WIDTH as i16 && y >= 0 && y < BUFFER_HEIGHT as i16 {
-            write_at(x as usize, y as usize, "█", Color::White, Color::Black);
+            // Draw a bright, visible cursor
+            write_char_at(x as usize, y as usize, b'X', Color::Black, Color::White);
         }
     }
 
