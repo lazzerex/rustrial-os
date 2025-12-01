@@ -30,8 +30,9 @@ pub struct ScancodeStream {
 
 impl ScancodeStream {
     pub fn new() -> Self {
-        SCANCODE_QUEUE.try_init_once(|| ArrayQueue::new(100))
-            .expect("ScancodeStream::new should only be called once");
+        // Initialize the queue on first use; ignore subsequent calls so multiple
+        // consumers can coexist without panicking.
+        let _ = SCANCODE_QUEUE.try_init_once(|| ArrayQueue::new(100));
         ScancodeStream { _private: () }
     }
 }
