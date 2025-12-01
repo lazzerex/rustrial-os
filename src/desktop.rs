@@ -223,6 +223,7 @@ impl Desktop {
     
     fn redraw_cell(&self, x: i16, y: i16) {
         use crate::vga_buffer::{write_char_at, Color};
+        use crate::graphics::text_graphics::write_at;
         
         if x >= 0 && x < BUFFER_WIDTH as i16 && y >= 0 && y < BUFFER_HEIGHT as i16 {
             let ux = x as usize;
@@ -234,17 +235,34 @@ impl Desktop {
                 return;
             }
             
-            // Status bar - dark gray background
+            // Status bar - dark gray background  
             if uy == BUFFER_HEIGHT - 1 {
                 write_char_at(ux, uy, b' ', Color::White, Color::DarkGray);
                 return;
             }
             
-            // Check if it's on an icon - need to fully redraw the icon
-            for (idx, icon) in self.icons.iter().enumerate() {
+            // Check if on an icon - restore just this character position
+            for icon in &self.icons {
                 if icon.contains_point(x, y) {
-                    // Redraw entire icon to restore it properly
-                    icon.render(Some(idx) == self.selected_icon);
+                    // Calculate position within icon
+                    let rel_x = (x - icon.x) as usize;
+                    let rel_y = (y - icon.y) as usize;
+                    
+                    // Determine what should be at this position
+                    if rel_y == 0 || rel_y == icon.height as usize - 1 ||
+                       rel_x == 0 || rel_x == icon.width as usize - 1 {
+                        // Border
+                        write_char_at(ux, uy, b' ', Color::Yellow, Color::Blue);
+                    } else if rel_y == 1 && rel_x >= (icon.width as usize / 2) - 1 && rel_x <= (icon.width as usize / 2) + 1 {
+                        // Icon symbol area - just draw space with bg color
+                        write_char_at(ux, uy, b' ', Color::Yellow, Color::Blue);
+                    } else if rel_y == 3 {
+                        // Label area
+                        write_char_at(ux, uy, b' ', Color::White, Color::Cyan);
+                    } else {
+                        // Inside icon
+                        write_char_at(ux, uy, b' ', Color::White, Color::Blue);
+                    }
                     return;
                 }
             }
