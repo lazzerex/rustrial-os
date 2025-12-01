@@ -194,8 +194,63 @@ impl Desktop {
         
         if self.selected_icon != found_icon {
             self.selected_icon = found_icon;
-            self.render_desktop();
+            // Only re-render icons when selection changes
+            self.render_icons();
         }
+    }
+    
+    fn render_icons(&self) {
+        // Re-render all icons (more efficient than full screen)
+        for (idx, icon) in self.icons.iter().enumerate() {
+            icon.render(Some(idx) == self.selected_icon);
+        }
+    }
+    
+    fn update_cursor_position(&mut self, x: i16, y: i16) {
+        // Erase old cursor by redrawing that cell from background
+        self.redraw_cell(self.last_mouse_x, self.last_mouse_y);
+        
+        // Update position
+        self.last_mouse_x = x;
+        self.last_mouse_y = y;
+        
+        // Draw new cursor
+        self.render_cursor(x, y);
+        
+        // Update status bar
+        self.update_status_bar();
+    }
+    
+    fn redraw_cell(&self, x: i16, y: i16) {
+        use crate::vga_buffer::{write_char_at, Color};
+        use crate::graphics::text_graphics::write_at;
+        
+        if x >= 0 && x < BUFFER_WIDTH as i16 && y >= 0 && y < BUFFER_HEIGHT as i16 {
+            let ux = x as usize;
+            let uy = y as usize;
+            
+            // Check if it's on an icon
+            for icon in &self.icons {
+                if icon.contains_point(x, y) {
+                    // Redraw just this icon (it will handle its own rendering)
+                    // For now, just redraw with background color
+                    write_char_at(ux, uy, b' ', Color::Black, Color::Cyan);
+                    return;
+                }
+            }
+            
+            // Otherwise just redraw background
+            write_char_at(ux, uy, b' ', Color::Black, Color::Cyan);
+        }
+    }
+    
+    fn update_status_bar(&self) {
+        use crate::graphics::text_graphics::{write_at, draw_filled_box};
+        
+        // Redraw only the status bar
+        draw_filled_box(0, BUFFER_HEIGHT - 1, BUFFER_WIDTH, 1, Color::White, Color::DarkGray);
+        let status_msg = alloc::format!("Mouse: ({:2},{:2}) | Double-click icons | ESC to exit", self.last_mouse_x, self.last_mouse_y);
+        write_at(2, BUFFER_HEIGHT - 1, &status_msg, Color::White, Color::DarkGray);
     }
 
     fn handle_icon_click(&mut self, icon_idx: usize) -> Option<IconAction> {
@@ -207,15 +262,11 @@ impl Desktop {
     }
 
     pub async fn run(&mut self) -> IconAction {
-        use crate::println;
-        
         // Initialize mouse hardware
         crate::task::mouse::init_hardware();
         
         // Render initial desktop
         self.render_desktop();
-        
-        println!("\n[DEBUG] Desktop initialized. Use arrow keys to move cursor, Enter to click.");
         
         let mut scancodes = keyboard::ScancodeStream::new();
         let mut kb = Keyboard::new(
@@ -277,9 +328,7 @@ impl Desktop {
             if let Some(scancode) = scancodes.next().await {
                 if let Ok(Some(key_event)) = kb.add_byte(scancode) {
                     if let Some(key) = kb.process_keyevent(key_event) {
-                        use crate::println;
-                        // Debug: print the key
-                        println!("[DEBUG] Key pressed: {:?}", key);
+                        let mut cursor_moved = false;
                         
                         match key {
                             DecodedKey::Unicode('\n') | DecodedKey::Unicode(' ') => {
@@ -300,28 +349,34 @@ impl Desktop {
                             DecodedKey::RawKey(KeyCode::ArrowLeft) => {
                                 if self.last_mouse_x > 0 {
                                     self.last_mouse_x -= 1;
-                                    self.update_mouse_selection(self.last_mouse_x, self.last_mouse_y);
+                                    cursor_moved = true;
                                 }
                             }
                             DecodedKey::RawKey(KeyCode::ArrowRight) => {
                                 if self.last_mouse_x < BUFFER_WIDTH as i16 - 1 {
                                     self.last_mouse_x += 1;
-                                    self.update_mouse_selection(self.last_mouse_x, self.last_mouse_y);
+                                    cursor_moved = true;
                                 }
                             }
                             DecodedKey::RawKey(KeyCode::ArrowUp) => {
                                 if self.last_mouse_y > 0 {
                                     self.last_mouse_y -= 1;
-                                    self.update_mouse_selection(self.last_mouse_x, self.last_mouse_y);
+                                    cursor_moved = true;
                                 }
                             }
                             DecodedKey::RawKey(KeyCode::ArrowDown) => {
                                 if self.last_mouse_y < BUFFER_HEIGHT as i16 - 1 {
                                     self.last_mouse_y += 1;
-                                    self.update_mouse_selection(self.last_mouse_x, self.last_mouse_y);
+                                    cursor_moved = true;
                                 }
                             }
                             _ => {}
+                        }
+                        
+                        // Update cursor efficiently if moved
+                        if cursor_moved {
+                            self.update_cursor_position(self.last_mouse_x, self.last_mouse_y);
+                            self.update_mouse_selection(self.last_mouse_x, self.last_mouse_y);
                         }
                     }
                 }
