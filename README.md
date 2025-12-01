@@ -45,6 +45,8 @@ Rustrial OS is an educational operating system project that demonstrates modern 
 
 <img width="722" height="389" alt="os-1" src="https://github.com/user-attachments/assets/5bf0b6a0-b3e6-4494-85ad-4b16e5f1779d" />
 
+<img width="724" height="400" alt="rustde" src="https://github.com/user-attachments/assets/3e36ad2f-10fa-4e9c-928a-e7e07006ee53" />
+
 <img width="699" height="368" alt="os-2" src="https://github.com/user-attachments/assets/d36d6064-ecb4-41c6-ba16-d1fd1c10af1e" />
 
 <img width="722" height="386" alt="os-3" src="https://github.com/user-attachments/assets/7b7c1e10-fe0e-43a1-a7f9-d67ad33ef67c" />
