@@ -26,6 +26,8 @@ lazy_static! {
             .set_handler_fn(timer_interrupt_handler);
         idt[InterruptIndex::Keyboard.as_usize()]
             .set_handler_fn(keyboard_interrupt_handler);
+        idt[InterruptIndex::Mouse.as_usize()]
+            .set_handler_fn(mouse_interrupt_handler);
         idt.page_fault.set_handler_fn(page_fault_handler);
         idt
     };
@@ -88,6 +90,22 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(
     }
 }
 
+extern "x86-interrupt" fn mouse_interrupt_handler(
+    _stack_frame: InterruptStackFrame)
+{
+    use x86_64::instructions::port::Port;
+    
+    let mut port = Port::new(0x60);
+    let packet_byte: u8 = unsafe { port.read() };
+    
+    crate::task::mouse::add_byte(packet_byte);
+    
+    unsafe {
+        PICS.lock()
+            .notify_end_of_interrupt(InterruptIndex::Mouse.as_u8());
+    }
+}
+
 extern "x86-interrupt" fn page_fault_handler(
     stack_frame: InterruptStackFrame,
     error_code: PageFaultErrorCode,
@@ -113,6 +131,7 @@ pub static PICS: spin::Mutex<ChainedPics> = spin::Mutex::new(
 pub enum InterruptIndex {
     Timer = PIC_1_OFFSET,
     Keyboard,
+    Mouse = PIC_2_OFFSET + 4, // IRQ 12 (secondary PIC)
 }
 
 impl InterruptIndex {

@@ -23,6 +23,7 @@ pub mod rustrial_menu;
 pub mod fs;
 pub mod script_loader;
 pub mod graphics;
+pub mod desktop;
 
 // Phase 1 Hardware Detection - Native Implementation (C + Assembly)
 pub mod native_ffi; // FFI bindings to C/Assembly code

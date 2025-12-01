@@ -23,10 +23,20 @@ enum MenuState {
     ScriptBrowser,
     NormalMode,
     HardwareMenu,     // New state for hardware information
+    HardwareDetail(HardwarePanel),
     HelpMode,
 }
 
-pub async fn interactive_menu() {
+#[derive(Clone, Copy, PartialEq)]
+enum HardwarePanel {
+    Overview,
+    Cpu,
+    Rtc,
+    Pci,
+}
+
+/// Interactive menu - returns true if user wants to return to desktop, false to stay in menu
+pub async fn interactive_menu() -> bool {
     
     let mut scancodes = keyboard::ScancodeStream::new();
     let mut kb = Keyboard::new(
@@ -39,7 +49,6 @@ pub async fn interactive_menu() {
     let mut selected_script_index: usize = 0;
     let mut script_browser_page: usize = 0;
     let mut return_to_browser = false; // Track if we should return to browser after help mode
-    let mut return_to_hardware = false; // Track if we should return to hardware menu after help mode
     show_menu_screen();
     
     while let Some(scancode) = scancodes.next().await {
@@ -75,6 +84,10 @@ pub async fn interactive_menu() {
                                     show_help();
                                     show_status_bar("Press any key to return to the main menu");
                                     menu_state = MenuState::HelpMode;
+                                }
+                                '0' => {
+                                    // Exit to desktop
+                                    return true;
                                 }
                                 _ => {
                                     // ignore other keys in menu mode
@@ -130,29 +143,25 @@ pub async fn interactive_menu() {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_all_hardware_info();
-                                    return_to_hardware = true;
-                                    menu_state = MenuState::HelpMode;
+                                    menu_state = MenuState::HardwareDetail(HardwarePanel::Overview);
                                 }
                                 '2' => {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_cpu_info();
-                                    return_to_hardware = true;
-                                    menu_state = MenuState::HelpMode;
+                                    menu_state = MenuState::HardwareDetail(HardwarePanel::Cpu);
                                 }
                                 '3' => {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_rtc_info();
-                                    return_to_hardware = true;
-                                    menu_state = MenuState::HelpMode;
+                                    menu_state = MenuState::HardwareDetail(HardwarePanel::Rtc);
                                 }
                                 '4' => {
                                     use crate::vga_buffer::clear_screen;
                                     clear_screen();
                                     show_pci_info();
-                                    return_to_hardware = true;
-                                    menu_state = MenuState::HelpMode;
+                                    menu_state = MenuState::HardwareDetail(HardwarePanel::Pci);
                                 }
                                 _ => {}
                             }
@@ -167,20 +176,55 @@ pub async fn interactive_menu() {
                             }
                             _ => {}
                         }
-                        // Hardware submenu will be shown after returning from HelpMode
+                        // Hardware submenu remains active until user leaves or selects details
                     }
-                    MenuState::HelpMode => {
-                        // ESC or any key returns to menu from help
-                        if return_to_hardware {
-                            // For hardware menu, only accept ESC
-                            if matches!(key, DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b')) {
+                    MenuState::HardwareDetail(_current_panel) => {
+                        match key {
+                            DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b') => {
                                 use crate::vga_buffer::clear_screen;
                                 clear_screen();
                                 show_hardware_submenu();
                                 menu_state = MenuState::HardwareMenu;
-                                return_to_hardware = false;
                             }
-                        } else if return_to_browser {
+                            DecodedKey::Unicode(ch) => {
+                                let next_panel = match ch {
+                                    '1' => Some(HardwarePanel::Overview),
+                                    '2' => Some(HardwarePanel::Cpu),
+                                    '3' => Some(HardwarePanel::Rtc),
+                                    '4' => Some(HardwarePanel::Pci),
+                                    'h' | 'H' => {
+                                        use crate::vga_buffer::clear_screen;
+                                        clear_screen();
+                                        show_hardware_submenu();
+                                        menu_state = MenuState::HardwareMenu;
+                                        None
+                                    }
+                                    '0' => {
+                                        use crate::vga_buffer::clear_screen;
+                                        clear_screen();
+                                        show_menu_screen();
+                                        menu_state = MenuState::MainMenu;
+                                        None
+                                    }
+                                    _ => None,
+                                };
+
+                                if let Some(panel) = next_panel {
+                                    match panel {
+                                        HardwarePanel::Overview => show_all_hardware_info(),
+                                        HardwarePanel::Cpu => show_cpu_info(),
+                                        HardwarePanel::Rtc => show_rtc_info(),
+                                        HardwarePanel::Pci => show_pci_info(),
+                                    }
+                                    menu_state = MenuState::HardwareDetail(panel);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    MenuState::HelpMode => {
+                        // ESC or any key returns to menu from help
+                        if return_to_browser {
                             use crate::vga_buffer::clear_screen;
                             clear_screen();
                             show_script_browser(selected_script_index, script_browser_page);
@@ -217,6 +261,9 @@ pub async fn interactive_menu() {
             }
         }
     }
+    
+    // Should never reach here, but return false by default
+    false
 }
 
 // Hardware menu helper functions (native C/Assembly implementation)
@@ -389,6 +436,7 @@ fn show_menu_screen() {
         ("[3]", "Graphics Demo", "Showcase the text-mode UI and visual effects"),
         ("[4]", "Hardware Info", "Native C/Assembly implementation (Phase 1)"),
         ("[5]", "Show Help", "Keyboard shortcuts and feature overview"),
+        ("[0]", "Exit to Desktop", "Return to the desktop environment"),
     ];
 
     for (index, (label, title, description)) in menu_items.iter().enumerate() {
@@ -414,7 +462,7 @@ fn show_menu_screen() {
     }
 
     write_centered(FRAME_Y + FRAME_HEIGHT + 1, "Welcome to the Rustrial OS playground", Color::LightCyan, Color::Black);
-    show_status_bar("Press 1-5 to select  •  ESC returns from other views");
+    show_status_bar("Press 1-5 to select, 0 to exit  •  ESC returns from other views");
 }
 
 fn show_hardware_submenu() {
@@ -832,4 +880,173 @@ fn show_help() {
     write_at(FRAME_X + 6, section_y + 1, "github.com/lazzerex/rustrial-os", Color::LightCyan, Color::Black);
 
     show_status_bar("Press any key to return to the main menu");
+}
+
+// Public wrapper functions for desktop icons
+pub async fn show_system_info_from_desktop() {
+    show_system_info();
+    
+    // Wait for any key - use try_pop_scancode to avoid creating new stream
+    let mut kb = Keyboard::new(
+        ScancodeSet1::new(),
+        layouts::Us104Key,
+        HandleControl::Ignore,
+    );
+    
+    loop {
+        if let Some(scancode) = keyboard::try_pop_scancode() {
+            if let Ok(Some(key_event)) = kb.add_byte(scancode) {
+                if let Some(_key) = kb.process_keyevent(key_event) {
+                    // Any key returns to desktop
+                    return;
+                }
+            }
+        }
+        // Small delay to prevent busy-waiting
+        for _ in 0..10000 {
+            core::hint::spin_loop();
+        }
+    }
+}
+
+pub async fn show_scripts_from_desktop() {
+    use crate::vga_buffer::clear_screen;
+    clear_screen();
+    show_script_choice();
+    
+    // Handle script choice navigation - use try_pop_scancode
+    let mut kb = Keyboard::new(
+        ScancodeSet1::new(),
+        layouts::Us104Key,
+        HandleControl::Ignore,
+    );
+    
+    loop {
+        if let Some(scancode) = keyboard::try_pop_scancode() {
+            if let Ok(Some(key_event)) = kb.add_byte(scancode) {
+                if let Some(key) = kb.process_keyevent(key_event) {
+                    match key {
+                        DecodedKey::Unicode('1') => {
+                            println!("\n→ Running RustrialScript Demo...\n");
+                            run_demo();
+                            println!("\n→ Demo complete! Press any key to return to desktop...");
+                            // Wait for key
+                            loop {
+                                if let Some(sc) = keyboard::try_pop_scancode() {
+                                    if let Ok(Some(ke)) = kb.add_byte(sc) {
+                                        if kb.process_keyevent(ke).is_some() {
+                                            return;
+                                        }
+                                    }
+                                }
+                                for _ in 0..10000 { core::hint::spin_loop(); }
+                            }
+                        }
+                        DecodedKey::Unicode('2') => {
+                            clear_screen();
+                            show_script_browser(0, 0);
+                            // For now, just return on ESC
+                        }
+                        DecodedKey::RawKey(KeyCode::Escape) => {
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        for _ in 0..10000 { core::hint::spin_loop(); }
+    }
+}
+
+pub async fn show_hardware_from_desktop() {
+    show_hardware_submenu();
+    
+    // Handle hardware menu navigation - use try_pop_scancode
+    let mut kb = Keyboard::new(
+        ScancodeSet1::new(),
+        layouts::Us104Key,
+        HandleControl::Ignore,
+    );
+    
+    loop {
+        if let Some(scancode) = keyboard::try_pop_scancode() {
+            if let Ok(Some(key_event)) = kb.add_byte(scancode) {
+                if let Some(key) = kb.process_keyevent(key_event) {
+                    match key {
+                        DecodedKey::Unicode('1') => {
+                            use crate::vga_buffer::clear_screen;
+                            clear_screen();
+                            show_all_hardware_info();
+                            // Wait for key to return
+                            loop {
+                                if let Some(sc) = keyboard::try_pop_scancode() {
+                                    if let Ok(Some(ke)) = kb.add_byte(sc) {
+                                        if kb.process_keyevent(ke).is_some() {
+                                            show_hardware_submenu();
+                                            break;
+                                        }
+                                    }
+                                }
+                                for _ in 0..10000 { core::hint::spin_loop(); }
+                            }
+                        }
+                        DecodedKey::Unicode('2') => {
+                            use crate::vga_buffer::clear_screen;
+                            clear_screen();
+                            show_cpu_info();
+                            loop {
+                                if let Some(sc) = keyboard::try_pop_scancode() {
+                                    if let Ok(Some(ke)) = kb.add_byte(sc) {
+                                        if kb.process_keyevent(ke).is_some() {
+                                            show_hardware_submenu();
+                                            break;
+                                        }
+                                    }
+                                }
+                                for _ in 0..10000 { core::hint::spin_loop(); }
+                            }
+                        }
+                        DecodedKey::Unicode('3') => {
+                            use crate::vga_buffer::clear_screen;
+                            clear_screen();
+                            show_rtc_info();
+                            loop {
+                                if let Some(sc) = keyboard::try_pop_scancode() {
+                                    if let Ok(Some(ke)) = kb.add_byte(sc) {
+                                        if kb.process_keyevent(ke).is_some() {
+                                            show_hardware_submenu();
+                                            break;
+                                        }
+                                    }
+                                }
+                                for _ in 0..10000 { core::hint::spin_loop(); }
+                            }
+                        }
+                        DecodedKey::Unicode('4') => {
+                            use crate::vga_buffer::clear_screen;
+                            clear_screen();
+                            show_pci_info();
+                            loop {
+                                if let Some(sc) = keyboard::try_pop_scancode() {
+                                    if let Ok(Some(ke)) = kb.add_byte(sc) {
+                                        if kb.process_keyevent(ke).is_some() {
+                                            show_hardware_submenu();
+                                            break;
+                                        }
+                                    }
+                                }
+                                for _ in 0..10000 { core::hint::spin_loop(); }
+                            }
+                        }
+                        DecodedKey::RawKey(KeyCode::Escape) => {
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        for _ in 0..10000 { core::hint::spin_loop(); }
+    }
 }

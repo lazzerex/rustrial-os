@@ -19,6 +19,7 @@ use rustrial_os::println;
 use rustrial_os::task::Task;
 use rustrial_os::task::executor::Executor;
 use rustrial_os::native_ffi;
+use rustrial_os::desktop::{run_desktop_environment, IconAction};
 //use x86_64::structures::paging::PageTable;
 
 fn print_hardware_summary() {
@@ -43,6 +44,52 @@ fn truncate_str(s: &str, max_len: usize) -> alloc::string::String {
     }
 }
 
+async fn desktop_loop() {
+    loop {
+        // Show desktop and wait for user action
+        let action = run_desktop_environment().await;
+        
+        // Handle the selected action
+        match action {
+            IconAction::OpenMenu => {
+                // Show the styled main menu directly (no hardware summary)
+                use rustrial_os::vga_buffer::clear_screen;
+                clear_screen();
+                
+                // Run menu - if it returns true, user wants to go back to desktop
+                let return_to_desktop = rustrial_os::rustrial_menu::interactive_menu().await;
+                if !return_to_desktop {
+                    // If menu returns false, stay in menu (shouldn't happen normally)
+                    continue;
+                }
+            }
+            IconAction::SystemInfo => {
+                // Show system info with the styled box from menu
+                use rustrial_os::vga_buffer::clear_screen;
+                clear_screen();
+                
+                // Call the menu's show_system_info function which has the styled box
+                rustrial_os::rustrial_menu::show_system_info_from_desktop().await;
+            }
+            IconAction::Scripts => {
+                // Show script choice menu
+                use rustrial_os::vga_buffer::clear_screen;
+                clear_screen();
+                
+                // Call menu's script choice function
+                rustrial_os::rustrial_menu::show_scripts_from_desktop().await;
+            }
+            IconAction::Hardware => {
+                // Show hardware submenu
+                use rustrial_os::vga_buffer::clear_screen;
+                clear_screen();
+                
+                // Call menu's hardware submenu function
+                rustrial_os::rustrial_menu::show_hardware_from_desktop().await;
+            }
+        }
+    }
+}
 #[cfg(not(feature = "custom_bootloader"))]
 entry_point!(kernel_main);
 
@@ -154,22 +201,15 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     #[cfg(test)]
     test_main();
 
-    // Display boot splash with staged progress before entering the main menu
+    // Display boot splash with staged progress before entering the desktop
     rustrial_os::graphics::splash::run_boot_sequence();
 
-    // clear screen and show interactive menu
-    use rustrial_os::vga_buffer::clear_screen;
-    clear_screen();
+    // Initialize mouse support
+    rustrial_os::task::mouse::init();
     
-    println!("Hello From the Rustrial Kernel!");
-    println!();
-    
-    // Phase 1: Display hardware detection summary (Native C/Assembly)
-    print_hardware_summary();
-    println!();
-    
+    // Launch desktop environment with menu integration
     let mut executor = Executor::new();
-    executor.spawn(Task::new(rustrial_os::rustrial_menu::interactive_menu()));
+    executor.spawn(Task::new(desktop_loop()));
     executor.run();
 
     println!("It did not crash!");
@@ -197,17 +237,15 @@ fn kernel_main_custom() -> ! {
     #[cfg(test)]
     test_main();
 
-    // Display boot splash with staged progress before entering the main menu
+    // Display boot splash with staged progress before entering the desktop
     rustrial_os::graphics::splash::run_boot_sequence();
 
-    // clear screen and show interactive menu
-    use rustrial_os::vga_buffer::clear_screen;
-    clear_screen();
+    // Initialize mouse support
+    rustrial_os::task::mouse::init();
     
-    println!("Hello From the Rustrial Kernel (Custom Bootloader)!");
-    
+    // Launch desktop environment with menu integration
     let mut executor = Executor::new();
-    executor.spawn(Task::new(rustrial_os::rustrial_menu::interactive_menu()));
+    executor.spawn(Task::new(desktop_loop()));
     executor.run();
 }
 

@@ -199,6 +199,23 @@ pub fn backspace() {
     });
 }
 
+/// Write a character at a specific position with given colors
+pub fn write_char_at(x: usize, y: usize, ch: u8, fg: Color, bg: Color) {
+    use x86_64::instructions::interrupts;
+    
+    if x < BUFFER_WIDTH && y < BUFFER_HEIGHT {
+        interrupts::without_interrupts(|| {
+            let mut writer = WRITER.lock();
+            let color_code = ColorCode::new(fg, bg);
+            let screen_char = ScreenChar {
+                ascii_character: ch,
+                color_code,
+            };
+            writer.buffer.chars[y][x].write(screen_char);
+        });
+    }
+}
+
 
 #[test_case]
 fn test_println_simple() {
