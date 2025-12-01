@@ -8,6 +8,13 @@ default = []
 custom_bootloader = []
 
 [package.metadata.bootimage]
+run-args = [
+    "-serial", "stdio",
+    "-display", "gtk",
+    "-vga", "std",
+    "-no-reboot",
+    "-no-shutdown"
+]
 test-args = [
     "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04", "-serial", "stdio",
     "-display", "none"
