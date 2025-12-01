@@ -842,3 +842,149 @@ fn show_help() {
 
     show_status_bar("Press any key to return to the main menu");
 }
+
+// Public wrapper functions for desktop icons
+pub async fn show_system_info_from_desktop() {
+    show_system_info();
+    
+    // Wait for any key
+    let mut scancodes = keyboard::ScancodeStream::new();
+    let mut kb = Keyboard::new(
+        ScancodeSet1::new(),
+        layouts::Us104Key,
+        HandleControl::Ignore,
+    );
+    
+    while let Some(scancode) = scancodes.next().await {
+        if let Ok(Some(key_event)) = kb.add_byte(scancode) {
+            if let Some(_key) = kb.process_keyevent(key_event) {
+                // Any key returns to desktop
+                return;
+            }
+        }
+    }
+}
+
+pub async fn show_scripts_from_desktop() {
+    use crate::vga_buffer::clear_screen;
+    clear_screen();
+    show_script_choice();
+    
+    // Handle script choice navigation
+    let mut scancodes = keyboard::ScancodeStream::new();
+    let mut kb = Keyboard::new(
+        ScancodeSet1::new(),
+        layouts::Us104Key,
+        HandleControl::Ignore,
+    );
+    
+    while let Some(scancode) = scancodes.next().await {
+        if let Ok(Some(key_event)) = kb.add_byte(scancode) {
+            if let Some(key) = kb.process_keyevent(key_event) {
+                match key {
+                    DecodedKey::Unicode('1') => {
+                        println!("\n→ Running RustrialScript Demo...\n");
+                        run_demo();
+                        println!("\n→ Demo complete! Press any key to return to desktop...");
+                        // Wait for key
+                        while let Some(sc) = scancodes.next().await {
+                            if let Ok(Some(ke)) = kb.add_byte(sc) {
+                                if kb.process_keyevent(ke).is_some() {
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    DecodedKey::Unicode('2') => {
+                        clear_screen();
+                        show_script_browser(0, 0);
+                        // Navigate browser then return
+                        // For now, just return on ESC
+                    }
+                    DecodedKey::RawKey(KeyCode::Escape) => {
+                        return;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+pub async fn show_hardware_from_desktop() {
+    show_hardware_submenu();
+    
+    // Handle hardware menu navigation
+    let mut scancodes = keyboard::ScancodeStream::new();
+    let mut kb = Keyboard::new(
+        ScancodeSet1::new(),
+        layouts::Us104Key,
+        HandleControl::Ignore,
+    );
+    
+    while let Some(scancode) = scancodes.next().await {
+        if let Ok(Some(key_event)) = kb.add_byte(scancode) {
+            if let Some(key) = kb.process_keyevent(key_event) {
+                match key {
+                    DecodedKey::Unicode('1') => {
+                        use crate::vga_buffer::clear_screen;
+                        clear_screen();
+                        show_all_hardware_info();
+                        // Wait for key to return
+                        while let Some(sc) = scancodes.next().await {
+                            if let Ok(Some(ke)) = kb.add_byte(sc) {
+                                if kb.process_keyevent(ke).is_some() {
+                                    show_hardware_submenu();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    DecodedKey::Unicode('2') => {
+                        use crate::vga_buffer::clear_screen;
+                        clear_screen();
+                        show_cpu_info();
+                        while let Some(sc) = scancodes.next().await {
+                            if let Ok(Some(ke)) = kb.add_byte(sc) {
+                                if kb.process_keyevent(ke).is_some() {
+                                    show_hardware_submenu();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    DecodedKey::Unicode('3') => {
+                        use crate::vga_buffer::clear_screen;
+                        clear_screen();
+                        show_rtc_info();
+                        while let Some(sc) = scancodes.next().await {
+                            if let Ok(Some(ke)) = kb.add_byte(sc) {
+                                if kb.process_keyevent(ke).is_some() {
+                                    show_hardware_submenu();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    DecodedKey::Unicode('4') => {
+                        use crate::vga_buffer::clear_screen;
+                        clear_screen();
+                        show_pci_info();
+                        while let Some(sc) = scancodes.next().await {
+                            if let Ok(Some(ke)) = kb.add_byte(sc) {
+                                if kb.process_keyevent(ke).is_some() {
+                                    show_hardware_submenu();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    DecodedKey::RawKey(KeyCode::Escape) => {
+                        return;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
