@@ -508,8 +508,7 @@ fn show_hardware_submenu() {
         write_at(FRAME_X + 10, base_y + 1, description, Color::LightGray, Color::Black);
     }
 
-    write_centered(FRAME_Y + FRAME_HEIGHT - 2, "Press ESC to return to Main Menu", Color::LightCyan, Color::Black);
-    show_status_bar("Press 1-4 to select  •  ESC returns to main menu");
+    show_status_bar("Press 1-4 to select  •  0 returns to desktop");
 }
 
 fn show_script_choice() {
