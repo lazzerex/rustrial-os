@@ -334,6 +334,7 @@ impl Desktop {
         
         // Render initial desktop
         self.render_desktop();
+        let mut frame_counter = 0u32;
         
         let mut scancodes = keyboard::ScancodeStream::new();
         let mut kb = Keyboard::new(
@@ -348,6 +349,13 @@ impl Desktop {
         let mut last_clicked_icon: Option<usize> = None;
         
         loop {
+            // Periodically re-render desktop for real-time clock (about every 60 frames)
+            frame_counter += 1;
+            if frame_counter >= 60 {
+                self.render_desktop();
+                frame_counter = 0;
+            }
+
             // Process mouse input
             if let Some(packet) = mouse_stream.try_next() {
                 update_position(packet.x_movement, packet.y_movement);
