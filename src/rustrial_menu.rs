@@ -1022,88 +1022,59 @@ pub async fn show_scripts_from_desktop() {
 
 pub async fn show_hardware_from_desktop() {
     show_hardware_submenu();
-    
-    // Handle hardware menu navigation - use try_pop_scancode
     let mut kb = Keyboard::new(
         ScancodeSet1::new(),
         layouts::Us104Key,
         HandleControl::Ignore,
     );
-    
+    let mut in_submenu = true;
     loop {
         if let Some(scancode) = keyboard::try_pop_scancode() {
             if let Ok(Some(key_event)) = kb.add_byte(scancode) {
                 if let Some(key) = kb.process_keyevent(key_event) {
-                    match key {
-                        DecodedKey::Unicode('1') => {
-                            use crate::vga_buffer::clear_screen;
-                            clear_screen();
-                            show_all_hardware_info();
-                            // Wait for key to return
-                            loop {
-                                if let Some(sc) = keyboard::try_pop_scancode() {
-                                    if let Ok(Some(ke)) = kb.add_byte(sc) {
-                                        if kb.process_keyevent(ke).is_some() {
-                                            show_hardware_submenu();
-                                            break;
-                                        }
-                                    }
-                                }
-                                for _ in 0..10000 { core::hint::spin_loop(); }
+                    if in_submenu {
+                        match key {
+                            DecodedKey::Unicode('1') => {
+                                use crate::vga_buffer::clear_screen;
+                                clear_screen();
+                                show_all_hardware_info();
+                                in_submenu = false;
+                            }
+                            DecodedKey::Unicode('2') => {
+                                use crate::vga_buffer::clear_screen;
+                                clear_screen();
+                                show_cpu_info();
+                                in_submenu = false;
+                            }
+                            DecodedKey::Unicode('3') => {
+                                use crate::vga_buffer::clear_screen;
+                                clear_screen();
+                                show_rtc_info();
+                                in_submenu = false;
+                            }
+                            DecodedKey::Unicode('4') => {
+                                use crate::vga_buffer::clear_screen;
+                                clear_screen();
+                                show_pci_info();
+                                in_submenu = false;
+                            }
+                            DecodedKey::RawKey(KeyCode::Escape) => {
+                                return;
+                            }
+                            _ => {}
+                        }
+                    } else {
+                        match key {
+                            DecodedKey::RawKey(KeyCode::Escape) => {
+                                // Exit to desktop from any detail panel
+                                return;
+                            }
+                            _ => {
+                                // Any key returns to submenu
+                                show_hardware_submenu();
+                                in_submenu = true;
                             }
                         }
-                        DecodedKey::Unicode('2') => {
-                            use crate::vga_buffer::clear_screen;
-                            clear_screen();
-                            show_cpu_info();
-                            loop {
-                                if let Some(sc) = keyboard::try_pop_scancode() {
-                                    if let Ok(Some(ke)) = kb.add_byte(sc) {
-                                        if kb.process_keyevent(ke).is_some() {
-                                            show_hardware_submenu();
-                                            break;
-                                        }
-                                    }
-                                }
-                                for _ in 0..10000 { core::hint::spin_loop(); }
-                            }
-                        }
-                        DecodedKey::Unicode('3') => {
-                            use crate::vga_buffer::clear_screen;
-                            clear_screen();
-                            show_rtc_info();
-                            loop {
-                                if let Some(sc) = keyboard::try_pop_scancode() {
-                                    if let Ok(Some(ke)) = kb.add_byte(sc) {
-                                        if kb.process_keyevent(ke).is_some() {
-                                            show_hardware_submenu();
-                                            break;
-                                        }
-                                    }
-                                }
-                                for _ in 0..10000 { core::hint::spin_loop(); }
-                            }
-                        }
-                        DecodedKey::Unicode('4') => {
-                            use crate::vga_buffer::clear_screen;
-                            clear_screen();
-                            show_pci_info();
-                            loop {
-                                if let Some(sc) = keyboard::try_pop_scancode() {
-                                    if let Ok(Some(ke)) = kb.add_byte(sc) {
-                                        if kb.process_keyevent(ke).is_some() {
-                                            show_hardware_submenu();
-                                            break;
-                                        }
-                                    }
-                                }
-                                for _ in 0..10000 { core::hint::spin_loop(); }
-                            }
-                        }
-                        DecodedKey::RawKey(KeyCode::Escape) => {
-                            return;
-                        }
-                        _ => {}
                     }
                 }
             }
