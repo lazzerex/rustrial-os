@@ -488,6 +488,7 @@ fn show_hardware_submenu() {
         ("[2]", "CPU Information", "Assembly CPUID detection"),
         ("[3]", "Real-Time Clock", "C RTC driver (date & time)"),
         ("[4]", "PCI Devices", "C PCI enumeration"),
+        ("[0]", "Return to Desktop", "Exit hardware info menu"),
     ];
 
     for (index, (label, title, description)) in menu_items.iter().enumerate() {
@@ -1058,6 +1059,10 @@ pub async fn show_hardware_from_desktop() {
                                 show_pci_info();
                                 in_submenu = false;
                             }
+                            DecodedKey::Unicode('0') => {
+                                // Return to desktop
+                                return;
+                            }
                             DecodedKey::RawKey(KeyCode::Escape) => {
                                 return;
                             }
@@ -1065,6 +1070,10 @@ pub async fn show_hardware_from_desktop() {
                         }
                     } else {
                         match key {
+                            DecodedKey::Unicode('0') => {
+                                // Return to desktop from detail panel
+                                return;
+                            }
                             DecodedKey::RawKey(KeyCode::Escape) => {
                                 // Exit to desktop from any detail panel
                                 return;
