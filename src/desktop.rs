@@ -194,8 +194,8 @@ impl Desktop {
         dt.month = month as u8;
         dt.year = year as u16;
         dt.weekday = weekday as u8;
-        let date_str = alloc::format!("{}", dt);
-        write_at(BUFFER_WIDTH - date_str.len() - 2, 0, &date_str, Color::White, Color::Blue);
+        let time_str = alloc::format!("{:02}:{:02} {} {:02}, {:04}", dt.hour, dt.minute, dt.month_str(), dt.day, dt.year);
+        write_at(BUFFER_WIDTH - time_str.len() - 2, 0, &time_str, Color::White, Color::Blue);
         
         // Draw status bar at bottom
         draw_filled_box(0, BUFFER_HEIGHT - 1, BUFFER_WIDTH, 1, Color::White, Color::DarkGray);
@@ -334,7 +334,6 @@ impl Desktop {
         
         // Render initial desktop
         self.render_desktop();
-        let mut frame_counter = 0u32;
         
         let mut scancodes = keyboard::ScancodeStream::new();
         let mut kb = Keyboard::new(
@@ -349,12 +348,13 @@ impl Desktop {
         let mut last_clicked_icon: Option<usize> = None;
         
         loop {
-            // Periodically re-render desktop for real-time clock (about every 60 frames)
-            frame_counter += 1;
-            if frame_counter >= 60 {
-                self.render_desktop();
-                frame_counter = 0;
-            }
+            // Periodically re-render desktop for real-time clock about every 60 frames
+            // mouse control is having some issues regarding this counter
+            // frame_counter += 1;
+            // if frame_counter >= 60 {
+            //     self.render_desktop();
+            //     frame_counter = 0;
+            // }
 
             // Process mouse input
             if let Some(packet) = mouse_stream.try_next() {
