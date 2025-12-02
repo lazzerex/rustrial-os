@@ -350,23 +350,59 @@ fn show_cpu_info() {
 fn show_rtc_info() {
     use crate::graphics::text_graphics::{draw_shadow_box, write_centered, draw_hline, write_at};
     use crate::vga_buffer::Color;
-    
     crate::vga_buffer::clear_screen();
-    
     const BOX_X: usize = 5;
     const BOX_Y: usize = 2;
     const BOX_WIDTH: usize = 70;
     const BOX_HEIGHT: usize = 8;
-    
     draw_shadow_box(BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT, Color::LightCyan, Color::Black);
     write_centered(BOX_Y + 1, "REAL-TIME CLOCK - C RTC Driver", Color::Yellow, Color::Black);
     draw_hline(BOX_X + 2, BOX_Y + 2, BOX_WIDTH - 4, Color::Cyan, Color::Black);
-    
-    let datetime = crate::native_ffi::DateTime::read();
+    let mut datetime = crate::native_ffi::DateTime::read();
+    // Full UTC+7 adjustment
+    let mut hour = datetime.hour as i16 + 7;
+    let mut day = datetime.day as i16;
+    let mut month = datetime.month as i16;
+    let mut year = datetime.year as i16;
+    let mut weekday = datetime.weekday as i16;
+    let days_in_month = |month: i16, year: i16| -> i16 {
+        match month {
+            1 => 31,
+            2 => if (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0) { 29 } else { 28 },
+            3 => 31,
+            4 => 30,
+            5 => 31,
+            6 => 30,
+            7 => 31,
+            8 => 31,
+            9 => 30,
+            10 => 31,
+            11 => 30,
+            12 => 31,
+            _ => 31,
+        }
+    };
+    if hour >= 24 {
+        hour -= 24;
+        day += 1;
+        weekday = (weekday + 1) % 7;
+        if day > days_in_month(month, year) {
+            day = 1;
+            month += 1;
+            if month > 12 {
+                month = 1;
+                year += 1;
+            }
+        }
+    }
+    datetime.hour = hour as u8;
+    datetime.day = day as u8;
+    datetime.month = month as u8;
+    datetime.year = year as u16;
+    datetime.weekday = weekday as u8;
     let dt_str = alloc::format!("{}", datetime);
     write_at(BOX_X + 3, BOX_Y + 4, &dt_str, Color::LightCyan, Color::Black);
-    
-    write_centered(BOX_Y + BOX_HEIGHT - 1, "Press ESC to return to Hardware Menu", Color::LightGray, Color::Black);
+    write_centered(BOX_Y + BOX_HEIGHT - 1, "Press 0 to return to Desktop", Color::LightGray, Color::Black);
 }
 
 fn show_pci_info() {
