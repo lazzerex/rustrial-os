@@ -149,7 +149,7 @@ impl Desktop {
         
         // Draw title bar
         draw_filled_box(0, 0, BUFFER_WIDTH, 1, Color::White, Color::Blue);
-        write_at(2, 0, "RUSTRIAL OS - Desktop Environment", Color::Yellow, Color::Blue);
+        write_at(2, 0, "RUSTRIAL OS", Color::Yellow, Color::Blue);
         
         // Draw system info in corner
         use crate::native_ffi;

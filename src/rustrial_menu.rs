@@ -944,8 +944,69 @@ pub async fn show_scripts_from_desktop() {
                         }
                         DecodedKey::Unicode('2') => {
                             clear_screen();
-                            show_script_browser(0, 0);
-                            // For now, just return on ESC
+                            let mut selected_index = 0;
+                            let mut page = 0;
+                            show_script_browser(selected_index, page);
+                            
+                            // Script browser loop
+                            loop {
+                                if let Some(sc) = keyboard::try_pop_scancode() {
+                                    if let Ok(Some(ke)) = kb.add_byte(sc) {
+                                        if let Some(browser_key) = kb.process_keyevent(ke) {
+                                            match browser_key {
+                                                DecodedKey::RawKey(KeyCode::Escape) | DecodedKey::Unicode('\x1b') => {
+                                                    clear_screen();
+                                                    show_script_choice();
+                                                    break;
+                                                }
+                                                DecodedKey::RawKey(KeyCode::ArrowUp) | DecodedKey::Unicode('w') | DecodedKey::Unicode('W') => {
+                                                    if selected_index > 0 {
+                                                        selected_index -= 1;
+                                                        if selected_index < page * 10 && page > 0 {
+                                                            page -= 1;
+                                                        }
+                                                        clear_screen();
+                                                        show_script_browser(selected_index, page);
+                                                    }
+                                                }
+                                                DecodedKey::RawKey(KeyCode::ArrowDown) | DecodedKey::Unicode('s') | DecodedKey::Unicode('S') => {
+                                                    let max_index = crate::fs::root_fs()
+                                                        .and_then(|fs| fs.lock().list_dir("/scripts").ok())
+                                                        .map(|scripts| scripts.len())
+                                                        .unwrap_or(0);
+                                                    if max_index > 0 && selected_index < max_index.saturating_sub(1) {
+                                                        selected_index += 1;
+                                                        if selected_index >= (page + 1) * 10 {
+                                                            page += 1;
+                                                        }
+                                                        clear_screen();
+                                                        show_script_browser(selected_index, page);
+                                                    }
+                                                }
+                                                DecodedKey::Unicode('\n') | DecodedKey::RawKey(KeyCode::Return) => {
+                                                    run_selected_script(selected_index);
+                                                    show_status_bar("Press any key to return to script browser");
+                                                    // Wait for key
+                                                    loop {
+                                                        if let Some(ret_sc) = keyboard::try_pop_scancode() {
+                                                            if let Ok(Some(ret_ke)) = kb.add_byte(ret_sc) {
+                                                                if kb.process_keyevent(ret_ke).is_some() {
+                                                                    clear_screen();
+                                                                    show_script_browser(selected_index, page);
+                                                                    break;
+                                                                }
+                                                            }
+                                                        }
+                                                        for _ in 0..10000 { core::hint::spin_loop(); }
+                                                    }
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+                                    }
+                                }
+                                for _ in 0..10000 { core::hint::spin_loop(); }
+                            }
                         }
                         DecodedKey::RawKey(KeyCode::Escape) => {
                             return;
