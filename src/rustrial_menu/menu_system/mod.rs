@@ -1,5 +1,6 @@
 pub mod hardware_menu;
 pub mod script_menu;
+pub mod info_screens;
 
 // Re-export hardware menu functions for convenience
 pub use hardware_menu::{
@@ -16,4 +17,9 @@ pub use script_menu::{
     handle_script_browser_input,
     run_selected_script,
     run_demo,
+};
+
+pub use info_screens::{
+    show_system_info,
+    show_help,
 };
