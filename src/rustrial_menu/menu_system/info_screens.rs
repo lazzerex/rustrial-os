@@ -1,5 +1,10 @@
+use crate::vga_buffer::clear_screen;
+use alloc::{boxed::Box, vec, vec::Vec, rc::Rc};
+use crate::rustrial_menu::Color;
+use crate::graphics::text_graphics::{draw_shadow_box, draw_filled_box, write_centered, draw_hline, write_at};
+use crate::graphics::splash::show_status_bar;
+
 pub fn show_system_info() {
-    use crate::vga_buffer::clear_screen;
     clear_screen();
 
     const FRAME_X: usize = 6;
@@ -49,8 +54,8 @@ pub fn show_system_info() {
 
 
 
+
 pub fn show_help() {
-    use crate::vga_buffer::clear_screen;
     clear_screen();
 
     const FRAME_X: usize = 4;
