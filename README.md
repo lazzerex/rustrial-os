@@ -249,7 +249,7 @@ build.rs                     # Build script (NASM + Clang)
    ```
 
 5. **QEMU x86-64 Emulator**
-   - **Linux**: `sudo apt install qemu-system-x86` or `sudo pacman -S qemu-system-x86`
+   - **Linux**: `sudo apt install qemu-system-x86` or `sudo pacman -S qemu-system-x86` (qemu-dekstop if qemu-system-x86 cannot be installed)
    - **macOS**: `brew install qemu`
    - **Windows**: Download from [qemu.org](https://www.qemu.org/download/)
 
