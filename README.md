@@ -225,29 +225,40 @@ build.rs                     # Build script (NASM + Clang)
 
 ### Required Tools
 
-1. **Rust Toolchain** (Nightly)
+1. **Rustup**
+ - On **Linux**:
+  ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  ```
+- On **Windows**: You can download the executable in the rustup.rs website
+  
+2. **Rust Toolchain** (Nightly)
    ```bash
    rustup install nightly
    rustup override set nightly
    rustup component add rust-src llvm-tools-preview
    ```
 
-2. **Bootimage**
+3. **Bootimage**
    ```bash
    cargo install bootimage
    ```
+   On Linux, if you encounter any errors, you should probably install build-essential first by running the command:
+    ```bash
+   sudo apt install build-essential
+   ```
 
-3. **QEMU x86-64 Emulator**
+5. **QEMU x86-64 Emulator**
    - **Linux**: `sudo apt install qemu-system-x86` or `sudo pacman -S qemu-system-x86`
    - **macOS**: `brew install qemu`
    - **Windows**: Download from [qemu.org](https://www.qemu.org/download/)
 
-4. **NASM** (for custom bootloader or native code)
+6. **NASM** (for custom bootloader or native code)
    - **Linux**: `sudo apt install nasm` or `sudo pacman -S nasm`
    - **macOS**: `brew install nasm`
    - **Windows**: Download from [nasm.us](https://www.nasm.us/)
 
-5. **Clang** (for native C code compilation)
+7. **Clang** (for native C code compilation)
    - **Linux**: `sudo apt install clang` or `sudo pacman -S clang`
    - **macOS**: Included with Xcode Command Line Tools
    - **Windows**: Install LLVM from [llvm.org](https://llvm.org/)
@@ -303,7 +314,7 @@ cargo test --test heap_allocation
 cargo test -- --nocapture
 ```
 
-### Custom Bootloader (Advanced)
+### Custom Bootloader (does not work currently)
 
 A two-stage x86-64 assembly bootloader for educational purposes. Full documentation: `docs/custombootloader.md`
 
