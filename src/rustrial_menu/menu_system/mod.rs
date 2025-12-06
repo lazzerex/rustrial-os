@@ -1,6 +1,7 @@
 pub mod hardware_menu;
 pub mod script_menu;
 pub mod info_screens;
+pub mod shutdown;
 
 // Re-export hardware menu functions for convenience
 pub use hardware_menu::{
@@ -22,4 +23,8 @@ pub use script_menu::{
 pub use info_screens::{
     show_system_info,
     show_help,
+};
+
+pub use shutdown::{
+    shutdown_system,
 };

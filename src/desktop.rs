@@ -7,6 +7,7 @@ use alloc::{vec::Vec, string::String};
 use crate::vga_buffer::{Color, BUFFER_HEIGHT, BUFFER_WIDTH};
 use crate::task::keyboard;
 use crate::task::mouse::{MouseStream, get_position, is_left_button_pressed, update_position, update_buttons};
+use crate::rustrial_menu::menu_system::shutdown::{ShutdownButton, shutdown_system};
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
 use futures_util::stream::StreamExt;
 
@@ -27,6 +28,7 @@ pub enum IconAction {
     SystemInfo,
     Scripts,
     Hardware,
+    Shutdown,
 }
 
 impl DesktopIcon {
@@ -78,6 +80,7 @@ impl DesktopIcon {
             IconAction::SystemInfo => "[i]",
             IconAction::Scripts => "[S]",
             IconAction::Hardware => "[H]",
+            IconAction::Shutdown => "[OFF]",
         };
         
         write_at(
@@ -124,6 +127,14 @@ impl Desktop {
         icons.push(DesktopIcon::new(20, 4, "System", IconAction::SystemInfo));
         icons.push(DesktopIcon::new(35, 4, "Scripts", IconAction::Scripts));
         icons.push(DesktopIcon::new(50, 4, "Hardware", IconAction::Hardware));
+        icons.push(DesktopIcon {
+            x: 65,
+            y: 4,
+            width: 14,
+            height: 5,
+            label: String::from("Shut Down"),
+            action: IconAction::Shutdown,
+        });
         
         Desktop {
             icons,
@@ -202,11 +213,21 @@ impl Desktop {
         let status_msg = alloc::format!("Mouse: ({:2},{:2}) | Double-click icons | ESC to exit", self.last_mouse_x, self.last_mouse_y);
         write_at(2, BUFFER_HEIGHT - 1, &status_msg, Color::White, Color::DarkGray);
         
-        // Render all icons
+        // Render all icons except shutdown
         for (idx, icon) in self.icons.iter().enumerate() {
-            icon.render(Some(idx) == self.selected_icon);
+            if icon.action == IconAction::Shutdown {
+                // Render shutdown as a special button
+                let shutdown_btn = ShutdownButton {
+                    x: icon.x as usize,
+                    y: icon.y as usize,
+                    width: icon.width as usize,
+                    height: icon.height as usize,
+                };
+                shutdown_btn.render(Some(idx) == self.selected_icon);
+            } else {
+                icon.render(Some(idx) == self.selected_icon);
+            }
         }
-        
         // Draw mouse cursor
         if self.mouse_visible {
             self.render_cursor(self.last_mouse_x, self.last_mouse_y);
@@ -378,6 +399,9 @@ impl Desktop {
                         if double_click_timer > 0 && last_clicked_icon == Some(icon_idx) {
                             // Double-click detected!
                             if let Some(action) = self.handle_icon_click(icon_idx) {
+                                if action == IconAction::Shutdown {
+                                    shutdown_system();
+                                }
                                 return action;
                             }
                         } else {
@@ -413,6 +437,9 @@ impl Desktop {
                                     // Check for double-press
                                     if double_click_timer > 0 && last_clicked_icon == Some(icon_idx) {
                                         if let Some(action) = self.handle_icon_click(icon_idx) {
+                                            if action == IconAction::Shutdown {
+                                                shutdown_system();
+                                            }
                                             return action;
                                         }
                                     } else {
