@@ -26,7 +26,7 @@ impl ShutdownButton {
     }
 
     pub fn render(&self, selected: bool) {
-        let bg_color = if selected { Color::Red } else { Color::DarkRed };
+        let bg_color = if selected { Color::Red } else { Color::Red };
         let fg_color = Color::White;
         // Draw button background
         draw_filled_box(self.x, self.y, self.width, self.height, fg_color, bg_color);

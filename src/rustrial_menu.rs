@@ -15,7 +15,7 @@ use futures_util::stream::StreamExt;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
 use alloc::{boxed::Box, vec, vec::Vec, rc::Rc, string::String};
 
-mod menu_system;
+pub mod menu_system;
 use menu_system::*;
 
 
