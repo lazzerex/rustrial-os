@@ -41,17 +41,19 @@ impl ShutdownButton {
 
 /// Actually perform shutdown (halt CPU)
 pub fn shutdown_system() -> ! {
-    use x86_64::instructions::hlt;
     use x86_64::instructions::port::Port;
+    
     crate::vga_buffer::clear_screen();
     write_at(20, 12, "System is shutting down...", Color::White, Color::Red);
-    // Try ACPI shutdown (QEMU will power off if supported)
+    
     unsafe {
-        let mut port = Port::new(0x604);
-        port.write(0x2000u32);
+        // QEMU isa-debug-exit device
+        let mut port = Port::new(0xf4);
+        port.write(0x10u32); // Exit code 0x10 -> will cause QEMU to exit with code (0x10 << 1) | 1 = 33
     }
-    // Fallback: halt CPU forever
+    
+    // Fallback: halt if not running in QEMU
     loop {
-        hlt();
+        x86_64::instructions::hlt();
     }
 }
