@@ -52,40 +52,30 @@ async fn desktop_loop() {
         // Handle the selected action
         match action {
             IconAction::OpenMenu => {
-                // Show the styled main menu directly (no hardware summary)
                 use rustrial_os::vga_buffer::clear_screen;
                 clear_screen();
-                
-                // Run menu - if it returns true, user wants to go back to desktop
                 let return_to_desktop = rustrial_os::rustrial_menu::interactive_menu().await;
                 if !return_to_desktop {
-                    // If menu returns false, stay in menu (shouldn't happen normally)
                     continue;
                 }
             }
             IconAction::SystemInfo => {
-                // Show system info with the styled box from menu
                 use rustrial_os::vga_buffer::clear_screen;
                 clear_screen();
-                
-                // Call the menu's show_system_info function which has the styled box
                 rustrial_os::rustrial_menu::show_system_info_from_desktop().await;
             }
             IconAction::Scripts => {
-                // Show script choice menu
                 use rustrial_os::vga_buffer::clear_screen;
                 clear_screen();
-                
-                // Call menu's script choice function
                 rustrial_os::rustrial_menu::show_scripts_from_desktop().await;
             }
             IconAction::Hardware => {
-                // Show hardware submenu
                 use rustrial_os::vga_buffer::clear_screen;
                 clear_screen();
-                
-                // Call menu's hardware submenu function
                 rustrial_os::rustrial_menu::show_hardware_from_desktop().await;
+            }
+            IconAction::Shutdown => {
+                rustrial_os::rustrial_menu::menu_system::shutdown::shutdown_system();
             }
         }
     }
