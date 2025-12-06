@@ -45,7 +45,8 @@ pub fn shutdown_system() -> ! {
     use x86_64::instructions::port::Port;
     
     crate::vga_buffer::clear_screen();
-    write_at(20, 12, "System is shutting down...", Color::White, Color::Red);
+    write_at(15, 10, "Power Off", Color::Yellow, Color::Black);
+    write_at(10, 12, "It is now safe to close this window", Color::White, Color::Black);
     
     unsafe {
         // Method 1: QEMU old-style (ISA debug exit device)
@@ -69,7 +70,7 @@ pub fn shutdown_system() -> ! {
         port.write(0x2000u16);
     }
     
-    // Fallback: halt CPU forever
+    // halt CPU 
     loop {
         hlt();
     }
