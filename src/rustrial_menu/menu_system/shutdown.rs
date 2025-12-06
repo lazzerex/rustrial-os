@@ -41,19 +41,36 @@ impl ShutdownButton {
 
 /// Actually perform shutdown (halt CPU)
 pub fn shutdown_system() -> ! {
+    use x86_64::instructions::hlt;
     use x86_64::instructions::port::Port;
     
     crate::vga_buffer::clear_screen();
     write_at(20, 12, "System is shutting down...", Color::White, Color::Red);
     
     unsafe {
-        // QEMU isa-debug-exit device
+        // Method 1: QEMU old-style (ISA debug exit device)
         let mut port = Port::new(0xf4);
-        port.write(0x10u32); // Exit code 0x10 -> will cause QEMU to exit with code (0x10 << 1) | 1 = 33
+        port.write(0x10u32);
+        
+        // Method 2: ACPI shutdown for PIIX4 chipset
+        let mut port = Port::new(0x604);
+        port.write(0x2000u16);
+        
+        // Method 3: ACPI shutdown for ICH9/Q35 chipset
+        let mut port = Port::new(0x600);
+        port.write(0x2000u16);
+        
+        // Method 4: APM (Advanced Power Management) shutdown
+        let mut port = Port::new(0xB004);
+        port.write(0x2000u16);
+        
+        // Method 5: Try writing to ACPI PM1a control block (common location)
+        let mut port = Port::new(0x1C00);
+        port.write(0x2000u16);
     }
     
-    // Fallback: halt if not running in QEMU
+    // Fallback: halt CPU forever
     loop {
-        x86_64::instructions::hlt();
+        hlt();
     }
 }
