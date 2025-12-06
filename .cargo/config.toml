@@ -7,4 +7,4 @@ panic-abort-tests = true
 target = "x86_64-rustrial_os.json"
 
 [target.x86_64-rustrial_os]
-runner = "bootimage runner --args='-device isa-debug-exit,iobase=0xf4,iosize=0x04'"
+runner = "bootimage runner"
