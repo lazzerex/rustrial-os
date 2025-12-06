@@ -42,10 +42,15 @@ impl ShutdownButton {
 /// Actually perform shutdown (halt CPU)
 pub fn shutdown_system() -> ! {
     use x86_64::instructions::hlt;
-    // Optionally print a message
+    use x86_64::instructions::port::Port;
     crate::vga_buffer::clear_screen();
     write_at(20, 12, "System is shutting down...", Color::White, Color::Red);
-    // Halt CPU forever
+    // Try ACPI shutdown (QEMU will power off if supported)
+    unsafe {
+        let mut port = Port::new(0x604);
+        port.write(0x2000u32);
+    }
+    // Fallback: halt CPU forever
     loop {
         hlt();
     }
