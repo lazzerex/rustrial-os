@@ -104,22 +104,10 @@ impl Shell {
                 // Move cursor down, scroll if needed
                 cursor_y += 1;
                 if cursor_y >= input_start_y + input_area_h {
-                    // Scroll shell region up
-                    for row in input_start_y..(input_start_y + input_area_h - 1) {
-                        for col in shell_x + 2..(shell_x + shell_w - 2) {
-                            let buffer = unsafe { &mut *(0xb8000 as *mut [[volatile::Volatile<crate::vga_buffer::ScreenChar>; 80]; 25]) };
-                            buffer[row][col] = buffer[row + 1][col];
-                        }
-                    }
-                    // Clear last line
-                    for col in shell_x + 2..(shell_x + shell_w - 2) {
-                        let buffer = unsafe { &mut *(0xb8000 as *mut [[volatile::Volatile<crate::vga_buffer::ScreenChar>; 80]; 25]) };
-                        buffer[input_start_y + input_area_h - 1][col].write(crate::vga_buffer::ScreenChar {
-                            ascii_character: b' ',
-                            color_code: crate::vga_buffer::ColorCode::new(Color::White, Color::Black),
-                        });
-                    }
-                    cursor_y = input_start_y + input_area_h - 1;
+                    // Instead of scrolling, just clear the input area and reset cursor
+                    use crate::graphics::text_graphics::draw_filled_box;
+                    draw_filled_box(shell_x + 2, input_start_y, shell_w - 4, input_area_h, Color::White, Color::Black);
+                    cursor_y = input_start_y;
                 }
             }
         }
