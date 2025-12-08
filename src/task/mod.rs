@@ -7,6 +7,22 @@ pub mod simple_executor;
 pub mod keyboard;
 pub mod executor;
 pub mod mouse;
+    pub mod preemptive;
+
+    /// Context switch stub, to be implemented with FFI to assembly
+    extern "C" {
+        fn switch_context_asm();
+    }
+
+    pub fn context_switch() {
+        // Select next ready task (stub)
+        if let Some(next_idx) = crate::task::preemptive::select_next_task() {
+            // TODO: Save current PCB, load next PCB, and call assembly routine
+            unsafe {
+                switch_context_asm();
+            }
+        }
+    }
 
 pub struct Task {
     id: TaskId,
