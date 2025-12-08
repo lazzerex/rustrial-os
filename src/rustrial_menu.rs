@@ -8,6 +8,7 @@ use crate::graphics::text_graphics::{
     write_at,
     write_centered,
 };
+use alloc::vec::Vec;
 use crate::graphics::splash::show_status_bar;
 use crate::vga_buffer::Color;
 use futures_util::stream::StreamExt;
