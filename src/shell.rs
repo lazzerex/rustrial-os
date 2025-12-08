@@ -192,6 +192,7 @@ impl Shell {
             "cd" => self.cmd_cd(args),
             "pwd" => self.cmd_pwd(),
             "color" => self.cmd_color(args),
+            "rustrialfetch" | "fetch" => self.cmd_rustrialfetch(),
             "exit" | "quit" => return true,
             _ => {
                 println!("Unknown command: '{}'. Type 'help' for available commands.", command);
@@ -214,6 +215,7 @@ impl Shell {
         println!("  cd <dir>          - Change current directory");
         println!("  pwd               - Print working directory");
         println!("  color <fg> <bg>   - Change text color (0-15)");
+        println!("  rustrialfetch     - Display system information");
         println!("  exit, quit        - Return to desktop");
         println!("\nColors: 0=Black, 1=Blue, 2=Green, 3=Cyan, 4=Red, 5=Magenta, 6=Brown,");
         println!("        7=LightGray, 8=DarkGray, 9=LightBlue, 10=LightGreen, 11=LightCyan,");
@@ -504,6 +506,68 @@ impl Shell {
             15 => Color::White,
             _ => Color::LightGray,
         }
+    }
+
+    fn cmd_rustrialfetch(&self) {
+        use crate::native_ffi;
+        
+        // ASCII art logo
+        let logo = [
+            "    ____             __       ",
+            "   / __ \\__  _______/ /_____ _",
+            "  / /_/ / / / / ___/ __/ __ `/",
+            " / _, _/ /_/ (__  ) /_/ /_/ / ",
+            "/_/ |_|\\__,_/____/\\__/\\__,_/  ",
+            "                                ",
+        ];
+        
+        // Get system info
+        let cpu_info = native_ffi::CpuInfo::get();
+        let dt = native_ffi::DateTime::read();
+        let pci_devices = native_ffi::enumerate_pci_devices();
+        
+        // Count scripts
+        let script_count = if let Some(fs) = crate::fs::root_fs() {
+            fs.lock().list_dir("/scripts")
+                .map(|scripts| scripts.len())
+                .unwrap_or(0)
+        } else {
+            0
+        };
+        
+        println!();
+        
+        // Display info alongside ASCII art
+        let info_lines = [
+            format!("OS: RustrialOS v0.1"),
+            format!("Kernel: Rust bare-metal"),
+            format!("CPU: {}", cpu_info.brand_str()),
+            format!("Vendor: {}", cpu_info.vendor_str()),
+            format!("Date: {}", dt),
+            format!("PCI Devices: {}", pci_devices.len()),
+            format!("Scripts: {}", script_count),
+            format!("Shell: RustrialShell"),
+        ];
+        
+        // Print logo and info side by side
+        for i in 0..logo.len().max(info_lines.len()) {
+            // Print logo line (left column)
+            if i < logo.len() {
+                print!("{}", logo[i]);
+            } else {
+                // Empty space for alignment
+                print!("                                ");
+            }
+            
+            // Print info line (right column)
+            if i < info_lines.len() {
+                println!("  {}", info_lines[i]);
+            } else {
+                println!();
+            }
+        }
+        
+        println!();
     }
 
     /// Resolve a path relative to current directory
