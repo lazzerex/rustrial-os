@@ -1,4 +1,0 @@
-let counter = 42;
-let seed = counter * 7 + 13;
-let roll = (seed % 6) + 1;
-print(roll);

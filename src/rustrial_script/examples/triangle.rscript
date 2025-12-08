@@ -1,0 +1,10 @@
+let row = 1;
+while (row < 6) {
+    let col = 1;
+    while (col <= row) {
+        print(42);
+        col = col + 1;
+    }
+    print(999);
+    row = row + 1;
+}

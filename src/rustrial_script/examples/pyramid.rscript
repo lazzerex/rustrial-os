@@ -1,0 +1,16 @@
+let row = 1;
+while (row <= 5) {
+    let spaces = 5 - row;
+    let stars = row * 2 - 1;
+    let i = 0;
+    while (i < spaces) {
+        i = i + 1;
+    }
+    let j = 0;
+    while (j < stars) {
+        print(88);
+        j = j + 1;
+    }
+    print(999);
+    row = row + 1;
+}
