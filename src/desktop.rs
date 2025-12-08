@@ -130,9 +130,10 @@ impl Desktop {
         icons.push(DesktopIcon::new(35, 4, "Scripts", IconAction::Scripts));
         icons.push(DesktopIcon::new(50, 4, "Hardware", IconAction::Hardware));
         icons.push(DesktopIcon::new(65, 4, "Shell", IconAction::Shell));
+        // Shutdown button in bottom-right corner
         icons.push(DesktopIcon {
-            x: 80,
-            y: 4,
+            x: 64,
+            y: 18,
             width: 14,
             height: 5,
             label: String::from("Shut Down"),
