@@ -33,6 +33,7 @@ A hobby x86-64 bare-metal operating system kernel written in Rust, built from sc
 Rustrial OS is an educational operating system project that demonstrates modern systems programming techniques using Rust. The kernel boots from bare metal on x86-64 architecture and provides core OS functionality including memory management, interrupt handling, task scheduling, hardware detection, and keyboard input processing.
 
 **Quick Links:**
+- Shell Documentation: `docs/SHELL.md`
 - RustrialScript Documentation: `docs/scriptdocs.md`
 - Custom Bootloader Guide: `docs/custombootloader.md`
 - Graphics API: `docs/graphicsdemo.md`
@@ -111,6 +112,15 @@ Rustrial OS is an educational operating system project that demonstrates modern 
 - **Script Embedding**: Compile-time inclusion of `.rscript` files into kernel binary
 - **Interactive Browser**: Navigate and execute scripts with keyboard controls
 
+### Shell/Command Interpreter
+- **Interactive CLI**: Full-featured command-line interface with command parsing
+- **File Commands**: `ls`, `cat`, `mkdir`, `touch`, `cd`, `pwd` for filesystem operations
+- **Script Execution**: `run` command to execute RustrialScript files
+- **Command History**: Navigate previous commands with arrow keys (up to 50 commands)
+- **Customization**: `color` command to change terminal colors, `clear` to reset screen
+- **Path Resolution**: Support for absolute paths, relative paths, `.` and `..`
+- **Desktop Integration**: Accessible via Shell icon in the desktop environment
+
 ### RustrialScript Language
 - **Stack-Based VM**: Minimal scripting language with 256-value stack
 - **Type System**: Integer, boolean, and nil types
@@ -155,6 +165,8 @@ src/
 ├── script_loader.rs         # Compile-time script embedding
 ├── native_ffi.rs            # FFI bindings to C/Assembly code
 ├── graphics.rs              # Graphics subsystem interface
+├── desktop.rs               # Desktop GUI environment
+├── shell.rs                 # Command-line shell interpreter
 │
 ├── allocator/               # Memory allocator implementations
 │   ├── bump.rs              # Simple bump allocator
