@@ -1,6 +1,5 @@
-use crate::{print, println};
+use crate::{println};
 use crate::task::keyboard;
-use crate::fs::FileSystem; // Import the FileSystem trait
 use crate::graphics::text_graphics::{
     draw_filled_box,
     draw_hline,
@@ -10,10 +9,8 @@ use crate::graphics::text_graphics::{
 };
 use crate::graphics::splash::show_status_bar;
 use crate::vga_buffer::Color;
-use core::cmp::min;
 use futures_util::stream::StreamExt;
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
-use alloc::{boxed::Box, vec, vec::Vec, rc::Rc, string::String};
 
 pub mod menu_system;
 use menu_system::*;
