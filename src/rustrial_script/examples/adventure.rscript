@@ -1,10 +1,17 @@
-# Mini Text Adventure
-print("You wake up in a mysterious room.")
-let choice = rand() % 3
-if choice == 0 {
-    print("You find a key and escape!")
-} elif choice == 1 {
-    print("A friendly cat gives you advice.")
+let seed = 555;
+let choice = (seed * 3 + 7) % 3;
+let room = 1;
+let key = 0;
+if (choice == 0) {
+    key = 1;
+    print(100);
 } else {
-    print("You discover a hidden treasure!")
+    if (choice == 1) {
+        print(200);
+    } else {
+        print(300);
+    }
+}
+if (key == 1) {
+    print(999);
 }
