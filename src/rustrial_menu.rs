@@ -1,5 +1,6 @@
-use crate::{println};
+use crate::{print, println};
 use crate::task::keyboard;
+use crate::fs::FileSystem;
 use crate::graphics::text_graphics::{
     draw_filled_box,
     draw_hline,
@@ -416,7 +417,7 @@ pub async fn show_scripts_from_desktop() {
                                                 DecodedKey::RawKey(KeyCode::ArrowDown) | DecodedKey::Unicode('s') | DecodedKey::Unicode('S') => {
                                                     let max_index = crate::fs::root_fs()
                                                         .and_then(|fs| fs.lock().list_dir("/scripts").ok())
-                                                        .map(|scripts| scripts.len())
+                                                        .map(|scripts: Vec<alloc::string::String>| scripts.len())
                                                         .unwrap_or(0);
                                                     if max_index > 0 && selected_index < max_index.saturating_sub(1) {
                                                         selected_index += 1;
