@@ -30,8 +30,8 @@ pub use shutdown::{
 };
 
 // Shell integration
-pub fn launch_shell() {
+pub async fn launch_shell() {
     use crate::shell::Shell;
-    let shell = Shell::new();
-    shell.run();
+    let mut shell = Shell::new();
+    shell.run().await;
 }
