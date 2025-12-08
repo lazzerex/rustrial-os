@@ -107,10 +107,11 @@ impl Shell {
                                         println!();
                                         return Some(self.input_buffer.clone());
                                     }
-                                    '\u{0008}' => {
-                                        // Backspace
+                                    '\u{0008}' | '\u{007F}' => {
+                                        // Backspace or Delete
                                         if !self.input_buffer.is_empty() {
                                             self.input_buffer.pop();
+                                            // Clear the character: backspace, space, backspace
                                             print!("\u{0008} \u{0008}");
                                         }
                                     }
