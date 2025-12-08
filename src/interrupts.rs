@@ -40,7 +40,12 @@ pub fn init_idt() {
 extern "x86-interrupt" fn timer_interrupt_handler(
     _stack_frame: InterruptStackFrame) 
 {
-    //print!(".");
+    use crate::task::preemptive::{tick, maybe_switch_task};
+    // Increment tick counter and check for time slice expiration
+    tick();
+    if maybe_switch_task() {
+        // Context switch will be handled
+    }
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
