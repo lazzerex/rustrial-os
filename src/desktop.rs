@@ -217,17 +217,18 @@ impl Desktop {
         let status_msg = alloc::format!("Mouse: ({:2},{:2}) | Double-click icons | ESC to exit", self.last_mouse_x, self.last_mouse_y);
         write_at(2, BUFFER_HEIGHT - 1, &status_msg, Color::White, Color::DarkGray);
         
-        // Render all icons except shutdown
+        // Render all icons
         for (idx, icon) in self.icons.iter().enumerate() {
             if icon.action == IconAction::Shutdown {
-                // Render shutdown as a special button
+                // Render shutdown as a special button - always maintain red color
                 let shutdown_btn = ShutdownButton {
                     x: icon.x as usize,
                     y: icon.y as usize,
                     width: icon.width as usize,
                     height: icon.height as usize,
                 };
-                shutdown_btn.render(Some(idx) == self.selected_icon);
+                // Pass false to keep red color even when selected
+                shutdown_btn.render(false);
             } else {
                 icon.render(Some(idx) == self.selected_icon);
             }
