@@ -1,0 +1,9 @@
+# Joke Generator
+let joke = rand() % 3
+if joke == 0 {
+    print("Why did the computer get cold? Because it left its Windows open!")
+} elif joke == 1 {
+    print("Why do programmers prefer dark mode? Because light attracts bugs!")
+} else {
+    print("Why was the cell phone wearing glasses? Because it lost its contacts!")
+}

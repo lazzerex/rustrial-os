@@ -1,0 +1,5 @@
+# Dice Roller
+print("Rolling a 6-sided die...")
+let result = 1 + (rand() % 6)
+print("You rolled: ")
+print(result)

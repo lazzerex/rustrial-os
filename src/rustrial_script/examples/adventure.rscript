@@ -1,0 +1,10 @@
+# Mini Text Adventure
+print("You wake up in a mysterious room.")
+let choice = rand() % 3
+if choice == 0 {
+    print("You find a key and escape!")
+} elif choice == 1 {
+    print("A friendly cat gives you advice.")
+} else {
+    print("You discover a hidden treasure!")
+}

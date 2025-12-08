@@ -1,0 +1,6 @@
+# Guess the Number (demo)
+let secret = 1 + (rand() % 10)
+print("I'm thinking of a number between 1 and 10...")
+print("(Pretend to guess, then type 'run' again for a new number)")
+print("The secret number was: ")
+print(secret)
