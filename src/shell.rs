@@ -9,7 +9,7 @@
 use crate::{print, println};
 use crate::task::keyboard;
 use crate::vga_buffer::{Color, WRITER};
-use crate::fs::{FileSystem, FileType};
+use crate::fs::FileSystem;
 use crate::rustrial_script;
 use alloc::{string::String, vec::Vec, format};
 use alloc::string::ToString;
@@ -95,7 +95,6 @@ impl Shell {
         kb: &mut Keyboard<layouts::Us104Key, ScancodeSet1>,
     ) -> Option<String> {
         self.input_buffer.clear();
-        let saved_buffer = String::new();
 
         loop {
             if let Some(scancode) = scancodes.next().await {
@@ -231,7 +230,7 @@ impl Shell {
 
         if let Some(fs) = crate::fs::root_fs() {
             let fs = fs.lock();
-            match fs.read_dir(&full_path) {
+            match fs.list_dir(&full_path) {
                 Ok(entries) => {
                     println!("\nDirectory: {}", full_path);
                     println!("─────────────────────────────────────");
@@ -239,17 +238,23 @@ impl Shell {
                     if entries.is_empty() {
                         println!("  (empty)");
                     } else {
-                        for entry in entries {
-                            let type_str = match entry.file_type {
-                                FileType::File => "[FILE]",
-                                FileType::Directory => "[DIR] ",
-                            };
-                            let size_str = if entry.file_type == FileType::File {
-                                format!(" ({} bytes)", entry.size)
+                        for entry_path in entries {
+                            let is_dir = fs.is_dir(&entry_path);
+                            let type_str = if is_dir { "[DIR] " } else { "[FILE]" };
+                            
+                            // Extract just the filename from the full path
+                            let name = entry_path.rsplit('/').next().unwrap_or(&entry_path);
+                            
+                            let size_str = if !is_dir {
+                                if let Ok(content) = fs.read_file(&entry_path) {
+                                    format!(" ({} bytes)", content.len())
+                                } else {
+                                    String::new()
+                                }
                             } else {
                                 String::new()
                             };
-                            println!("  {} {}{}", type_str, entry.name, size_str);
+                            println!("  {} {}{}", type_str, name, size_str);
                         }
                     }
                     println!();
@@ -404,10 +409,11 @@ impl Shell {
     fn list_scripts(&self) {
         if let Some(fs) = crate::fs::root_fs() {
             let fs = fs.lock();
-            if let Ok(entries) = fs.read_dir("/scripts") {
-                for entry in entries {
-                    if entry.file_type == FileType::File {
-                        println!("  - {}", entry.name);
+            if let Ok(entries) = fs.list_dir("/scripts") {
+                for entry_path in entries {
+                    if fs.is_file(&entry_path) {
+                        let name = entry_path.rsplit('/').next().unwrap_or(&entry_path);
+                        println!("  - {}", name);
                     }
                 }
             }
@@ -425,13 +431,10 @@ impl Shell {
         // Verify directory exists
         if let Some(fs) = crate::fs::root_fs() {
             let fs = fs.lock();
-            match fs.read_dir(&new_path) {
-                Ok(_) => {
-                    self.current_dir = new_path;
-                }
-                Err(_) => {
-                    println!("Error: Directory not found: {}", new_path);
-                }
+            if fs.is_dir(&new_path) {
+                self.current_dir = new_path;
+            } else {
+                println!("Error: Directory not found: {}", new_path);
             }
         } else {
             println!("Error: Filesystem not initialized");
