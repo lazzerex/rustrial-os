@@ -8,34 +8,32 @@
 use core::panic::PanicInfo;
 extern crate alloc;
 
+pub mod gdt;
 pub mod interrupts;
 pub mod memory;
 pub mod allocator;
-
+pub mod serial;
+pub mod vga_buffer;
+pub mod task;
 
 pub mod rustrial_menu;
 pub mod fs;
 pub mod script_loader;
 pub mod graphics;
 pub mod desktop;
-
-pub mod interrupts;
-pub mod serial;
-pub mod vga_buffer;
+pub mod shell;
 
 // Phase 1 Hardware Detection - Native Implementation (C + Assembly)
 pub mod native_ffi; // FFI bindings to C/Assembly code
 
+pub mod rustrial_script;
 
 pub fn init() {
-
     gdt::init();
     interrupts::init_idt();
     unsafe { interrupts::PICS.lock().initialize() };
     x86_64::instructions::interrupts::enable();
 }
-
-pub mod shell;
 pub trait Testable {
     fn run(&self) -> ();
 }
