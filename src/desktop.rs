@@ -405,9 +405,6 @@ impl Desktop {
                                 if action == IconAction::Shutdown {
                                     shutdown_system();
                                 }
-                                if action == IconAction::Shell {
-                                    crate::rustrial_menu::menu_system::launch_shell();
-                                }
                                 return action;
                             }
                         } else {
