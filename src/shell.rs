@@ -107,12 +107,12 @@ impl Shell {
                                         println!();
                                         return Some(self.input_buffer.clone());
                                     }
-                                    '\u{0008}' | '\u{007F}' => {
-                                        // Backspace or Delete
+                                    '\u{0008}' => {
+                                        // Backspace
                                         if !self.input_buffer.is_empty() {
                                             self.input_buffer.pop();
-                                            // Clear the character: backspace, space, backspace
-                                            print!("\u{0008} \u{0008}");
+                                            use crate::vga_buffer::backspace;
+                                            backspace();
                                         }
                                     }
                                     _ => {
@@ -125,6 +125,14 @@ impl Shell {
                             }
                             DecodedKey::RawKey(code) => {
                                 match code {
+                                    KeyCode::Backspace => {
+                                        // Handle backspace as RawKey
+                                        if !self.input_buffer.is_empty() {
+                                            self.input_buffer.pop();
+                                            use crate::vga_buffer::backspace;
+                                            backspace();
+                                        }
+                                    }
                                     KeyCode::ArrowUp => {
                                         if self.history_index > 0 {
                                             self.history_index -= 1;
