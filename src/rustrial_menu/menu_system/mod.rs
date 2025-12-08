@@ -28,3 +28,10 @@ pub use info_screens::{
 pub use shutdown::{
     shutdown_system,
 };
+
+// Shell integration
+pub fn launch_shell() {
+    use crate::shell::Shell;
+    let shell = Shell::new();
+    shell.run();
+}

@@ -28,6 +28,7 @@ pub enum IconAction {
     SystemInfo,
     Scripts,
     Hardware,
+    Shell,
     Shutdown,
 }
 
@@ -80,6 +81,7 @@ impl DesktopIcon {
             IconAction::SystemInfo => "[i]",
             IconAction::Scripts => "[S]",
             IconAction::Hardware => "[H]",
+            IconAction::Shell => "[>_]", // New symbol for Shell
             IconAction::Shutdown => "[OFF]",
         };
         
@@ -127,8 +129,9 @@ impl Desktop {
         icons.push(DesktopIcon::new(20, 4, "System", IconAction::SystemInfo));
         icons.push(DesktopIcon::new(35, 4, "Scripts", IconAction::Scripts));
         icons.push(DesktopIcon::new(50, 4, "Hardware", IconAction::Hardware));
+        icons.push(DesktopIcon::new(65, 4, "Shell", IconAction::Shell));
         icons.push(DesktopIcon {
-            x: 65,
+            x: 80,
             y: 4,
             width: 14,
             height: 5,
@@ -401,6 +404,9 @@ impl Desktop {
                             if let Some(action) = self.handle_icon_click(icon_idx) {
                                 if action == IconAction::Shutdown {
                                     shutdown_system();
+                                }
+                                if action == IconAction::Shell {
+                                    crate::rustrial_menu::menu_system::launch_shell();
                                 }
                                 return action;
                             }
