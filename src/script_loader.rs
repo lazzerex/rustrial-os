@@ -10,6 +10,11 @@ pub const SCRIPTS: &[(&str, &[u8])] = &[
     ("gcd.rscript", include_bytes!("rustrial_script/examples/gcd.rscript")),
     ("prime_checker.rscript", include_bytes!("rustrial_script/examples/prime_checker.rscript")),
     ("sum_of_squares.rscript", include_bytes!("rustrial_script/examples/sum_of_squares.rscript")),
+    ("dice_roller.rscript", include_bytes!("rustrial_script/examples/dice_roller.rscript")),
+    ("fortune_teller.rscript", include_bytes!("rustrial_script/examples/fortune_teller.rscript")),
+    ("joke.rscript", include_bytes!("rustrial_script/examples/joke.rscript")),
+    ("guess_number.rscript", include_bytes!("rustrial_script/examples/guess_number.rscript")),
+    ("adventure.rscript", include_bytes!("rustrial_script/examples/adventure.rscript")),
 ];
 
 /// Load all embedded scripts into the filesystem

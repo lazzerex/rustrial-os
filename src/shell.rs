@@ -40,33 +40,10 @@ impl Shell {
         }
     }
 
-    /// Run the shell interactively with menu-style UI
+    /// Run the shell interactively
     pub async fn run(&mut self) {
-        use crate::graphics::text_graphics::*;
-        use crate::vga_buffer::{Color, WRITER};
-
-        // Shell region (box)
-        let shell_x = 8;
-        let shell_y = 3;
-        let shell_w = 64;
-        let shell_h = 19;
-
-        // Clear shell region only
-        draw_filled_box(shell_x, shell_y, shell_w, shell_h, Color::White, Color::Black);
-        draw_double_box(shell_x, shell_y, shell_w, shell_h, Color::Yellow, Color::Black);
-
-        // Title bar
-        draw_filled_box(shell_x + 1, shell_y + 1, shell_w - 2, 1, Color::White, Color::Blue);
-        write_centered(shell_y + 1, "Rustrial Shell", Color::Yellow, Color::Blue);
-
-        // Status bar
-        draw_filled_box(shell_x + 1, shell_y + shell_h - 2, shell_w - 2, 1, Color::White, Color::DarkGray);
-        write_centered(shell_y + shell_h - 2, "ESC to exit | Type 'help' for commands", Color::White, Color::DarkGray);
-
-        // Welcome message inside box
-        write_centered(shell_y + 3, "Welcome to RustrialOS Shell v0.1", Color::LightGreen, Color::Black);
-        write_centered(shell_y + 4, "Type 'help' for available commands", Color::LightGray, Color::Black);
-
+        self.print_welcome();
+        
         let mut scancodes = keyboard::ScancodeStream::new();
         let mut kb = Keyboard::new(
             ScancodeSet1::new(),
@@ -74,40 +51,23 @@ impl Shell {
             HandleControl::Ignore,
         );
 
-        // Input area starts at shell_y+6, shell_x+2
-        let input_start_y = shell_y + 6;
-        let input_area_h = shell_h - 9;
-        let mut cursor_y = input_start_y;
-
         loop {
-            self.print_prompt_at(shell_x + 2, cursor_y);
-
+            self.print_prompt();
+            
             // Read a line of input
-            if let Some(line) = self.read_line_at(shell_x + 2, cursor_y, &mut scancodes, &mut kb).await {
-                if line == "" {
-                    continue;
-                }
-                if line == "\x1B" {
-                    // ESC pressed
-                    break;
-                }
-                // Add to history
-                if self.history.len() >= MAX_HISTORY {
-                    self.history.remove(0);
-                }
-                self.history.push(line.clone());
-                self.history_index = self.history.len();
-
-                // Execute command
-                self.execute_command(&line).await;
-
-                // Move cursor down, scroll if needed
-                cursor_y += 1;
-                if cursor_y >= input_start_y + input_area_h {
-                    // Instead of scrolling, just clear the input area and reset cursor
-                    use crate::graphics::text_graphics::draw_filled_box;
-                    draw_filled_box(shell_x + 2, input_start_y, shell_w - 4, input_area_h, Color::White, Color::Black);
-                    cursor_y = input_start_y;
+            if let Some(line) = self.read_line(&mut scancodes, &mut kb).await {
+                if !line.is_empty() {
+                    // Add to history
+                    if self.history.len() >= MAX_HISTORY {
+                        self.history.remove(0);
+                    }
+                    self.history.push(line.clone());
+                    self.history_index = self.history.len();
+                    
+                    // Execute command
+                    if self.execute_command(&line).await {
+                        break; // Exit command was issued
+                    }
                 }
             }
         }
@@ -122,22 +82,20 @@ impl Shell {
         println!("╚════════════════════════════════════════════════════════════════════╝\n");
     }
 
-    fn print_prompt_at(&self, x: usize, y: usize) {
-        use crate::graphics::text_graphics::write_at;
-        write_at(x, y, &format!("{}{} ", self.current_dir, PROMPT), self.foreground_color, self.background_color);
+    fn print_prompt(&self) {
+        // Set prompt color
+        WRITER.lock().set_color(self.foreground_color, self.background_color);
+        print!("{}{} ", self.current_dir, PROMPT);
     }
 
-    /// Read a line of input from the keyboard at a specific position
-    async fn read_line_at(
+    /// Read a line of input from the keyboard
+    async fn read_line(
         &mut self,
-        x: usize,
-        y: usize,
         scancodes: &mut keyboard::ScancodeStream,
         kb: &mut Keyboard<layouts::Us104Key, ScancodeSet1>,
     ) -> Option<String> {
-        use crate::graphics::text_graphics::write_at;
         self.input_buffer.clear();
-        let mut col = x + self.current_dir.len() + PROMPT.len() + 1;
+
         loop {
             if let Some(scancode) = scancodes.next().await {
                 if let Ok(Some(key_event)) = kb.add_byte(scancode) {
@@ -146,26 +104,20 @@ impl Shell {
                             DecodedKey::Unicode(character) => {
                                 match character {
                                     '\n' => {
-                                        // Enter
+                                        println!();
                                         return Some(self.input_buffer.clone());
-                                    }
-                                    '\u{001B}' => {
-                                        // ESC
-                                        return Some("\x1B".to_string());
                                     }
                                     '\u{0008}' => {
                                         // Backspace
                                         if !self.input_buffer.is_empty() {
                                             self.input_buffer.pop();
-                                            col = col.saturating_sub(1);
-                                            write_at(col, y, " ", self.foreground_color, self.background_color);
+                                            print!("\u{0008} \u{0008}");
                                         }
                                     }
                                     _ => {
                                         if !character.is_control() {
                                             self.input_buffer.push(character);
-                                            write_at(col, y, &character.to_string(), self.foreground_color, self.background_color);
-                                            col += 1;
+                                            print!("{}", character);
                                         }
                                     }
                                 }
