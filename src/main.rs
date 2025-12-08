@@ -74,6 +74,11 @@ async fn desktop_loop() {
                 clear_screen();
                 rustrial_os::rustrial_menu::show_hardware_from_desktop().await;
             }
+            IconAction::Shell => {
+                use rustrial_os::vga_buffer::clear_screen;
+                clear_screen();
+                rustrial_os::rustrial_menu::menu_system::launch_shell().await;
+            }
             IconAction::Shutdown => {
                 rustrial_os::rustrial_menu::menu_system::shutdown::shutdown_system();
             }
