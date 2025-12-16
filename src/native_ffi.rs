@@ -5,6 +5,14 @@
 
 use core::fmt;
 use x86_64::PhysAddr;
+use x86_64::{
+    VirtAddr,
+    structures::paging::{
+        Page, PhysFrame, PageTableFlags, Size4KiB, 
+        Mapper, FrameAllocator, mapper::MapToError
+    },
+};
+
 extern crate alloc;
 use alloc::vec::Vec;
 
@@ -183,19 +191,156 @@ pub fn pci_write_config_dword(bus: u8, slot: u8, func: u8, offset: u8, value: u3
     unsafe { pci_write_config(bus, slot, func, offset, value) }
 }
 
-/// get bar information for device (basic parsing, size not detected)
+/// get bar information for device with a proper size detection hopefully 
 pub fn pci_get_bar(device: &PciDevice, bar_index: u8) -> Option<PciBar> {
-    if bar_index as usize >= device.bar.len() { return None; }
-    let raw = device.bar[bar_index as usize];
-    if raw == 0 { return None; }
-    // io space if lsb == 1
-    if (raw & 0x1) == 1 {
-        let base = (raw & 0xFFFFFFFC) as u64;
-        Some(PciBar { base_addr: PhysAddr::new(base), size: 0, is_mmio: false })
-    } else {
-        let base = (raw & 0xFFFFFFF0) as u64;
-        Some(PciBar { base_addr: PhysAddr::new(base), size: 0, is_mmio: true })
+    if bar_index as usize >= device.bar.len() { 
+        return None; 
     }
+    
+    let raw = device.bar[bar_index as usize];
+    if raw == 0 { 
+        return None; 
+    }
+    
+    // probe the actual size
+    let size = pci_probe_bar_size(device, bar_index);
+    
+    // determine type and extract base address
+    if (raw & 0x1) == 1 {
+        // I/O Space BAR
+        let base = (raw & 0xFFFFFFFC) as u64;
+        Some(PciBar { 
+            base_addr: PhysAddr::new(base), 
+            size, 
+            is_mmio: false 
+        })
+    } else {
+        // Memory Space BAR
+        let base = (raw & 0xFFFFFFF0) as u64;
+        
+        // do chheck for 64-bit BAR (bits 2:1 == 0b10)
+        let bar_type = (raw >> 1) & 0x3;
+        if bar_type == 2 && bar_index < 5 {
+            // 64-bit BAR, read upper 32 bits from next BAR
+            let upper = device.bar[bar_index as usize + 1] as u64;
+            let base_64 = base | (upper << 32);
+            Some(PciBar { 
+                base_addr: PhysAddr::new(base_64), 
+                size, 
+                is_mmio: true 
+            })
+        } else {
+            Some(PciBar { 
+                base_addr: PhysAddr::new(base), 
+                size, 
+                is_mmio: true 
+            })
+        }
+    }
+}
+
+/// enable pci device memory space and bus mastering by setting command register
+pub fn pci_enable_bus_mastering(device: &PciDevice) {
+    // command register at offset 0x04: bit 1 = memory space, bit 2 = bus master
+    let mut cmd = pci_read_config_dword(device.bus, device.device, device.function, 0x04);
+    cmd |= 0x6; // set bits 1 (mem space) and 2 (bus master)
+    pci_write_config_dword(device.bus, device.device, device.function, 0x04, cmd);
+}
+
+/// probe bar size by writing 0xFFFFFFFF and reading back mask. returns size in bytes (0 if unknown)
+pub fn pci_probe_bar_size(device: &PciDevice, bar_index: u8) -> usize {
+    if bar_index as usize >= device.bar.len() { return 0; }
+    let offset = 0x10 + (bar_index as u8 * 4);
+    let orig = pci_read_config_dword(device.bus, device.device, device.function, offset as u8);
+    // write all ones
+    pci_write_config_dword(device.bus, device.device, device.function, offset as u8, 0xFFFF_FFFF);
+    let mask = pci_read_config_dword(device.bus, device.device, device.function, offset as u8);
+    // restore original
+    pci_write_config_dword(device.bus, device.device, device.function, offset as u8, orig);
+
+    if mask == 0 || mask == 0xFFFF_FFFF { return 0; }
+
+    // if io space (bit 0 == 1)
+    if (orig & 0x1) == 1 {
+        let masked = mask & 0xFFFFFFFC;
+        let size = (!(masked) as u64).wrapping_add(1);
+        return size as usize;
+    } else {
+        // memory space, mask lower 4 bits
+        let masked = mask & 0xFFFF_FFF0;
+        let size = (!(masked) as u64).wrapping_add(1);
+        return size as usize;
+    }
+}
+
+/// convert a physical pci bar address to kernel virtual using given physical_memory_offset
+/// does not create table entries
+pub fn pci_bar_phys_to_virt(phys: PhysAddr, physical_memory_offset: u64) -> x86_64::VirtAddr {
+    x86_64::VirtAddr::new(physical_memory_offset + phys.as_u64())
+}
+
+//this will create page table entries
+pub fn map_mmio_range<A>(
+    phys_start: PhysAddr,
+    size: usize,
+    mapper: &mut impl Mapper<Size4KiB>,
+    frame_allocator: &mut A,
+) -> Result<VirtAddr, MapToError<Size4KiB>>
+where
+    A: FrameAllocator<Size4KiB>,
+{
+    // MMIO regions need specific flags
+    let flags = PageTableFlags::PRESENT
+        | PageTableFlags::WRITABLE
+        | PageTableFlags::NO_CACHE          // disable caching for MMIO
+        | PageTableFlags::WRITE_THROUGH;    // write-through for MMIO
+    
+    // calculate how many pages we would need
+    let page_count = (size + 0xFFF) / 0x1000;
+    
+    
+    // need to track this in a global allocator
+    let virt_start = VirtAddr::new(0xFFFF_FF00_0000_0000 + phys_start.as_u64());
+    
+    for i in 0..page_count {
+        let page: Page = Page::containing_address(virt_start + i as u64 * 4096);
+        let frame = PhysFrame::containing_address(phys_start + i as u64 * 4096);
+        
+        unsafe {
+            mapper
+                .map_to(page, frame, flags, frame_allocator)?
+                .flush();
+        }
+    }
+    
+    Ok(virt_start)
+}
+
+/// convenience function: Get BAR and map it in one call
+pub fn get_and_map_bar<A>(
+    device: &PciDevice,
+    bar_index: u8,
+    mapper: &mut impl Mapper<Size4KiB>,
+    frame_allocator: &mut A,
+) -> Result<(PciBar, VirtAddr), &'static str>
+where
+    A: FrameAllocator<Size4KiB>,
+{
+    let bar = pci_get_bar(device, bar_index)
+        .ok_or("BAR not found or invalid")?;
+    
+    if !bar.is_mmio {
+        return Err("Cannot map I/O space BAR (use port I/O instead)");
+    }
+    
+    if bar.size == 0 {
+        return Err("BAR has zero size");
+    }
+    
+    let virt_addr = map_mmio_range(bar.base_addr, bar.size, mapper, frame_allocator)
+        .map_err(|_| "Failed to map BAR to virtual memory")?;
+    
+    Ok((bar, virt_addr))
 }
 
 pub fn print_pci_devices() {
@@ -234,6 +379,28 @@ unsafe extern "C" {
     fn rtc_weekday_str(weekday: u8) -> *const u8;
     fn rtc_month_str(month: u8) -> *const u8;
 }
+
+impl PciDevice {
+    /// het the IRQ line this device uses
+    pub fn get_irq(&self) -> Option<u8> {
+        if self.interrupt_line == 0xFF || self.interrupt_line == 0 {
+            None // no IRQ assigned
+        } else {
+            Some(self.interrupt_line)
+        }
+    }
+    
+    /// register an IRQ handler for this device
+    pub fn register_irq_handler(&self, handler: fn()) -> Result<(), &'static str> {
+        let irq = self.get_irq().ok_or("No IRQ assigned to device")?;
+        if irq >= 16 {
+            return Err("IRQ number out of range for PIC (need APIC/MSI)");
+        }
+        crate::interrupts::register_irq_handler(irq, handler);
+        Ok(())
+    }
+}
+
 
 impl DateTime {
     pub fn read() -> Self {
