@@ -74,6 +74,18 @@ void pci_write_config32(uint8_t bus, uint8_t device, uint8_t function,
     outl(PCI_CONFIG_DATA, value);
 }
 
+// simple wrapper to match requested ffi name: pci_read_config
+// returns 32-bit register value at offset (aligned to dword)
+uint32_t pci_read_config(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset) {
+    return pci_read_config32(bus, slot, func, offset & 0xFC);
+}
+
+// simple wrapper to match requested ffi name: pci_write_config
+// writes 32-bit value to configuration space
+void pci_write_config(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint32_t value) {
+    pci_write_config32(bus, slot, func, offset & 0xFC, value);
+}
+
 /**
  * Check if a PCI device exists
  */
