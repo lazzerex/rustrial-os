@@ -41,6 +41,8 @@ extern "x86-interrupt" fn timer_interrupt_handler(
     _stack_frame: InterruptStackFrame) 
 {
     //print!(".");
+    // call registered irq handlers (irq 0)
+    handle_registered_irq(0);
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
@@ -84,6 +86,8 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(
     //     }
     // }
 
+    // call registered irq handlers (irq 1)
+    handle_registered_irq(1);
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
@@ -103,6 +107,30 @@ extern "x86-interrupt" fn mouse_interrupt_handler(
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Mouse.as_u8());
+    }
+}
+
+// irq handler registry for dynamic registration (supports 16 pic irqs)
+use core::option::Option;
+use spin::Mutex as SpinMutex;
+
+static IRQ_HANDLERS: SpinMutex<[Option<fn()>; 16]> = SpinMutex::new([None; 16]);
+
+// register a simple handler for a given irq number (0-15)
+pub fn register_irq_handler(irq: u8, handler: fn()) {
+    let idx = irq as usize;
+    if idx < 16 {
+        IRQ_HANDLERS.lock()[idx] = Some(handler);
+    }
+}
+
+// internal helper called from irq entry points
+fn handle_registered_irq(irq: u8) {
+    let idx = irq as usize;
+    if idx < 16 {
+        if let Some(h) = IRQ_HANDLERS.lock()[idx] {
+            h();
+        }
     }
 }
 
