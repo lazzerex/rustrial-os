@@ -4,6 +4,7 @@
 /// of CPU detection, PCI enumeration, and RTC access.
 
 use core::fmt;
+use x86_64::PhysAddr;
 extern crate alloc;
 use alloc::vec::Vec;
 
@@ -117,6 +118,9 @@ unsafe extern "C" {
     fn pci_enumerate_devices(devices: *mut PciDevice, max_devices: i32) -> i32;
     fn pci_get_class_name(class_code: u8) -> *const u8;
     fn pci_get_vendor_name(vendor_id: u16) -> *const u8;
+    // pci config access
+    fn pci_read_config(bus: u8, slot: u8, func: u8, offset: u8) -> u32;
+    fn pci_write_config(bus: u8, slot: u8, func: u8, offset: u8, value: u32);
 }
 
 impl PciDevice {
@@ -159,6 +163,39 @@ pub fn enumerate_pci_devices() -> Vec<PciDevice> {
         devices.set_len(count as usize);
     }
     devices
+}
+
+/// representation of a pci bar returned to rust
+#[derive(Debug, Clone, Copy)]
+pub struct PciBar {
+    pub base_addr: PhysAddr,
+    pub size: usize,
+    pub is_mmio: bool,
+}
+
+/// read raw pci config dword via ffi wrapper
+pub fn pci_read_config_dword(bus: u8, slot: u8, func: u8, offset: u8) -> u32 {
+    unsafe { pci_read_config(bus, slot, func, offset) }
+}
+
+/// write raw pci config dword via ffi wrapper
+pub fn pci_write_config_dword(bus: u8, slot: u8, func: u8, offset: u8, value: u32) {
+    unsafe { pci_write_config(bus, slot, func, offset, value) }
+}
+
+/// get bar information for device (basic parsing, size not detected)
+pub fn pci_get_bar(device: &PciDevice, bar_index: u8) -> Option<PciBar> {
+    if bar_index as usize >= device.bar.len() { return None; }
+    let raw = device.bar[bar_index as usize];
+    if raw == 0 { return None; }
+    // io space if lsb == 1
+    if (raw & 0x1) == 1 {
+        let base = (raw & 0xFFFFFFFC) as u64;
+        Some(PciBar { base_addr: PhysAddr::new(base), size: 0, is_mmio: false })
+    } else {
+        let base = (raw & 0xFFFFFFF0) as u64;
+        Some(PciBar { base_addr: PhysAddr::new(base), size: 0, is_mmio: true })
+    }
 }
 
 pub fn print_pci_devices() {
