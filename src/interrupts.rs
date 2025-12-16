@@ -28,40 +28,6 @@ lazy_static! {
             .set_handler_fn(keyboard_interrupt_handler);
         idt[InterruptIndex::Mouse.as_usize()]
             .set_handler_fn(mouse_interrupt_handler);
-
-        // generate generic irq handlers for PIC IRQs 0..15 and register them
-        macro_rules! set_irq_handlers {
-            ($idt:ident, $base:expr) => {
-                $idt;
-                {
-                    let mut i = 0u8;
-                    while i < 16 {
-                        match i {
-                            0 => $idt[($base + 0) as usize].set_handler_fn(generic_irq_0),
-                            1 => $idt[($base + 1) as usize].set_handler_fn(generic_irq_1),
-                            2 => $idt[($base + 2) as usize].set_handler_fn(generic_irq_2),
-                            3 => $idt[($base + 3) as usize].set_handler_fn(generic_irq_3),
-                            4 => $idt[($base + 4) as usize].set_handler_fn(generic_irq_4),
-                            5 => $idt[($base + 5) as usize].set_handler_fn(generic_irq_5),
-                            6 => $idt[($base + 6) as usize].set_handler_fn(generic_irq_6),
-                            7 => $idt[($base + 7) as usize].set_handler_fn(generic_irq_7),
-                            8 => $idt[($base + 8) as usize].set_handler_fn(generic_irq_8),
-                            9 => $idt[($base + 9) as usize].set_handler_fn(generic_irq_9),
-                            10 => $idt[($base + 10) as usize].set_handler_fn(generic_irq_10),
-                            11 => $idt[($base + 11) as usize].set_handler_fn(generic_irq_11),
-                            12 => $idt[($base + 12) as usize].set_handler_fn(generic_irq_12),
-                            13 => $idt[($base + 13) as usize].set_handler_fn(generic_irq_13),
-                            14 => $idt[($base + 14) as usize].set_handler_fn(generic_irq_14),
-                            15 => $idt[($base + 15) as usize].set_handler_fn(generic_irq_15),
-                            _ => {}
-                        }
-                        i += 1;
-                    }
-                }
-            };
-        }
-
-        set_irq_handlers!(idt, PIC_1_OFFSET);
         idt.page_fault.set_handler_fn(page_fault_handler);
         idt
     };
@@ -70,43 +36,6 @@ lazy_static! {
 pub fn init_idt() {
     IDT.load();
 }
-
-// generated generic irq handlers for 0..15
-macro_rules! gen_irq_fn {
-    ($name:ident, $irq:expr) => {
-        extern "x86-interrupt" fn $name(_stack_frame: InterruptStackFrame) {
-            handle_registered_irq($irq);
-            
-            //some notes:
-            // IRQ 0-7: Primary PIC (PIC_1_OFFSET + irq)
-            // IRQ 8-15: Secondary PIC (PIC_2_OFFSET + (irq - 8))
-            unsafe {
-                if $irq < 8 {
-                    PICS.lock().notify_end_of_interrupt(PIC_1_OFFSET + $irq);
-                } else {
-                    PICS.lock().notify_end_of_interrupt(PIC_2_OFFSET + ($irq - 8));
-                }
-            }
-        }
-    };
-}
-
-gen_irq_fn!(generic_irq_0, 0);
-gen_irq_fn!(generic_irq_1, 1);
-gen_irq_fn!(generic_irq_2, 2);
-gen_irq_fn!(generic_irq_3, 3);
-gen_irq_fn!(generic_irq_4, 4);
-gen_irq_fn!(generic_irq_5, 5);
-gen_irq_fn!(generic_irq_6, 6);
-gen_irq_fn!(generic_irq_7, 7);
-gen_irq_fn!(generic_irq_8, 8);
-gen_irq_fn!(generic_irq_9, 9);
-gen_irq_fn!(generic_irq_10, 10);
-gen_irq_fn!(generic_irq_11, 11);
-gen_irq_fn!(generic_irq_12, 12);
-gen_irq_fn!(generic_irq_13, 13);
-gen_irq_fn!(generic_irq_14, 14);
-gen_irq_fn!(generic_irq_15, 15);
 
 extern "x86-interrupt" fn timer_interrupt_handler(
     _stack_frame: InterruptStackFrame) 
