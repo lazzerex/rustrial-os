@@ -74,6 +74,18 @@ void pci_write_config32(uint8_t bus, uint8_t device, uint8_t function,
     outl(PCI_CONFIG_DATA, value);
 }
 
+/**
+ * Write 16-bit value to PCI configuration space
+ */
+void pci_write_config16(uint8_t bus, uint8_t device, uint8_t function,
+                        uint8_t offset, uint16_t value) {
+    uint32_t old_value = pci_read_config32(bus, device, function, offset & 0xFC);
+    uint32_t shift = (offset & 2) * 8;
+    uint32_t mask = 0xFFFF << shift;
+    uint32_t new_value = (old_value & ~mask) | (((uint32_t)value << shift) & mask);
+    pci_write_config32(bus, device, function, offset & 0xFC, new_value);
+}
+
 // simple wrapper to match requested ffi name: pci_read_config
 // returns 32-bit register value at offset (aligned to dword)
 uint32_t pci_read_config(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset) {
@@ -84,6 +96,70 @@ uint32_t pci_read_config(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset
 // writes 32-bit value to configuration space
 void pci_write_config(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint32_t value) {
     pci_write_config32(bus, slot, func, offset & 0xFC, value);
+}
+
+/**
+ * Stage 1.2: Enable PCI bus mastering (required for DMA)
+ */
+void pci_enable_bus_mastering(uint8_t bus, uint8_t device, uint8_t function) {
+    uint16_t command = pci_read_config16(bus, device, function, 0x04);
+    command |= 0x0004;  // Set bus master bit
+    pci_write_config16(bus, device, function, 0x04, command);
+}
+
+/**
+ * Stage 1.2: Enable memory space access
+ */
+void pci_enable_memory_space(uint8_t bus, uint8_t device, uint8_t function) {
+    uint16_t command = pci_read_config16(bus, device, function, 0x04);
+    command |= 0x0002;  // Set memory space bit
+    pci_write_config16(bus, device, function, 0x04, command);
+}
+
+/**
+ * Stage 1.2: Enable I/O space access
+ */
+void pci_enable_io_space(uint8_t bus, uint8_t device, uint8_t function) {
+    uint16_t command = pci_read_config16(bus, device, function, 0x04);
+    command |= 0x0001;  // Set I/O space bit
+    pci_write_config16(bus, device, function, 0x04, command);
+}
+
+/**
+ * Stage 1.2: Get BAR size by probing
+ * Returns the size of the memory/IO region for a given BAR
+ */
+uint32_t pci_get_bar_size(uint8_t bus, uint8_t device, uint8_t function, uint8_t bar_index) {
+    if (bar_index >= 6) return 0;
+    
+    uint8_t offset = 0x10 + (bar_index * 4);
+    
+    // Read original BAR value
+    uint32_t original = pci_read_config32(bus, device, function, offset);
+    if (original == 0) return 0;
+    
+    // Write all 1s to the BAR
+    pci_write_config32(bus, device, function, offset, 0xFFFFFFFF);
+    
+    // Read back the size
+    uint32_t size_mask = pci_read_config32(bus, device, function, offset);
+    
+    // Restore original value
+    pci_write_config32(bus, device, function, offset, original);
+    
+    // Calculate size based on type
+    if (size_mask == 0 || size_mask == 0xFFFFFFFF) return 0;
+    
+    if (original & 0x1) {
+        // I/O space BAR
+        size_mask &= 0xFFFFFFFC;
+    } else {
+        // Memory space BAR
+        size_mask &= 0xFFFFFFF0;
+    }
+    
+    // Size is the inverse of the mask + 1
+    return (~size_mask) + 1;
 }
 
 /**
