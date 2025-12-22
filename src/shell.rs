@@ -193,6 +193,7 @@ impl Shell {
             "pwd" => self.cmd_pwd(),
             "color" => self.cmd_color(args),
             "rustrialfetch" | "fetch" => self.cmd_rustrialfetch(),
+            "netinfo" => self.cmd_netinfo(args),
             "exit" | "quit" => return true,
             _ => {
                 println!("Unknown command: '{}'. Type 'help' for available commands.", command);
@@ -216,6 +217,7 @@ impl Shell {
         println!("  pwd               - Print working directory");
         println!("  color <fg> <bg>   - Change text color (0-15)");
         println!("  rustrialfetch     - Display system information");
+        println!("  netinfo [test]    - Display networking status (use 'test' to allocate DMA)");
         println!("  exit, quit        - Return to desktop");
         println!("\nColors: 0=Black, 1=Blue, 2=Green, 3=Cyan, 4=Red, 5=Magenta, 6=Brown,");
         println!("        7=LightGray, 8=DarkGray, 9=LightBlue, 10=LightGreen, 11=LightCyan,");
@@ -568,6 +570,83 @@ impl Shell {
         }
         
         println!();
+    }
+
+    fn cmd_netinfo(&self, args: &[&str]) {
+        println!("\n╔════════════════════════════════════════════════════════════════════╗");
+        println!("║              Network Stack Status - Phase 1.1                      ║");
+        println!("╠════════════════════════════════════════════════════════════════════╣");
+        println!("║ Heap Size:        2 MB (expanded for networking)                  ║");
+        println!("║ DMA Region:       1 MB allocated                                   ║");
+        println!("║ Ring Buffers:     256 × 2KB (RX/TX)                                ║");
+        println!("║ Status:           Infrastructure ready ✓                           ║");
+        println!("╠════════════════════════════════════════════════════════════════════╣");
+        println!("║ Phase 1.1:        ✓ Enhanced Memory Management                    ║");
+        println!("║ Phase 1.2:        ⏳ PCI Driver Enhancement (pending)              ║");
+        println!("║ Phase 2:          ⏳ Network Driver (RTL8139/E1000)                ║");
+        println!("║ Phase 3:          ⏳ Ethernet/ARP Protocol                         ║");
+        println!("║ Phase 4:          ⏳ IP/ICMP Protocol (ping)                       ║");
+        println!("╚════════════════════════════════════════════════════════════════════╝\n");
+
+        if args.len() > 0 && args[0] == "test" {
+            println!("Testing DMA allocation...");
+            
+            use crate::memory::dma;
+            
+            // Test allocation
+            match dma::allocate_dma_buffer(1024) {
+                Ok(buffer) => {
+                    println!("✓ DMA Buffer allocated successfully!");
+                    println!("  Virtual Address:  0x{:x}", buffer.virt_addr.as_u64());
+                    println!("  Physical Address: 0x{:x}", buffer.phys_addr.as_u64());
+                    println!("  Size:             {} bytes (aligned to {})", 
+                             buffer.size, buffer.size);
+                    
+                    // Test multiple allocations
+                    match dma::allocate_dma_buffer(2048) {
+                        Ok(buffer2) => {
+                            println!("✓ Second DMA buffer allocated!");
+                            println!("  Virtual Address:  0x{:x}", buffer2.virt_addr.as_u64());
+                            println!("  Physical Address: 0x{:x}", buffer2.phys_addr.as_u64());
+                        }
+                        Err(e) => {
+                            println!("✗ Second allocation failed: {:?}", e);
+                        }
+                    }
+                    
+                    // Test ring buffer
+                    use crate::net::buffer::PacketRingBuffer;
+                    let mut ring: PacketRingBuffer<4, 2048> = PacketRingBuffer::new();
+                    let test_packet = [0xAA, 0xBB, 0xCC, 0xDD];
+                    
+                    match ring.push(&test_packet) {
+                        Ok(_) => {
+                            println!("✓ Ring buffer push successful!");
+                            match ring.pop() {
+                                Ok((data, len)) => {
+                                    println!("✓ Ring buffer pop successful!");
+                                    println!("  Packet length: {} bytes", len);
+                                    print!("  Data: ");
+                                    for i in 0..len {
+                                        print!("{:02X} ", data[i]);
+                                    }
+                                    println!();
+                                }
+                                Err(e) => println!("✗ Ring buffer pop failed: {:?}", e),
+                            }
+                        }
+                        Err(e) => println!("✗ Ring buffer push failed: {:?}", e),
+                    }
+                }
+                Err(e) => {
+                    println!("✗ DMA allocation failed: {:?}", e);
+                    println!("  This might indicate DMA was not properly initialized.");
+                }
+            }
+            println!();
+        } else {
+            println!("Tip: Use 'netinfo test' to run DMA allocation tests\n");
+        }
     }
 
     /// Resolve a path relative to current directory

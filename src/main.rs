@@ -167,6 +167,10 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("heap initialization failed");
 
+    // Phase 1.1: Initialize DMA memory for networking
+    rustrial_os::memory::dma::init_dma(&mut mapper, &mut frame_allocator, phys_mem_offset)
+        .expect("DMA initialization failed");
+
     // Initialize filesystem and load scripts
     rustrial_os::fs::init();
     rustrial_os::script_loader::load_scripts()

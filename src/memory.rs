@@ -12,6 +12,9 @@ use x86_64::structures::paging::OffsetPageTable;
 use bootloader::bootinfo::MemoryMap;
 use bootloader::bootinfo::MemoryRegionType;
 
+// Phase 1.1: DMA memory management
+pub mod dma;
+
 
 /// returns a mutable reference to the active level 4 table.
 ///
