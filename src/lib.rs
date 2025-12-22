@@ -28,6 +28,9 @@ pub mod native_ffi; // FFI bindings to C/Assembly code
 
 pub mod rustrial_script;
 
+// Phase 1.1: Networking infrastructure
+pub mod net;
+
 pub fn init() {
     gdt::init();
     interrupts::init_idt();
