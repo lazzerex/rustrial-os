@@ -118,9 +118,16 @@ unsafe extern "C" {
     fn pci_enumerate_devices(devices: *mut PciDevice, max_devices: i32) -> i32;
     fn pci_get_class_name(class_code: u8) -> *const u8;
     fn pci_get_vendor_name(vendor_id: u16) -> *const u8;
-    // pci config access
+    // PCI config access
     fn pci_read_config(bus: u8, slot: u8, func: u8, offset: u8) -> u32;
     fn pci_write_config(bus: u8, slot: u8, func: u8, offset: u8, value: u32);
+    fn pci_read_config16(bus: u8, device: u8, function: u8, offset: u8) -> u16;
+    fn pci_write_config16(bus: u8, device: u8, function: u8, offset: u8, value: u16);
+    // Stage 1.2: Enhanced PCI functions
+    fn pci_enable_bus_mastering(bus: u8, device: u8, function: u8);
+    fn pci_enable_memory_space(bus: u8, device: u8, function: u8);
+    fn pci_enable_io_space(bus: u8, device: u8, function: u8);
+    fn pci_get_bar_size(bus: u8, device: u8, function: u8, bar_index: u8) -> u32;
 }
 
 impl PciDevice {
@@ -183,19 +190,73 @@ pub fn pci_write_config_dword(bus: u8, slot: u8, func: u8, offset: u8, value: u3
     unsafe { pci_write_config(bus, slot, func, offset, value) }
 }
 
-/// get bar information for device (basic parsing, size not detected)
+/// Stage 1.2: Get BAR information with size detection
+/// Maps device MMIO/IO regions to virtual memory
 pub fn pci_get_bar(device: &PciDevice, bar_index: u8) -> Option<PciBar> {
-    if bar_index as usize >= device.bar.len() { return None; }
-    let raw = device.bar[bar_index as usize];
-    if raw == 0 { return None; }
-    // io space if lsb == 1
-    if (raw & 0x1) == 1 {
-        let base = (raw & 0xFFFFFFFC) as u64;
-        Some(PciBar { base_addr: PhysAddr::new(base), size: 0, is_mmio: false })
-    } else {
-        let base = (raw & 0xFFFFFFF0) as u64;
-        Some(PciBar { base_addr: PhysAddr::new(base), size: 0, is_mmio: true })
+    if bar_index as usize >= device.bar.len() { 
+        return None; 
     }
+    
+    let raw = device.bar[bar_index as usize];
+    if raw == 0 { 
+        return None; 
+    }
+    
+    // Get actual size by probing the BAR
+    let size = unsafe {
+        pci_get_bar_size(device.bus, device.device, device.function, bar_index)
+    } as usize;
+    
+    // Determine if I/O space or memory space
+    if (raw & 0x1) == 1 {
+        // I/O space BAR
+        let base = (raw & 0xFFFFFFFC) as u64;
+        Some(PciBar { 
+            base_addr: PhysAddr::new(base), 
+            size, 
+            is_mmio: false 
+        })
+    } else {
+        // Memory space BAR
+        let base = (raw & 0xFFFFFFF0) as u64;
+        Some(PciBar { 
+            base_addr: PhysAddr::new(base), 
+            size, 
+            is_mmio: true 
+        })
+    }
+}
+
+/// Stage 1.2: Enable PCI bus mastering for DMA operations
+pub fn pci_enable_dma(device: &PciDevice) {
+    unsafe {
+        pci_enable_bus_mastering(device.bus, device.device, device.function);
+        pci_enable_memory_space(device.bus, device.device, device.function);
+    }
+}
+
+/// Stage 1.2: Enable memory-mapped I/O for device
+pub fn pci_enable_mmio(device: &PciDevice) {
+    unsafe {
+        pci_enable_memory_space(device.bus, device.device, device.function);
+    }
+}
+
+/// Stage 1.2: Enable port I/O for device
+pub fn pci_enable_io(device: &PciDevice) {
+    unsafe {
+        pci_enable_io_space(device.bus, device.device, device.function);
+    }
+}
+
+/// Stage 1.2: Read interrupt line configuration
+pub fn pci_get_interrupt_line(device: &PciDevice) -> u8 {
+    device.interrupt_line
+}
+
+/// Stage 1.2: Read interrupt pin (which pin device uses: INTA-INTD)
+pub fn pci_get_interrupt_pin(device: &PciDevice) -> u8 {
+    device.interrupt_pin
 }
 
 pub fn print_pci_devices() {
