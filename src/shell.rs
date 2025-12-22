@@ -194,6 +194,7 @@ impl Shell {
             "color" => self.cmd_color(args),
             "rustrialfetch" | "fetch" => self.cmd_rustrialfetch(),
             "netinfo" => self.cmd_netinfo(args),
+            "pciinfo" => self.cmd_pciinfo(args),
             "exit" | "quit" => return true,
             _ => {
                 println!("Unknown command: '{}'. Type 'help' for available commands.", command);
@@ -218,6 +219,7 @@ impl Shell {
         println!("  color <fg> <bg>   - Change text color (0-15)");
         println!("  rustrialfetch     - Display system information");
         println!("  netinfo [test]    - Display networking status (use 'test' to allocate DMA)");
+        println!("  pciinfo [detail]  - Display PCI devices (use 'detail' for BAR info)");
         println!("  exit, quit        - Return to desktop");
         println!("\nColors: 0=Black, 1=Blue, 2=Green, 3=Cyan, 4=Red, 5=Magenta, 6=Brown,");
         println!("        7=LightGray, 8=DarkGray, 9=LightBlue, 10=LightGreen, 11=LightCyan,");
@@ -646,6 +648,61 @@ impl Shell {
             println!();
         } else {
             println!("Tip: Use 'netinfo test' to run DMA allocation tests\n");
+        }
+    }
+
+    fn cmd_pciinfo(&self, args: &[&str]) {
+        use crate::native_ffi;
+        
+        let devices = native_ffi::enumerate_pci_devices();
+        let show_detail = args.len() > 0 && args[0] == "detail";
+        
+        println!("\n╔════════════════════════════════════════════════════════════════════╗");
+        println!("║              PCI Device Information - Stage 1.2                    ║");
+        println!("╠════════════════════════════════════════════════════════════════════╣");
+        println!("║ Total Devices: {:<53} ║", devices.len());
+        println!("╚════════════════════════════════════════════════════════════════════╝\n");
+        
+        for (idx, device) in devices.iter().enumerate() {
+            println!("Device #{}: {}", idx + 1, device);
+            
+            if show_detail {
+                println!("  Bus:Function:Device: {:02X}:{:02X}.{}", 
+                         device.bus, device.device, device.function);
+                println!("  Vendor:Device ID:    {:04X}:{:04X}", 
+                         device.vendor_id, device.device_id);
+                println!("  Class:Subclass:      {:02X}:{:02X}", 
+                         device.class_code, device.subclass);
+                println!("  Interrupt:           Line={} Pin={}", 
+                         device.interrupt_line, device.interrupt_pin);
+                
+                // Display BARs
+                println!("  Base Address Registers (BARs):");
+                for bar_idx in 0..6 {
+                    if let Some(bar) = native_ffi::pci_get_bar(device, bar_idx) {
+                        let bar_type = if bar.is_mmio { "MMIO" } else { "I/O " };
+                        println!("    BAR{}: {} @ 0x{:016x} (size: {} bytes / {} KB)", 
+                                 bar_idx, bar_type, bar.base_addr.as_u64(), 
+                                 bar.size, bar.size / 1024);
+                    }
+                }
+                
+                // Check if network device
+                if device.class_code == 0x02 { // Network controller
+                    println!("  ⚠️  NETWORK DEVICE DETECTED - Ready for driver!");
+                    if device.vendor_id == 0x10EC && device.device_id == 0x8139 {
+                        println!("  🎯 RTL8139 Found - Recommended for Stage 2!");
+                    } else if device.vendor_id == 0x8086 && device.device_id == 0x100E {
+                        println!("  🎯 Intel E1000 Found - Alternative for Stage 2!");
+                    }
+                }
+                
+                println!();
+            }
+        }
+        
+        if !show_detail {
+            println!("\nTip: Use 'pciinfo detail' to see BAR mappings and IRQ configuration\n");
         }
     }
 
