@@ -160,6 +160,9 @@ pub enum InterruptIndex {
     Timer = PIC_1_OFFSET,
     Keyboard,
     Mouse = PIC_2_OFFSET + 4, // IRQ 12 (secondary PIC)
+    // Stage 1.2: Network card IRQs (typically IRQ 10 or 11)
+    Network10 = PIC_2_OFFSET + 2, // IRQ 10 (secondary PIC)
+    Network11 = PIC_2_OFFSET + 3, // IRQ 11 (secondary PIC)
 }
 
 impl InterruptIndex {
