@@ -18,6 +18,7 @@ use futures_util::stream::StreamExt;
 
 const PROMPT: &str = "rustrial> ";
 const MAX_HISTORY: usize = 50;
+const MAX_SCROLLBACK_LINES: usize = 1000;
 
 pub struct Shell {
     input_buffer: String,
@@ -26,6 +27,9 @@ pub struct Shell {
     current_dir: String,
     foreground_color: Color,
     background_color: Color,
+    scrollback_buffer: Vec<String>,
+    scroll_offset: usize,
+    in_scroll_mode: bool,
 }
 
 impl Shell {
@@ -37,6 +41,9 @@ impl Shell {
             current_dir: String::from("/"),
             foreground_color: Color::LightGreen,
             background_color: Color::Black,
+            scrollback_buffer: Vec::new(),
+            scroll_offset: 0,
+            in_scroll_mode: false,
         }
     }
 
@@ -73,12 +80,20 @@ impl Shell {
         }
     }
 
-    fn print_welcome(&self) {
+    fn print_welcome(&mut self) {
+        self.add_to_scrollback("\n╔════════════════════════════════════════════════════════════════════╗");
+        self.add_to_scrollback("║              Welcome to RustrialOS Shell v0.1                      ║");
+        self.add_to_scrollback("╠════════════════════════════════════════════════════════════════════╣");
+        self.add_to_scrollback("║  Type 'help' for available commands                               ║");
+        self.add_to_scrollback("║  Type 'exit' to return to desktop                                 ║");
+        self.add_to_scrollback("║  Use PageUp/PageDown to scroll through output                     ║");
+        self.add_to_scrollback("╚════════════════════════════════════════════════════════════════════╝\n");
         println!("\n╔════════════════════════════════════════════════════════════════════╗");
         println!("║              Welcome to RustrialOS Shell v0.1                      ║");
         println!("╠════════════════════════════════════════════════════════════════════╣");
         println!("║  Type 'help' for available commands                               ║");
         println!("║  Type 'exit' to return to desktop                                 ║");
+        println!("║  Use PageUp/PageDown to scroll through output                     ║");
         println!("╚════════════════════════════════════════════════════════════════════╝\n");
     }
 
@@ -102,10 +117,20 @@ impl Shell {
                     if let Some(key) = kb.process_keyevent(key_event) {
                         match key {
                             DecodedKey::Unicode(character) => {
+                                // Exit scroll mode when user starts typing
+                                if self.in_scroll_mode && character != '\n' {
+                                    self.exit_scroll_mode();
+                                    self.print_prompt();
+                                }
+                                
                                 match character {
                                     '\n' => {
                                         println!();
-                                        return Some(self.input_buffer.clone());
+                                        let result = self.input_buffer.clone();
+                                        // Add the command to scrollback
+                                        self.add_to_scrollback(&format!("{}{} {}", 
+                                            self.current_dir, PROMPT, result));
+                                        return Some(result);
                                     }
                                     '\u{0008}' => {
                                         // Backspace
@@ -126,6 +151,11 @@ impl Shell {
                             DecodedKey::RawKey(code) => {
                                 match code {
                                     KeyCode::Backspace => {
+                                        // Exit scroll mode
+                                        if self.in_scroll_mode {
+                                            self.exit_scroll_mode();
+                                            self.print_prompt();
+                                        }
                                         // Handle backspace as RawKey
                                         if !self.input_buffer.is_empty() {
                                             self.input_buffer.pop();
@@ -134,16 +164,32 @@ impl Shell {
                                         }
                                     }
                                     KeyCode::ArrowUp => {
+                                        // Exit scroll mode
+                                        if self.in_scroll_mode {
+                                            self.exit_scroll_mode();
+                                            self.print_prompt();
+                                        }
                                         if self.history_index > 0 {
                                             self.history_index -= 1;
                                             self.load_history_entry();
                                         }
                                     }
                                     KeyCode::ArrowDown => {
+                                        // Exit scroll mode
+                                        if self.in_scroll_mode {
+                                            self.exit_scroll_mode();
+                                            self.print_prompt();
+                                        }
                                         if self.history_index < self.history.len() {
                                             self.history_index += 1;
                                             self.load_history_entry();
                                         }
+                                    }
+                                    KeyCode::PageUp => {
+                                        self.scroll_up();
+                                    }
+                                    KeyCode::PageDown => {
+                                        self.scroll_down();
                                     }
                                     _ => {}
                                 }
@@ -180,9 +226,16 @@ impl Shell {
         let command = parts[0];
         let args = &parts[1..];
 
+        // Capture the output by intercepting commands
         match command {
             "help" => self.cmd_help(),
-            "clear" | "cls" => self.cmd_clear(),
+            "clear" | "cls" => {
+                self.cmd_clear();
+                // Clear scrollback when clearing screen
+                self.scrollback_buffer.clear();
+                self.scroll_offset = 0;
+                self.in_scroll_mode = false;
+            },
             "echo" => self.cmd_echo(args),
             "ls" | "dir" => self.cmd_ls(args),
             "cat" => self.cmd_cat(args),
@@ -197,44 +250,57 @@ impl Shell {
             "pciinfo" => self.cmd_pciinfo(args),
             "exit" | "quit" => return true,
             _ => {
-                println!("Unknown command: '{}'. Type 'help' for available commands.", command);
+                let msg = format!("Unknown command: '{}'. Type 'help' for available commands.", command);
+                self.sprintln(&msg);
             }
         }
 
         false
     }
 
-    fn cmd_help(&self) {
-        println!("\nAvailable Commands:");
-        println!("  help              - Show this help message");
-        println!("  clear, cls        - Clear the screen");
-        println!("  echo <text>       - Print text to the screen");
-        println!("  ls [path]         - List files and directories");
-        println!("  cat <file>        - Display file contents");
-        println!("  mkdir <dir>       - Create a directory");
-        println!("  touch <file>      - Create an empty file");
-        println!("  run <script>      - Execute a RustrialScript file");
-        println!("  cd <dir>          - Change current directory");
-        println!("  pwd               - Print working directory");
-        println!("  color <fg> <bg>   - Change text color (0-15)");
-        println!("  rustrialfetch     - Display system information");
-        println!("  netinfo [test]    - Display networking status (use 'test' to allocate DMA)");
-        println!("  pciinfo [detail]  - Display PCI devices (use 'detail' for BAR info)");
-        println!("  exit, quit        - Return to desktop");
-        println!("\nColors: 0=Black, 1=Blue, 2=Green, 3=Cyan, 4=Red, 5=Magenta, 6=Brown,");
-        println!("        7=LightGray, 8=DarkGray, 9=LightBlue, 10=LightGreen, 11=LightCyan,");
-        println!("        12=LightRed, 13=Pink, 14=Yellow, 15=White\n");
+    /// Shell println - prints to screen and adds to scrollback
+    fn sprintln(&mut self, s: &str) {
+        self.add_to_scrollback(s);
+        println!("{}", s);
+    }
+
+    /// Shell print - prints to screen and adds to scrollback (no newline)
+    fn sprint(&mut self, s: &str) {
+        self.add_to_scrollback(s);
+        print!("{}", s);
+    }
+
+    fn cmd_help(&mut self) {
+        self.sprintln("\nAvailable Commands:");
+        self.sprintln("  help              - Show this help message");
+        self.sprintln("  clear, cls        - Clear the screen");
+        self.sprintln("  echo <text>       - Print text to the screen");
+        self.sprintln("  ls [path]         - List files and directories");
+        self.sprintln("  cat <file>        - Display file contents");
+        self.sprintln("  mkdir <dir>       - Create a directory");
+        self.sprintln("  touch <file>      - Create an empty file");
+        self.sprintln("  run <script>      - Execute a RustrialScript file");
+        self.sprintln("  cd <dir>          - Change current directory");
+        self.sprintln("  pwd               - Print working directory");
+        self.sprintln("  color <fg> <bg>   - Change text color (0-15)");
+        self.sprintln("  rustrialfetch     - Display system information");
+        self.sprintln("  netinfo [test]    - Display networking status (use 'test' to allocate DMA)");
+        self.sprintln("  pciinfo [detail]  - Display PCI devices (use 'detail' for BAR info)");
+        self.sprintln("  exit, quit        - Return to desktop");
+        self.sprintln("\nColors: 0=Black, 1=Blue, 2=Green, 3=Cyan, 4=Red, 5=Magenta, 6=Brown,");
+        self.sprintln("        7=LightGray, 8=DarkGray, 9=LightBlue, 10=LightGreen, 11=LightCyan,");
+        self.sprintln("        12=LightRed, 13=Pink, 14=Yellow, 15=White\n");
     }
 
     fn cmd_clear(&self) {
         WRITER.lock().clear_screen();
     }
 
-    fn cmd_echo(&self, args: &[&str]) {
-        println!("{}", args.join(" "));
+    fn cmd_echo(&mut self, args: &[&str]) {
+        self.sprintln(&args.join(" "));
     }
 
-    fn cmd_ls(&self, args: &[&str]) {
+    fn cmd_ls(&mut self, args: &[&str]) {
         let path = if args.is_empty() {
             self.current_dir.as_str()
         } else {
@@ -247,11 +313,11 @@ impl Shell {
             let fs = fs.lock();
             match fs.list_dir(&full_path) {
                 Ok(entries) => {
-                    println!("\nDirectory: {}", full_path);
-                    println!("─────────────────────────────────────");
+                    self.sprintln(&format!("\nDirectory: {}", full_path));
+                    self.sprintln("─────────────────────────────────────");
                     
                     if entries.is_empty() {
-                        println!("  (empty)");
+                        self.sprintln("  (empty)");
                     } else {
                         for entry_path in entries {
                             let is_dir = fs.is_dir(&entry_path);
@@ -269,23 +335,23 @@ impl Shell {
                             } else {
                                 String::new()
                             };
-                            println!("  {} {}{}", type_str, name, size_str);
+                            self.sprintln(&format!("  {} {}{}", type_str, name, size_str));
                         }
                     }
-                    println!();
+                    self.sprintln("");
                 }
                 Err(e) => {
-                    println!("Error listing directory: {:?}", e);
+                    self.sprintln(&format!("Error listing directory: {:?}", e));
                 }
             }
         } else {
-            println!("Error: Filesystem not initialized");
+            self.sprintln("Error: Filesystem not initialized");
         }
     }
 
-    fn cmd_cat(&self, args: &[&str]) {
+    fn cmd_cat(&mut self, args: &[&str]) {
         if args.is_empty() {
-            println!("Usage: cat <filename>");
+            self.sprintln("Usage: cat <filename>");
             return;
         }
 
@@ -295,43 +361,43 @@ impl Shell {
             let fs = fs.lock();
             match fs.read_file(&path) {
                 Ok(content) => {
-                    println!("\n─────────────────────────────────────");
-                    println!("File: {}", path);
-                    println!("─────────────────────────────────────");
+                    self.sprintln("\n─────────────────────────────────────");
+                    self.sprintln(&format!("File: {}", path));
+                    self.sprintln("─────────────────────────────────────");
                     
                     // Try to display as UTF-8 text
                     match core::str::from_utf8(&content) {
-                        Ok(text) => println!("{}", text),
+                        Ok(text) => self.sprintln(text),
                         Err(_) => {
-                            println!("(Binary file - {} bytes)", content.len());
+                            self.sprintln(&format!("(Binary file - {} bytes)", content.len()));
                             // Show hex dump for binary files
                             for (i, chunk) in content.chunks(16).enumerate() {
-                                print!("{:04x}: ", i * 16);
+                                let mut hex_line = format!("{:04x}: ", i * 16);
                                 for byte in chunk {
-                                    print!("{:02x} ", byte);
+                                    hex_line.push_str(&format!("{:02x} ", byte));
                                 }
-                                println!();
+                                self.sprintln(&hex_line);
                                 if i >= 10 {
-                                    println!("... ({} more bytes)", content.len() - (i + 1) * 16);
+                                    self.sprintln(&format!("... ({} more bytes)", content.len() - (i + 1) * 16));
                                     break;
                                 }
                             }
                         }
                     }
-                    println!("─────────────────────────────────────\n");
+                    self.sprintln("─────────────────────────────────────\n");
                 }
                 Err(e) => {
-                    println!("Error reading file: {:?}", e);
+                    self.sprintln(&format!("Error reading file: {:?}", e));
                 }
             }
         } else {
-            println!("Error: Filesystem not initialized");
+            self.sprintln("Error: Filesystem not initialized");
         }
     }
 
-    fn cmd_mkdir(&self, args: &[&str]) {
+    fn cmd_mkdir(&mut self, args: &[&str]) {
         if args.is_empty() {
-            println!("Usage: mkdir <directory>");
+            self.sprintln("Usage: mkdir <directory>");
             return;
         }
 
@@ -340,17 +406,17 @@ impl Shell {
         if let Some(fs) = crate::fs::root_fs() {
             let mut fs = fs.lock();
             match fs.create_dir(&path) {
-                Ok(_) => println!("Directory created: {}", path),
-                Err(e) => println!("Error creating directory: {:?}", e),
+                Ok(_) => self.sprintln(&format!("Directory created: {}", path)),
+                Err(e) => self.sprintln(&format!("Error creating directory: {:?}", e)),
             }
         } else {
-            println!("Error: Filesystem not initialized");
+            self.sprintln("Error: Filesystem not initialized");
         }
     }
 
-    fn cmd_touch(&self, args: &[&str]) {
+    fn cmd_touch(&mut self, args: &[&str]) {
         if args.is_empty() {
-            println!("Usage: touch <filename>");
+            self.sprintln("Usage: touch <filename>");
             return;
         }
 
@@ -359,11 +425,11 @@ impl Shell {
         if let Some(fs) = crate::fs::root_fs() {
             let mut fs = fs.lock();
             match fs.create_file(&path, b"") {
-                Ok(_) => println!("File created: {}", path),
-                Err(e) => println!("Error creating file: {:?}", e),
+                Ok(_) => self.sprintln(&format!("File created: {}", path)),
+                Err(e) => self.sprintln(&format!("Error creating file: {:?}", e)),
             }
         } else {
-            println!("Error: Filesystem not initialized");
+            self.sprintln("Error: Filesystem not initialized");
         }
     }
 
@@ -449,28 +515,28 @@ impl Shell {
             if fs.is_dir(&new_path) {
                 self.current_dir = new_path;
             } else {
-                println!("Error: Directory not found: {}", new_path);
+                self.sprintln(&format!("Error: Directory not found: {}", new_path));
             }
         } else {
-            println!("Error: Filesystem not initialized");
+            self.sprintln("Error: Filesystem not initialized");
         }
     }
 
-    fn cmd_pwd(&self) {
-        println!("{}", self.current_dir);
+    fn cmd_pwd(&mut self) {
+        self.sprintln(&self.current_dir.clone());
     }
 
     fn cmd_color(&mut self, args: &[&str]) {
         if args.len() < 2 {
-            println!("Usage: color <foreground> <background>");
-            println!("Colors: 0-15 (see 'help' for color list)");
+            self.sprintln("Usage: color <foreground> <background>");
+            self.sprintln("Colors: 0-15 (see 'help' for color list)");
             return;
         }
 
         let fg = match args[0].parse::<u8>() {
             Ok(n) if n <= 15 => n,
             _ => {
-                println!("Invalid foreground color. Must be 0-15.");
+                self.sprintln("Invalid foreground color. Must be 0-15.");
                 return;
             }
         };
@@ -478,7 +544,7 @@ impl Shell {
         let bg = match args[1].parse::<u8>() {
             Ok(n) if n <= 15 => n,
             _ => {
-                println!("Invalid background color. Must be 0-15.");
+                self.sprintln("Invalid background color. Must be 0-15.");
                 return;
             }
         };
@@ -487,7 +553,7 @@ impl Shell {
         self.background_color = Self::color_from_u8(bg);
         
         WRITER.lock().set_color(self.foreground_color, self.background_color);
-        println!("Color changed!");
+        self.sprintln("Color changed!");
     }
 
     fn color_from_u8(value: u8) -> Color {
@@ -733,6 +799,108 @@ impl Shell {
             } else {
                 format!("{}/{}", self.current_dir, path)
             }
+        }
+    }
+
+    /// Add a line to the scrollback buffer
+    fn add_to_scrollback(&mut self, line: &str) {
+        // Split by newlines and add each line separately
+        for l in line.split('\n') {
+            if self.scrollback_buffer.len() >= MAX_SCROLLBACK_LINES {
+                self.scrollback_buffer.remove(0);
+            }
+            self.scrollback_buffer.push(l.to_string());
+        }
+    }
+
+    /// Scroll up in the scrollback buffer
+    fn scroll_up(&mut self) {
+        use crate::vga_buffer::BUFFER_HEIGHT;
+        
+        if self.scrollback_buffer.is_empty() {
+            return;
+        }
+
+        // Enter scroll mode if not already in it
+        if !self.in_scroll_mode {
+            self.in_scroll_mode = true;
+            self.scroll_offset = 0;
+        }
+
+        // Scroll up by half a screen
+        let scroll_amount = BUFFER_HEIGHT / 2;
+        let max_offset = self.scrollback_buffer.len().saturating_sub(BUFFER_HEIGHT);
+        
+        if self.scroll_offset < max_offset {
+            self.scroll_offset = (self.scroll_offset + scroll_amount).min(max_offset);
+            self.redraw_screen();
+        }
+    }
+
+    /// Scroll down in the scrollback buffer
+    fn scroll_down(&mut self) {
+        use crate::vga_buffer::BUFFER_HEIGHT;
+        
+        if !self.in_scroll_mode || self.scroll_offset == 0 {
+            return;
+        }
+
+        // Scroll down by half a screen
+        let scroll_amount = BUFFER_HEIGHT / 2;
+        
+        if self.scroll_offset > scroll_amount {
+            self.scroll_offset -= scroll_amount;
+        } else {
+            self.scroll_offset = 0;
+            self.in_scroll_mode = false;
+        }
+        
+        self.redraw_screen();
+    }
+
+    /// Redraw the screen from the scrollback buffer
+    fn redraw_screen(&self) {
+        use crate::vga_buffer::{BUFFER_HEIGHT, WRITER};
+        
+        // Clear screen
+        WRITER.lock().clear_screen();
+        
+        // Calculate which lines to display
+        let total_lines = self.scrollback_buffer.len();
+        let display_lines = BUFFER_HEIGHT - 1; // Reserve last line for prompt/status
+        
+        if total_lines <= display_lines {
+            // All lines fit on screen
+            for line in &self.scrollback_buffer {
+                println!("{}", line);
+            }
+        } else {
+            // Display from offset
+            let start_idx = total_lines.saturating_sub(display_lines + self.scroll_offset);
+            let end_idx = (start_idx + display_lines).min(total_lines);
+            
+            for i in start_idx..end_idx {
+                println!("{}", self.scrollback_buffer[i]);
+            }
+        }
+        
+        // Show scroll indicator if in scroll mode
+        if self.in_scroll_mode {
+            let scroll_pct = if total_lines > display_lines {
+                100 - (self.scroll_offset * 100 / (total_lines - display_lines))
+            } else {
+                100
+            };
+            println!("\n[SCROLL MODE: {}% - Use PageUp/PageDown to scroll, any key to exit]", scroll_pct);
+        }
+    }
+
+    /// Exit scroll mode and return to normal operation
+    fn exit_scroll_mode(&mut self) {
+        if self.in_scroll_mode {
+            self.in_scroll_mode = false;
+            self.scroll_offset = 0;
+            self.redraw_screen();
         }
     }
 }
