@@ -1,11 +1,3 @@
-//! Shell/Command Interpreter for RustrialOS
-//! 
-//! A simple command-line interface with support for:
-//! - File operations (ls, cat, mkdir, touch)
-//! - Script execution (run)
-//! - System commands (help, clear, echo, exit)
-//! - Color customization
-
 use crate::{print, println};
 use crate::task::keyboard;
 use crate::vga_buffer::{Color, WRITER};
@@ -118,18 +110,26 @@ impl Shell {
                         match key {
                             DecodedKey::Unicode(character) => {
                                 // Exit scroll mode when user starts typing
-                                if self.in_scroll_mode && character != '\n' {
-                                    self.exit_scroll_mode();
-                                    self.print_prompt();
+                                if self.in_scroll_mode {
+                                    if character != '\n' {
+                                        self.exit_scroll_mode();
+                                        // Redraw prompt with any existing input
+                                        self.print_prompt();
+                                        if !self.input_buffer.is_empty() {
+                                            print!("{}", self.input_buffer);
+                                        }
+                                    }
                                 }
                                 
                                 match character {
                                     '\n' => {
                                         println!();
                                         let result = self.input_buffer.clone();
-                                        // Add the command to scrollback
-                                        self.add_to_scrollback(&format!("{}{} {}", 
-                                            self.current_dir, PROMPT, result));
+                                        // Add the command line to scrollback only if not empty
+                                        if !result.is_empty() {
+                                            self.add_to_scrollback(&format!("{}{} {}", 
+                                                self.current_dir, PROMPT, result));
+                                        }
                                         return Some(result);
                                     }
                                     '\u{0008}' => {
@@ -155,6 +155,9 @@ impl Shell {
                                         if self.in_scroll_mode {
                                             self.exit_scroll_mode();
                                             self.print_prompt();
+                                            if !self.input_buffer.is_empty() {
+                                                print!("{}", self.input_buffer);
+                                            }
                                         }
                                         // Handle backspace as RawKey
                                         if !self.input_buffer.is_empty() {
@@ -164,7 +167,7 @@ impl Shell {
                                         }
                                     }
                                     KeyCode::ArrowUp => {
-                                        // Exit scroll mode
+                                        // Exit scroll mode first
                                         if self.in_scroll_mode {
                                             self.exit_scroll_mode();
                                             self.print_prompt();
@@ -175,7 +178,7 @@ impl Shell {
                                         }
                                     }
                                     KeyCode::ArrowDown => {
-                                        // Exit scroll mode
+                                        // Exit scroll mode first
                                         if self.in_scroll_mode {
                                             self.exit_scroll_mode();
                                             self.print_prompt();
@@ -647,13 +650,13 @@ impl Shell {
         println!("║ Heap Size:        2 MB (expanded for networking)                  ║");
         println!("║ DMA Region:       1 MB allocated                                   ║");
         println!("║ Ring Buffers:     256 × 2KB (RX/TX)                                ║");
-        println!("║ Status:           Infrastructure ready ✓                           ║");
+        println!("║ Status:           Infrastructure ready [OK]                        ║");
         println!("╠════════════════════════════════════════════════════════════════════╣");
-        println!("║ Phase 1.1:        ✓ Enhanced Memory Management                    ║");
-        println!("║ Phase 1.2:        ⏳ PCI Driver Enhancement (pending)              ║");
-        println!("║ Phase 2:          ⏳ Network Driver (RTL8139/E1000)                ║");
-        println!("║ Phase 3:          ⏳ Ethernet/ARP Protocol                         ║");
-        println!("║ Phase 4:          ⏳ IP/ICMP Protocol (ping)                       ║");
+        println!("║ Phase 1.1:        [OK] Enhanced Memory Management                 ║");
+        println!("║ Phase 1.2:        [PENDING] PCI Driver Enhancement                ║");
+        println!("║ Phase 2:          [PENDING] Network Driver (RTL8139/E1000)        ║");
+        println!("║ Phase 3:          [PENDING] Ethernet/ARP Protocol                 ║");
+        println!("║ Phase 4:          [PENDING] IP/ICMP Protocol (ping)               ║");
         println!("╚════════════════════════════════════════════════════════════════════╝\n");
 
         if args.len() > 0 && args[0] == "test" {
@@ -664,7 +667,7 @@ impl Shell {
             // Test allocation
             match dma::allocate_dma_buffer(1024) {
                 Ok(buffer) => {
-                    println!("✓ DMA Buffer allocated successfully!");
+                    println!("[OK] DMA Buffer allocated successfully!");
                     println!("  Virtual Address:  0x{:x}", buffer.virt_addr.as_u64());
                     println!("  Physical Address: 0x{:x}", buffer.phys_addr.as_u64());
                     println!("  Size:             {} bytes (aligned to {})", 
@@ -673,12 +676,12 @@ impl Shell {
                     // Test multiple allocations
                     match dma::allocate_dma_buffer(2048) {
                         Ok(buffer2) => {
-                            println!("✓ Second DMA buffer allocated!");
+                            println!("[OK] Second DMA buffer allocated!");
                             println!("  Virtual Address:  0x{:x}", buffer2.virt_addr.as_u64());
                             println!("  Physical Address: 0x{:x}", buffer2.phys_addr.as_u64());
                         }
                         Err(e) => {
-                            println!("✗ Second allocation failed: {:?}", e);
+                            println!("[FAIL] Second allocation failed: {:?}", e);
                         }
                     }
                     
@@ -689,10 +692,10 @@ impl Shell {
                     
                     match ring.push(&test_packet) {
                         Ok(_) => {
-                            println!("✓ Ring buffer push successful!");
+                            println!("[OK] Ring buffer push successful!");
                             match ring.pop() {
                                 Ok((data, len)) => {
-                                    println!("✓ Ring buffer pop successful!");
+                                    println!("[OK] Ring buffer pop successful!");
                                     println!("  Packet length: {} bytes", len);
                                     print!("  Data: ");
                                     for i in 0..len {
@@ -700,14 +703,14 @@ impl Shell {
                                     }
                                     println!();
                                 }
-                                Err(e) => println!("✗ Ring buffer pop failed: {:?}", e),
+                                Err(e) => println!("[FAIL] Ring buffer pop failed: {:?}", e),
                             }
                         }
-                        Err(e) => println!("✗ Ring buffer push failed: {:?}", e),
+                        Err(e) => println!("[FAIL] Ring buffer push failed: {:?}", e),
                     }
                 }
                 Err(e) => {
-                    println!("✗ DMA allocation failed: {:?}", e);
+                    println!("[FAIL] DMA allocation failed: {:?}", e);
                     println!("  This might indicate DMA was not properly initialized.");
                 }
             }
@@ -755,11 +758,11 @@ impl Shell {
                 
                 // Check if network device
                 if device.class_code == 0x02 { // Network controller
-                    println!("  ⚠️  NETWORK DEVICE DETECTED - Ready for driver!");
+                    println!("  [!] NETWORK DEVICE DETECTED - Ready for driver!");
                     if device.vendor_id == 0x10EC && device.device_id == 0x8139 {
-                        println!("  🎯 RTL8139 Found - Recommended for Stage 2!");
+                        println!("  [*] RTL8139 Found - Recommended for Stage 2!");
                     } else if device.vendor_id == 0x8086 && device.device_id == 0x100E {
-                        println!("  🎯 Intel E1000 Found - Alternative for Stage 2!");
+                        println!("  [*] Intel E1000 Found - Alternative for Stage 2!");
                     }
                 }
                 
@@ -841,7 +844,11 @@ impl Shell {
     fn scroll_down(&mut self) {
         use crate::vga_buffer::BUFFER_HEIGHT;
         
-        if !self.in_scroll_mode || self.scroll_offset == 0 {
+        if !self.in_scroll_mode {
+            return;
+        }
+        
+        if self.scroll_offset == 0 {
             return;
         }
 
@@ -852,7 +859,6 @@ impl Shell {
             self.scroll_offset -= scroll_amount;
         } else {
             self.scroll_offset = 0;
-            self.in_scroll_mode = false;
         }
         
         self.redraw_screen();
@@ -891,7 +897,7 @@ impl Shell {
             } else {
                 100
             };
-            println!("\n[SCROLL MODE: {}% - Use PageUp/PageDown to scroll, any key to exit]", scroll_pct);
+            print!("[SCROLL MODE: {}% - PgUp/PgDn to scroll, any key to exit]", scroll_pct);
         }
     }
 
@@ -900,7 +906,18 @@ impl Shell {
         if self.in_scroll_mode {
             self.in_scroll_mode = false;
             self.scroll_offset = 0;
-            self.redraw_screen();
+            // Clear screen and show recent history
+            use crate::vga_buffer::WRITER;
+            WRITER.lock().clear_screen();
+            
+            // Show the last screen's worth of scrollback
+            use crate::vga_buffer::BUFFER_HEIGHT;
+            let display_lines = BUFFER_HEIGHT.saturating_sub(2); // Leave room for prompt
+            let start = self.scrollback_buffer.len().saturating_sub(display_lines);
+            
+            for i in start..self.scrollback_buffer.len() {
+                println!("{}", self.scrollback_buffer[i]);
+            }
         }
     }
 }
