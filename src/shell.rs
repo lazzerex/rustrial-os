@@ -436,10 +436,10 @@ impl Shell {
         }
     }
 
-    async fn cmd_run(&self, args: &[&str]) {
+    async fn cmd_run(&mut self, args: &[&str]) {
         if args.is_empty() {
-            println!("Usage: run <script>");
-            println!("Available scripts:");
+            self.sprintln("Usage: run <script>");
+            self.sprintln("Available scripts:");
             self.list_scripts();
             return;
         }
@@ -461,43 +461,43 @@ impl Shell {
                 Ok(content) => {
                     match core::str::from_utf8(&content) {
                         Ok(source) => {
-                            println!("\n─────────────────────────────────────");
-                            println!("Executing: {}", path);
-                            println!("─────────────────────────────────────");
+                            self.sprintln("\n─────────────────────────────────────");
+                            self.sprintln(&format!("Executing: {}", path));
+                            self.sprintln("─────────────────────────────────────");
                             
                             match rustrial_script::run(source) {
                                 Ok(_) => {
-                                    println!("\n─────────────────────────────────────");
-                                    println!("Script completed successfully");
-                                    println!("─────────────────────────────────────\n");
+                                    self.sprintln("\n─────────────────────────────────────");
+                                    self.sprintln("Script completed successfully");
+                                    self.sprintln("─────────────────────────────────────\n");
                                 }
                                 Err(e) => {
-                                    println!("\nScript error: {}", e);
+                                    self.sprintln(&format!("\nScript error: {}", e));
                                 }
                             }
                         }
-                        Err(_) => println!("Error: File is not valid UTF-8 text"),
+                        Err(_) => self.sprintln("Error: File is not valid UTF-8 text"),
                     }
                 }
                 Err(e) => {
-                    println!("Error: Could not read file '{}': {:?}", path, e);
-                    println!("\nAvailable scripts:");
+                    self.sprintln(&format!("Error: Could not read file '{}': {:?}", path, e));
+                    self.sprintln("\nAvailable scripts:");
                     self.list_scripts();
                 }
             }
         } else {
-            println!("Error: Filesystem not initialized");
+            self.sprintln("Error: Filesystem not initialized");
         }
     }
 
-    fn list_scripts(&self) {
+    fn list_scripts(&mut self) {
         if let Some(fs) = crate::fs::root_fs() {
             let fs = fs.lock();
             if let Ok(entries) = fs.list_dir("/scripts") {
                 for entry_path in entries {
                     if fs.is_file(&entry_path) {
                         let name = entry_path.rsplit('/').next().unwrap_or(&entry_path);
-                        println!("  - {}", name);
+                        self.sprintln(&format!("  - {}", name));
                     }
                 }
             }
@@ -581,7 +581,7 @@ impl Shell {
         }
     }
 
-    fn cmd_rustrialfetch(&self) {
+    fn cmd_rustrialfetch(&mut self) {
         use crate::native_ffi;
         
         // ASCII art logo
@@ -608,7 +608,7 @@ impl Shell {
             0
         };
         
-        println!();
+        self.sprintln("");
         
         // Display info alongside ASCII art
         let info_lines = [
@@ -624,64 +624,67 @@ impl Shell {
         
         // Print logo and info side by side
         for i in 0..logo.len().max(info_lines.len()) {
-            // Print logo line (left column)
+            let mut line = String::new();
+            
+            // Add logo line (left column)
             if i < logo.len() {
-                print!("{}", logo[i]);
+                line.push_str(logo[i]);
             } else {
                 // Empty space for alignment
-                print!("                                ");
+                line.push_str("                                ");
             }
             
-            // Print info line (right column)
+            // Add info line (right column)
             if i < info_lines.len() {
-                println!("  {}", info_lines[i]);
-            } else {
-                println!();
+                line.push_str("  ");
+                line.push_str(&info_lines[i]);
             }
+            
+            self.sprintln(&line);
         }
         
-        println!();
+        self.sprintln("");
     }
 
-    fn cmd_netinfo(&self, args: &[&str]) {
-        println!("\n╔════════════════════════════════════════════════════════════════════╗");
-        println!("║              Network Stack Status - Phase 1.1                      ║");
-        println!("╠════════════════════════════════════════════════════════════════════╣");
-        println!("║ Heap Size:        2 MB (expanded for networking)                  ║");
-        println!("║ DMA Region:       1 MB allocated                                   ║");
-        println!("║ Ring Buffers:     256 × 2KB (RX/TX)                                ║");
-        println!("║ Status:           Infrastructure ready [OK]                        ║");
-        println!("╠════════════════════════════════════════════════════════════════════╣");
-        println!("║ Phase 1.1:        [OK] Enhanced Memory Management                 ║");
-        println!("║ Phase 1.2:        [PENDING] PCI Driver Enhancement                ║");
-        println!("║ Phase 2:          [PENDING] Network Driver (RTL8139/E1000)        ║");
-        println!("║ Phase 3:          [PENDING] Ethernet/ARP Protocol                 ║");
-        println!("║ Phase 4:          [PENDING] IP/ICMP Protocol (ping)               ║");
-        println!("╚════════════════════════════════════════════════════════════════════╝\n");
+    fn cmd_netinfo(&mut self, args: &[&str]) {
+        self.sprintln("\n╔════════════════════════════════════════════════════════════════════╗");
+        self.sprintln("║              Network Stack Status - Phase 1.1                      ║");
+        self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
+        self.sprintln("║ Heap Size:        2 MB (expanded for networking)                  ║");
+        self.sprintln("║ DMA Region:       1 MB allocated                                   ║");
+        self.sprintln("║ Ring Buffers:     256 × 2KB (RX/TX)                                ║");
+        self.sprintln("║ Status:           Infrastructure ready [OK]                        ║");
+        self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
+        self.sprintln("║ Phase 1.1:        [OK] Enhanced Memory Management                 ║");
+        self.sprintln("║ Phase 1.2:        [PENDING] PCI Driver Enhancement                ║");
+        self.sprintln("║ Phase 2:          [PENDING] Network Driver (RTL8139/E1000)        ║");
+        self.sprintln("║ Phase 3:          [PENDING] Ethernet/ARP Protocol                 ║");
+        self.sprintln("║ Phase 4:          [PENDING] IP/ICMP Protocol (ping)               ║");
+        self.sprintln("╚════════════════════════════════════════════════════════════════════╝\n");
 
         if args.len() > 0 && args[0] == "test" {
-            println!("Testing DMA allocation...");
+            self.sprintln("Testing DMA allocation...");
             
             use crate::memory::dma;
             
             // Test allocation
             match dma::allocate_dma_buffer(1024) {
                 Ok(buffer) => {
-                    println!("[OK] DMA Buffer allocated successfully!");
-                    println!("  Virtual Address:  0x{:x}", buffer.virt_addr.as_u64());
-                    println!("  Physical Address: 0x{:x}", buffer.phys_addr.as_u64());
-                    println!("  Size:             {} bytes (aligned to {})", 
-                             buffer.size, buffer.size);
+                    self.sprintln("[OK] DMA Buffer allocated successfully!");
+                    self.sprintln(&format!("  Virtual Address:  0x{:x}", buffer.virt_addr.as_u64()));
+                    self.sprintln(&format!("  Physical Address: 0x{:x}", buffer.phys_addr.as_u64()));
+                    self.sprintln(&format!("  Size:             {} bytes (aligned to {})", 
+                             buffer.size, buffer.size));
                     
                     // Test multiple allocations
                     match dma::allocate_dma_buffer(2048) {
                         Ok(buffer2) => {
-                            println!("[OK] Second DMA buffer allocated!");
-                            println!("  Virtual Address:  0x{:x}", buffer2.virt_addr.as_u64());
-                            println!("  Physical Address: 0x{:x}", buffer2.phys_addr.as_u64());
+                            self.sprintln("[OK] Second DMA buffer allocated!");
+                            self.sprintln(&format!("  Virtual Address:  0x{:x}", buffer2.virt_addr.as_u64()));
+                            self.sprintln(&format!("  Physical Address: 0x{:x}", buffer2.phys_addr.as_u64()));
                         }
                         Err(e) => {
-                            println!("[FAIL] Second allocation failed: {:?}", e);
+                            self.sprintln(&format!("[FAIL] Second allocation failed: {:?}", e));
                         }
                     }
                     
@@ -692,86 +695,86 @@ impl Shell {
                     
                     match ring.push(&test_packet) {
                         Ok(_) => {
-                            println!("[OK] Ring buffer push successful!");
+                            self.sprintln("[OK] Ring buffer push successful!");
                             match ring.pop() {
                                 Ok((data, len)) => {
-                                    println!("[OK] Ring buffer pop successful!");
-                                    println!("  Packet length: {} bytes", len);
-                                    print!("  Data: ");
+                                    self.sprintln("[OK] Ring buffer pop successful!");
+                                    self.sprintln(&format!("  Packet length: {} bytes", len));
+                                    let mut data_str = String::from("  Data: ");
                                     for i in 0..len {
-                                        print!("{:02X} ", data[i]);
+                                        data_str.push_str(&format!("{:02X} ", data[i]));
                                     }
-                                    println!();
+                                    self.sprintln(&data_str);
                                 }
-                                Err(e) => println!("[FAIL] Ring buffer pop failed: {:?}", e),
+                                Err(e) => self.sprintln(&format!("[FAIL] Ring buffer pop failed: {:?}", e)),
                             }
                         }
-                        Err(e) => println!("[FAIL] Ring buffer push failed: {:?}", e),
+                        Err(e) => self.sprintln(&format!("[FAIL] Ring buffer push failed: {:?}", e)),
                     }
                 }
                 Err(e) => {
-                    println!("[FAIL] DMA allocation failed: {:?}", e);
-                    println!("  This might indicate DMA was not properly initialized.");
+                    self.sprintln(&format!("[FAIL] DMA allocation failed: {:?}", e));
+                    self.sprintln("  This might indicate DMA was not properly initialized.");
                 }
             }
-            println!();
+            self.sprintln("");
         } else {
-            println!("Tip: Use 'netinfo test' to run DMA allocation tests\n");
+            self.sprintln("Tip: Use 'netinfo test' to run DMA allocation tests\n");
         }
     }
 
-    fn cmd_pciinfo(&self, args: &[&str]) {
+    fn cmd_pciinfo(&mut self, args: &[&str]) {
         use crate::native_ffi;
         
         let devices = native_ffi::enumerate_pci_devices();
         let show_detail = args.len() > 0 && args[0] == "detail";
         
-        println!("\n╔════════════════════════════════════════════════════════════════════╗");
-        println!("║              PCI Device Information - Stage 1.2                    ║");
-        println!("╠════════════════════════════════════════════════════════════════════╣");
-        println!("║ Total Devices: {:<53} ║", devices.len());
-        println!("╚════════════════════════════════════════════════════════════════════╝\n");
+        self.sprintln("\n╔════════════════════════════════════════════════════════════════════╗");
+        self.sprintln("║              PCI Device Information - Stage 1.2                    ║");
+        self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
+        self.sprintln(&format!("║ Total Devices: {:<53} ║", devices.len()));
+        self.sprintln("╚════════════════════════════════════════════════════════════════════╝\n");
         
         for (idx, device) in devices.iter().enumerate() {
-            println!("Device #{}: {}", idx + 1, device);
+            self.sprintln(&format!("Device #{}: {}", idx + 1, device));
             
             if show_detail {
-                println!("  Bus:Function:Device: {:02X}:{:02X}.{}", 
-                         device.bus, device.device, device.function);
-                println!("  Vendor:Device ID:    {:04X}:{:04X}", 
-                         device.vendor_id, device.device_id);
-                println!("  Class:Subclass:      {:02X}:{:02X}", 
-                         device.class_code, device.subclass);
-                println!("  Interrupt:           Line={} Pin={}", 
-                         device.interrupt_line, device.interrupt_pin);
+                self.sprintln(&format!("  Bus:Function:Device: {:02X}:{:02X}.{}", 
+                         device.bus, device.device, device.function));
+                self.sprintln(&format!("  Vendor:Device ID:    {:04X}:{:04X}", 
+                         device.vendor_id, device.device_id));
+                self.sprintln(&format!("  Class:Subclass:      {:02X}:{:02X}", 
+                         device.class_code, device.subclass));
+                self.sprintln(&format!("  Interrupt:           Line={} Pin={}", 
+                         device.interrupt_line, device.interrupt_pin));
                 
                 // Display BARs
-                println!("  Base Address Registers (BARs):");
+                self.sprintln("  Base Address Registers (BARs):");
                 for bar_idx in 0..6 {
                     if let Some(bar) = native_ffi::pci_get_bar(device, bar_idx) {
                         let bar_type = if bar.is_mmio { "MMIO" } else { "I/O " };
-                        println!("    BAR{}: {} @ 0x{:016x} (size: {} bytes / {} KB)", 
+                        self.sprintln(&format!("    BAR{}: {} @ 0x{:016x} (size: {} bytes / {} KB)", 
                                  bar_idx, bar_type, bar.base_addr.as_u64(), 
-                                 bar.size, bar.size / 1024);
+                                 bar.size, bar.size / 1024));
                     }
                 }
                 
                 // Check if network device
                 if device.class_code == 0x02 { // Network controller
-                    println!("  [!] NETWORK DEVICE DETECTED - Ready for driver!");
+                    self.sprintln("  [!] NETWORK DEVICE DETECTED - Ready for driver!");
                     if device.vendor_id == 0x10EC && device.device_id == 0x8139 {
-                        println!("  [*] RTL8139 Found - Recommended for Stage 2!");
+                        self.sprintln("  [*] RTL8139 Found - Recommended for Stage 2!");
                     } else if device.vendor_id == 0x8086 && device.device_id == 0x100E {
-                        println!("  [*] Intel E1000 Found - Alternative for Stage 2!");
+                        self.sprintln("  [*] Intel E1000 Found - Alternative for Stage 2!");
                     }
                 }
                 
-                println!();
+                self.sprintln("");
             }
         }
         
         if !show_detail {
-            println!("\nTip: Use 'pciinfo detail' to see BAR mappings and IRQ configuration\n");
+            self.sprintln("\nTip: Use 'pciinfo detail' to see BAR mappings and IRQ configuration\n");
         }
     }
 
@@ -821,6 +824,7 @@ impl Shell {
         use crate::vga_buffer::BUFFER_HEIGHT;
         
         if self.scrollback_buffer.is_empty() {
+            // No scrollback to display
             return;
         }
 
@@ -837,6 +841,11 @@ impl Shell {
         if self.scroll_offset < max_offset {
             self.scroll_offset = (self.scroll_offset + scroll_amount).min(max_offset);
             self.redraw_screen();
+        } else {
+            // Already at the top, just redraw to show we're there
+            if self.scroll_offset > 0 {
+                self.redraw_screen();
+            }
         }
     }
 
@@ -849,6 +858,8 @@ impl Shell {
         }
         
         if self.scroll_offset == 0 {
+            // Already at bottom, redraw to show status
+            self.redraw_screen();
             return;
         }
 
