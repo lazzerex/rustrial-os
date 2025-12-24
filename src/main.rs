@@ -88,7 +88,7 @@ async fn desktop_loop() {
 #[cfg(not(feature = "custom_bootloader"))]
 entry_point!(kernel_main);
 
-// Custom bootloader entry point - no BootInfo available
+// Custom bootloader entry point, no BootInfo available
 #[cfg(feature = "custom_bootloader")]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
@@ -97,6 +97,7 @@ pub extern "C" fn _start() -> ! {
 
 #[cfg(not(feature = "custom_bootloader"))]
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
+    //i should really clean these
     //use rustrial_os::memory::active_level_4_table;
     //use x86_64::VirtAddr;
     //use rustrial_os::memory::translate_addr;
@@ -111,7 +112,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     rustrial_os::init();
 
    
-
+    //also clean these
     // unsafe {
     //     *(0xdeadbeef as *mut u8) = 42;
     // }
@@ -167,11 +168,18 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     allocator::init_heap(&mut mapper, &mut frame_allocator)
         .expect("heap initialization failed");
 
-    // Phase 1.1: Initialize DMA memory for networking
+    //initialize DMA memory for networking
     rustrial_os::memory::dma::init_dma(&mut mapper, &mut frame_allocator, phys_mem_offset)
         .expect("DMA initialization failed");
 
-    // Initialize filesystem and load scripts
+    //initialize network driver
+    println!("[Network] Initializing network driver...");
+    match rustrial_os::drivers::net::rtl8139::init_network() {
+        Ok(_) => println!("[Network] Network driver initialized successfully"),
+        Err(e) => println!("[Network] Failed to initialize network driver: {}", e),
+    }
+
+    // initialize filesystem and load scripts
     rustrial_os::fs::init();
     rustrial_os::script_loader::load_scripts()
         .expect("failed to load scripts");

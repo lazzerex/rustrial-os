@@ -3,10 +3,9 @@
 
 use x86_64::{VirtAddr, PhysAddr};
 use x86_64::structures::paging::{
-    mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB, PhysFrame,
+    mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB,
 };
 use spin::Mutex;
-use alloc::vec::Vec;
 
 #[derive(Debug, Clone)]
 pub struct DmaBuffer {
@@ -128,17 +127,21 @@ pub fn allocate_dma_buffer(size: usize) -> Result<DmaBuffer, AllocError> {
 /// Get a mutable slice for the DMA buffer
 impl DmaBuffer {
     pub unsafe fn as_slice_mut(&mut self) -> &mut [u8] {
-        core::slice::from_raw_parts_mut(
-            self.virt_addr.as_mut_ptr::<u8>(),
-            self.size,
-        )
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                self.virt_addr.as_mut_ptr::<u8>(),
+                self.size,
+            )
+        }
     }
 
     pub unsafe fn as_slice(&self) -> &[u8] {
-        core::slice::from_raw_parts(
-            self.virt_addr.as_ptr::<u8>(),
-            self.size,
-        )
+        unsafe {
+            core::slice::from_raw_parts(
+                self.virt_addr.as_ptr::<u8>(),
+                self.size,
+            )
+        }
     }
 }
 

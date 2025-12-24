@@ -28,6 +28,10 @@ lazy_static! {
             .set_handler_fn(keyboard_interrupt_handler);
         idt[InterruptIndex::Mouse.as_usize()]
             .set_handler_fn(mouse_interrupt_handler);
+        idt[InterruptIndex::Network10.as_usize()]
+            .set_handler_fn(network_interrupt_handler);
+        idt[InterruptIndex::Network11.as_usize()]
+            .set_handler_fn(network_interrupt_handler);
         idt.page_fault.set_handler_fn(page_fault_handler);
         idt
     };
@@ -109,6 +113,28 @@ extern "x86-interrupt" fn mouse_interrupt_handler(
             .notify_end_of_interrupt(InterruptIndex::Mouse.as_u8());
     }
 }
+
+extern "x86-interrupt" fn network_interrupt_handler(
+    _stack_frame: InterruptStackFrame)
+{
+    // Call the network driver's interrupt handler
+    handle_network_interrupt();
+    
+    // not sure which IRQ it is, so i'll just acknowledge both potential network IRQs
+    unsafe {
+        PICS.lock()
+            .notify_end_of_interrupt(InterruptIndex::Network10.as_u8());
+    }
+}
+
+// helper function to call network driver interrupt handler
+fn handle_network_interrupt() {
+    // this will be called from the interrupt handler
+    // and the network driver will implement its own handler (i hope so lol)
+    handle_registered_irq(10); // IRQ 10
+    handle_registered_irq(11); // IRQ 11
+}
+
 
 // irq handler registry for dynamic registration (supports 16 pic irqs)
 use core::option::Option;
