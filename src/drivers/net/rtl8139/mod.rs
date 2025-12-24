@@ -64,10 +64,23 @@ impl Rtl8139 {
         pci_enable_dma(rtl8139_device);
         pci_enable_mmio(rtl8139_device);
 
-        // Get BAR0 (MMIO base address)
-        let bar = pci_get_bar(rtl8139_device, 0)?;
+        // RTL8139 has two BARs: BAR0 (I/O ports) and BAR1 (MMIO)
+        // Try BAR1 first for MMIO, fall back to BAR0 for I/O port access if needed
+        let bar = if let Some(bar1) = pci_get_bar(rtl8139_device, 1) {
+            if bar1.is_mmio {
+                serial_println!("[RTL8139] Using BAR1 (MMIO)");
+                bar1
+            } else {
+                serial_println!("[RTL8139] BAR1 is not MMIO, trying BAR0...");
+                pci_get_bar(rtl8139_device, 0)?
+            }
+        } else {
+            serial_println!("[RTL8139] BAR1 not available, using BAR0");
+            pci_get_bar(rtl8139_device, 0)?
+        };
+
         if !bar.is_mmio {
-            serial_println!("[RTL8139] BAR0 is not MMIO!");
+            serial_println!("[RTL8139] No MMIO BAR found! I/O port access not yet implemented.");
             return None;
         }
 
