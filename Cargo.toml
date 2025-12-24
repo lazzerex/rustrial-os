@@ -13,7 +13,10 @@ run-args = [
     "-display", "gtk",
     "-vga", "std",
     "-no-reboot",
-    "-no-shutdown"
+    "-no-shutdown",
+    # network config RTL8139 NIC with user networking
+    "-netdev", "user,id=net0",
+    "-device", "rtl8139,netdev=net0"
 ]
 test-args = [
     "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04", "-serial", "stdio",
