@@ -23,13 +23,16 @@ pub mod graphics;
 pub mod desktop;
 pub mod shell;
 
-// Phase 1 Hardware Detection - Native Implementation (C + Assembly)
+// hardware detection with native implementation (C + Assembly)
 pub mod native_ffi; // FFI bindings to C/Assembly code
 
 pub mod rustrial_script;
 
 // Phase 1.1: Networking infrastructure
 pub mod net;
+
+// Phase 2: Network drivers
+pub mod drivers;
 
 pub fn init() {
     gdt::init();
