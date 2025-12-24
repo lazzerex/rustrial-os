@@ -20,8 +20,10 @@ use registers::*;
 
 /// RTL8139 Network Card Driver
 pub struct Rtl8139 {
-    /// Virtual address of MMIO base
-    mmio_base: VirtAddr,
+    /// I/O port base address (if using I/O port access)
+    io_base: Option<u16>,
+    /// Virtual address of MMIO base (if using MMIO)
+    mmio_base: Option<VirtAddr>,
     /// Physical address of MMIO base
     mmio_phys: PhysAddr,
     /// MAC address of the device
@@ -60,45 +62,31 @@ impl Rtl8139 {
         serial_println!("[RTL8139] Found RTL8139 at bus {}, device {}, function {}",
             rtl8139_device.bus, rtl8139_device.device, rtl8139_device.function);
 
-        // Enable PCI bus mastering and MMIO
+        // Enable PCI bus mastering and I/O space
         pci_enable_dma(rtl8139_device);
-        pci_enable_mmio(rtl8139_device);
+        crate::native_ffi::pci_enable_io(rtl8139_device);
 
         // RTL8139 has two BARs: BAR0 (I/O ports) and BAR1 (MMIO)
-        // Try BAR1 first for MMIO, fall back to BAR0 for I/O port access if needed
-        let bar = if let Some(bar1) = pci_get_bar(rtl8139_device, 1) {
-            if bar1.is_mmio {
-                serial_println!("[RTL8139] Using BAR1 (MMIO)");
-                bar1
-            } else {
-                serial_println!("[RTL8139] BAR1 is not MMIO, trying BAR0...");
-                pci_get_bar(rtl8139_device, 0)?
-            }
+        // Use BAR0 with I/O port access for simplicity (no memory mapping needed)
+        let bar0 = pci_get_bar(rtl8139_device, 0)?;
+        
+        let (io_base, mmio_base, mmio_phys) = if bar0.is_mmio {
+            serial_println!("[RTL8139] BAR0 is MMIO at {:#x}, size: {} bytes", 
+                bar0.base_addr.as_u64(), bar0.size);
+            (None, Some(Self::map_mmio(bar0.base_addr, bar0.size)?), bar0.base_addr)
         } else {
-            serial_println!("[RTL8139] BAR1 not available, using BAR0");
-            pci_get_bar(rtl8139_device, 0)?
+            let io_port = bar0.base_addr.as_u64() as u16;
+            serial_println!("[RTL8139] Using BAR0 (I/O ports) at {:#x}", io_port);
+            (Some(io_port), None, PhysAddr::new(0))
         };
-
-        if !bar.is_mmio {
-            serial_println!("[RTL8139] No MMIO BAR found! I/O port access not yet implemented.");
-            return None;
-        }
-
-        serial_println!("[RTL8139] MMIO base: {:#x}, size: {} bytes", 
-            bar.base_addr.as_u64(), bar.size);
-
-        // Map MMIO region to virtual memory
-        let mmio_phys = bar.base_addr;
-        let mmio_virt = Self::map_mmio(mmio_phys, bar.size)?;
-
-        serial_println!("[RTL8139] Mapped MMIO to virtual address: {:#x}", mmio_virt.as_u64());
 
         // Get IRQ line
         let irq = pci_get_interrupt_line(rtl8139_device);
         serial_println!("[RTL8139] IRQ line: {}", irq);
 
         let mut driver = Self {
-            mmio_base: mmio_virt,
+            io_base,
+            mmio_base,
             mmio_phys,
             mac_addr: [0; 6],
             rx_buffer: None,
@@ -331,40 +319,94 @@ impl Rtl8139 {
         }
     }
 
-    // MMIO register access helpers
+    // MMIO/I/O port register access helpers
     fn read_reg_u8(&self, offset: u8) -> u8 {
         unsafe {
-            read_volatile((self.mmio_base.as_u64() + offset as u64) as *const u8)
+            if let Some(io_base) = self.io_base {
+                // I/O port access
+                use x86_64::instructions::port::Port;
+                let mut port = Port::new(io_base + offset as u16);
+                port.read()
+            } else if let Some(mmio_base) = self.mmio_base {
+                // MMIO access
+                read_volatile((mmio_base.as_u64() + offset as u64) as *const u8)
+            } else {
+                0
+            }
         }
     }
 
     fn write_reg_u8(&mut self, offset: u8, value: u8) {
         unsafe {
-            write_volatile((self.mmio_base.as_u64() + offset as u64) as *mut u8, value);
+            if let Some(io_base) = self.io_base {
+                // I/O port access
+                use x86_64::instructions::port::Port;
+                let mut port = Port::new(io_base + offset as u16);
+                port.write(value);
+            } else if let Some(mmio_base) = self.mmio_base {
+                // MMIO access
+                write_volatile((mmio_base.as_u64() + offset as u64) as *mut u8, value);
+            }
         }
     }
 
     fn read_reg_u16(&self, offset: u8) -> u16 {
         unsafe {
-            read_volatile((self.mmio_base.as_u64() + offset as u64) as *const u16)
+            if let Some(io_base) = self.io_base {
+                // I/O port access
+                use x86_64::instructions::port::Port;
+                let mut port = Port::new(io_base + offset as u16);
+                port.read()
+            } else if let Some(mmio_base) = self.mmio_base {
+                // MMIO access
+                read_volatile((mmio_base.as_u64() + offset as u64) as *const u16)
+            } else {
+                0
+            }
         }
     }
 
     fn write_reg_u16(&mut self, offset: u8, value: u16) {
         unsafe {
-            write_volatile((self.mmio_base.as_u64() + offset as u64) as *mut u16, value);
+            if let Some(io_base) = self.io_base {
+                // I/O port access
+                use x86_64::instructions::port::Port;
+                let mut port = Port::new(io_base + offset as u16);
+                port.write(value);
+            } else if let Some(mmio_base) = self.mmio_base {
+                // MMIO access
+                write_volatile((mmio_base.as_u64() + offset as u64) as *mut u16, value);
+            }
         }
     }
 
     fn read_reg_u32(&self, offset: u8) -> u32 {
         unsafe {
-            read_volatile((self.mmio_base.as_u64() + offset as u64) as *const u32)
+            if let Some(io_base) = self.io_base {
+                // I/O port access
+                use x86_64::instructions::port::Port;
+                let mut port = Port::new(io_base + offset as u16);
+                port.read()
+            } else if let Some(mmio_base) = self.mmio_base {
+                // MMIO access
+                read_volatile((mmio_base.as_u64() + offset as u64) as *const u32)
+            } else {
+                0
+            }
         }
     }
 
     fn write_reg_u32(&mut self, offset: u8, value: u32) {
         unsafe {
-            write_volatile((self.mmio_base.as_u64() + offset as u64) as *mut u32, value);
+            if let Some(io_base) = self.io_base {
+                // I/O port access
+                use x86_64::instructions::port::Port;
+                let mut port = Port::new(io_base + offset as u16);
+                port.write(value);
+            } else if let Some(mmio_base) = self.mmio_base {
+                // MMIO access
+                write_volatile((mmio_base.as_u64() + offset as u64) as *mut u32, value);
+            }
         }
     }
 }
