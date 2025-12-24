@@ -647,17 +647,36 @@ impl Shell {
     }
 
     fn cmd_netinfo(&mut self, args: &[&str]) {
+        // check network driver status
+        let driver_status = if let Some(device_mutex) = crate::drivers::net::rtl8139::get_network_device() {
+            let device = device_mutex.lock();
+            if let Some(ref dev) = *device {
+                if dev.is_ready() {
+                    let mac = dev.mac_address();
+                    let link = dev.link_status();
+                    format!("[INITIALIZED] {} - MAC: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x} - Link: {:?}",
+                        dev.device_name(), mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], link)
+                } else {
+                    format!("[NOT READY] Device found but not initialized")
+                }
+            } else {
+                format!("[NOT FOUND] No network device detected")
+            }
+        } else {
+            format!("[NOT FOUND] Network driver not loaded")
+        };
+
         self.sprintln("\n╔════════════════════════════════════════════════════════════════════╗");
-        self.sprintln("║              Network Stack Status - Phase 1.1                      ║");
+        self.sprintln("║              Network Stack Status - Phase 2.1                      ║");
         self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
         self.sprintln("║ Heap Size:        2 MB (expanded for networking)                  ║");
         self.sprintln("║ DMA Region:       1 MB allocated                                   ║");
         self.sprintln("║ Ring Buffers:     256 × 2KB (RX/TX)                                ║");
-        self.sprintln("║ Status:           Infrastructure ready [OK]                        ║");
+        self.sprintln(&format!("║ Driver Status:    {:<47} ║", truncate_str_shell(&driver_status, 47)));
         self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
         self.sprintln("║ Phase 1.1:        [OK] Enhanced Memory Management                 ║");
-        self.sprintln("║ Phase 1.2:        [PENDING] PCI Driver Enhancement                ║");
-        self.sprintln("║ Phase 2:          [PENDING] Network Driver (RTL8139/E1000)        ║");
+        self.sprintln("║ Phase 1.2:        [OK] PCI Driver Enhancement                      ║");
+        self.sprintln("║ Phase 2.1:        [OK] Network Driver (RTL8139)                    ║");
         self.sprintln("║ Phase 3:          [PENDING] Ethernet/ARP Protocol                 ║");
         self.sprintln("║ Phase 4:          [PENDING] IP/ICMP Protocol (ping)               ║");
         self.sprintln("╚════════════════════════════════════════════════════════════════════╝\n");
@@ -667,7 +686,7 @@ impl Shell {
             
             use crate::memory::dma;
             
-            // Test allocation
+            // test allocation
             match dma::allocate_dma_buffer(1024) {
                 Ok(buffer) => {
                     self.sprintln("[OK] DMA Buffer allocated successfully!");
@@ -930,5 +949,14 @@ impl Shell {
                 println!("{}", self.scrollback_buffer[i]);
             }
         }
+    }
+}
+
+/// Helper function to truncate strings for display
+fn truncate_str_shell(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        format!("{:width$}", s, width = max_len)
+    } else {
+        format!("{}...", &s[..max_len.saturating_sub(3)])
     }
 }
