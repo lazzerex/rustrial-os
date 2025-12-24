@@ -4,9 +4,7 @@
 //! Provides fixed-size ring buffers for efficient packet queueing
 //! Typical usage: 256 buffers × 2KB = 512KB total
 
-use alloc::vec::Vec;
 use core::cell::UnsafeCell;
-use spin::Mutex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BufferError {
