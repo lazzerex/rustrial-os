@@ -28,10 +28,10 @@ pub mod native_ffi; // FFI bindings to C/Assembly code
 
 pub mod rustrial_script;
 
-// Phase 1.1: Networking infrastructure
+//Networking infrastructure
 pub mod net;
 
-// Phase 2: Network drivers
+//Network drivers
 pub mod drivers;
 
 pub fn init() {
