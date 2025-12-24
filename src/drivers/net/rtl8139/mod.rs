@@ -6,7 +6,6 @@ use alloc::vec::Vec;
 use alloc::boxed::Box;
 use spin::Mutex;
 use x86_64::{PhysAddr, VirtAddr};
-use x86_64::structures::paging::{Page, PageTableFlags, Size4KiB, Mapper, FrameAllocator};
 
 use crate::serial_println;
 use crate::memory::dma::{allocate_dma_buffer, DmaBuffer};
@@ -113,7 +112,7 @@ impl Rtl8139 {
     }
 
     /// Map MMIO region to virtual memory
-    fn map_mmio(phys_addr: PhysAddr, size: usize) -> Option<VirtAddr> {
+    fn map_mmio(phys_addr: PhysAddr, _size: usize) -> Option<VirtAddr> {
         // For now, use identity mapping with physical memory offset
         // In a real implementation, you'd get mapper and frame_allocator from a global
         // or pass them as parameters. For simplicity, we'll use direct physical mapping.
@@ -434,7 +433,9 @@ impl NetworkDevice for Rtl8139 {
             serial_println!("[RTL8139] RX error: status={:#x}", status);
             // Skip this packet
             *rx_offset = (*rx_offset + length + 4 + 3) & !3; // Align to 4 bytes
-            self.write_reg_u16(CAPR, *rx_offset - 16);
+            let capr_value = *rx_offset - 16;
+            drop(rx_offset); // Drop lock before calling write_reg_u16
+            self.write_reg_u16(CAPR, capr_value);
             return None;
         }
 
@@ -457,7 +458,9 @@ impl NetworkDevice for Rtl8139 {
         *rx_offset = (*rx_offset + length + 4 + 3) & !3;
         
         // Update CAPR register (need to subtract 16 as per RTL8139 quirk)
-        self.write_reg_u16(CAPR, *rx_offset - 16);
+        let capr_value = *rx_offset - 16;
+        drop(rx_offset); // Drop lock before calling write_reg_u16
+        self.write_reg_u16(CAPR, capr_value);
 
         serial_println!("[RTL8139] Received packet: {} bytes", packet_len);
 
