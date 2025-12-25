@@ -2,9 +2,9 @@
 //! Phase 1+ - Networking Roadmap
 
 pub mod buffer;
+pub mod ethernet;
 
 // Future modules to be implemented in later phases:
-// pub mod ethernet;
 // pub mod arp;
 // pub mod ipv4;
 // pub mod icmp;
