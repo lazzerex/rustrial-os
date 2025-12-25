@@ -251,6 +251,7 @@ impl Shell {
             "rustrialfetch" | "fetch" => self.cmd_rustrialfetch(),
             "netinfo" => self.cmd_netinfo(args),
             "pciinfo" => self.cmd_pciinfo(args),
+            "arp" => self.cmd_arp(args),
             "exit" | "quit" => return true,
             _ => {
                 let msg = format!("Unknown command: '{}'. Type 'help' for available commands.", command);
@@ -289,6 +290,7 @@ impl Shell {
         self.sprintln("  rustrialfetch     - Display system information");
         self.sprintln("  netinfo [test]    - Display networking status (use 'test' to allocate DMA)");
         self.sprintln("  pciinfo [detail]  - Display PCI devices (use 'detail' for BAR info)");
+        self.sprintln("  arp [clear]       - Display ARP cache (use 'clear' to flush cache)");
         self.sprintln("  exit, quit        - Return to desktop");
         self.sprintln("\nColors: 0=Black, 1=Blue, 2=Green, 3=Cyan, 4=Red, 5=Magenta, 6=Brown,");
         self.sprintln("        7=LightGray, 8=DarkGray, 9=LightBlue, 10=LightGreen, 11=LightCyan,");
@@ -949,6 +951,45 @@ impl Shell {
                 println!("{}", self.scrollback_buffer[i]);
             }
         }
+    }
+
+    fn cmd_arp(&mut self, args: &[&str]) {
+        use crate::net::arp::{arp_cache, format_mac};
+
+        if !args.is_empty() && args[0] == "clear" {
+            arp_cache().clear();
+            self.sprintln("ARP cache cleared.");
+            return;
+        }
+
+        self.sprintln("\nARP Cache:");
+        self.sprintln("─────────────────────────────────────────────────");
+        self.sprintln("  IP Address        MAC Address         Expires");
+        self.sprintln("─────────────────────────────────────────────────");
+
+        let entries = arp_cache().entries();
+        
+        if entries.is_empty() {
+            self.sprintln("  (empty)");
+        } else {
+            // Simple time approximation (we don't have a real timer yet)
+            let current_time = 0u64; // In a real system, get actual time
+            
+            for (ip, mac, expires_at) in &entries {
+                let ip_str = format!("{}", ip);
+                let mac_str = format_mac(&mac);
+                let ttl = if *expires_at > current_time {
+                    format!("{}s", *expires_at - current_time)
+                } else {
+                    "expired".to_string()
+                };
+                
+                self.sprintln(&format!("  {:<15}  {}  {}", ip_str, mac_str, ttl));
+            }
+        }
+        
+        self.sprintln("─────────────────────────────────────────────────");
+        self.sprintln(&format!("Total entries: {}\n", entries.len()));
     }
 }
 
