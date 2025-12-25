@@ -41,34 +41,24 @@ fn panic(info: &PanicInfo) -> ! {
 }
 
 #[test_case]
-fn test_ethernet_frame_creation() {
+fn test_ethernet_frame_creation_and_serialization() {
     let dest = [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01];
     let src = [0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x02];
     let payload = vec![0x01, 0x02, 0x03, 0x04];
 
     let frame = EthernetFrame::new(dest, src, ETHERTYPE_IPV4, payload.clone()).unwrap();
 
+    // Test creation
     assert_eq!(frame.dest_mac, dest);
     assert_eq!(frame.src_mac, src);
     assert_eq!(frame.ethertype, ETHERTYPE_IPV4);
     assert_eq!(frame.payload, payload);
-}
 
-#[test_case]
-fn test_ethernet_frame_to_bytes() {
-    let dest = [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01];
-    let src = [0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x02];
-    let payload = vec![0x01, 0x02, 0x03, 0x04];
-
-    let frame = EthernetFrame::new(dest, src, ETHERTYPE_ARP, payload).unwrap();
+    // Test serialization
     let bytes = frame.to_bytes();
-
-    // Check header
     assert_eq!(&bytes[0..6], &dest);
     assert_eq!(&bytes[6..12], &src);
-    assert_eq!(u16::from_be_bytes([bytes[12], bytes[13]]), ETHERTYPE_ARP);
-
-    // Check minimum frame size (14 header + 46 payload + 4 CRC = 64 bytes)
+    assert_eq!(u16::from_be_bytes([bytes[12], bytes[13]]), ETHERTYPE_IPV4);
     assert_eq!(bytes.len(), HEADER_SIZE + MIN_PAYLOAD_SIZE + CRC_SIZE);
 }
 
@@ -104,37 +94,37 @@ fn test_broadcast_detection() {
 }
 
 #[test_case]
-fn test_multicast_detection() {
-    let frame = EthernetFrame::new(
+fn test_multicast_and_unicast_detection() {
+    // Test multicast
+    let multicast = EthernetFrame::new(
         [0x01, 0x00, 0x5E, 0x00, 0x00, 0x01], // IPv4 multicast
         [0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x02],
         ETHERTYPE_IPV4,
         vec![0x01, 0x02, 0x03, 0x04],
     ).unwrap();
 
-    assert!(frame.is_multicast());
-    assert!(!frame.is_broadcast());
-    assert!(!frame.is_unicast());
-}
+    assert!(multicast.is_multicast());
+    assert!(!multicast.is_broadcast());
+    assert!(!multicast.is_unicast());
 
-#[test_case]
-fn test_unicast_detection() {
-    let frame = EthernetFrame::new(
+    // Test unicast
+    let unicast = EthernetFrame::new(
         [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01],
         [0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x02],
         ETHERTYPE_IPV4,
         vec![0x01, 0x02, 0x03, 0x04],
     ).unwrap();
 
-    assert!(frame.is_unicast());
-    assert!(!frame.is_broadcast());
-    assert!(!frame.is_multicast());
+    assert!(unicast.is_unicast());
+    assert!(!unicast.is_broadcast());
+    assert!(!unicast.is_multicast());
 }
 
 #[test_case]
-fn test_payload_too_large() {
+fn test_error_handling() {
     use rustrial_os::net::ethernet::MAX_PAYLOAD_SIZE;
     
+    // Test payload too large
     let payload = vec![0x42; MAX_PAYLOAD_SIZE + 1];
     let result = EthernetFrame::new(
         [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x01],
@@ -142,14 +132,10 @@ fn test_payload_too_large() {
         ETHERTYPE_IPV4,
         payload,
     );
-
     assert_eq!(result, Err(EthernetError::PayloadTooLarge));
-}
 
-#[test_case]
-fn test_frame_too_short() {
-    let data = vec![0x42; 10]; // Too short to be valid
+    // Test frame too short
+    let data = vec![0x42; 10];
     let result = EthernetFrame::from_bytes(&data);
-
     assert_eq!(result, Err(EthernetError::FrameTooShort));
 }
