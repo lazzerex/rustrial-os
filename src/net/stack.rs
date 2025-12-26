@@ -310,13 +310,9 @@ fn handle_rx_icmp(ip_header: &Ipv4Header, data: &[u8]) {
 pub async fn tx_processing_task() {
     serial_println!("TX: Task started");
     
-    let mut iteration = 0;
     loop {
-        iteration += 1;
-        
         // Check if network device is available
         if !has_network_device() {
-            serial_println!("TX: [{}] No network device", iteration);
             crate::task::yield_now().await;
             continue;
         }
@@ -324,21 +320,11 @@ pub async fn tx_processing_task() {
         // Get network configuration
         let config = get_network_config();
         if !config.is_valid() {
-            serial_println!("TX: [{}] Config invalid", iteration);
             crate::task::yield_now().await;
             continue;
         }
 
         // Check if there are packets to transmit
-        let queue_size = {
-            let queue = TX_QUEUE.lock();
-            queue.len()
-        };
-        
-        if queue_size > 0 {
-            serial_println!("TX: [{}] Queue has {} packets", iteration, queue_size);
-        }
-        
         let packet = {
             let mut queue = TX_QUEUE.lock();
             queue.pop_front()
@@ -346,7 +332,7 @@ pub async fn tx_processing_task() {
 
         if let Some(tx_packet) = packet {
             // Process the packet
-            serial_println!("TX: [{}] Processing packet for {}", iteration, tx_packet.dest_ip);
+            serial_println!("TX: Processing packet for {}", tx_packet.dest_ip);
             if let Err(e) = process_tx_packet(tx_packet, config).await {
                 serial_println!("TX: Failed to transmit packet: {:?}", e);
             }
