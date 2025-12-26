@@ -543,21 +543,16 @@ impl NetworkDevice for Rtl8139 {
     }
 }
 
-// Global network device instance
-use lazy_static::lazy_static;
-
-lazy_static! {
-    pub static ref NETWORK_DEVICE: Mutex<Option<Box<dyn NetworkDevice>>> = Mutex::new(None);
-}
-
-/// Initialize network device
+// Initialize network device
+/// Initialize network device and register it with the global registry
 pub fn init_network() -> Result<(), &'static str> {
     serial_println!("[Network] Initializing network device...");
 
     match Rtl8139::new() {
         Some(device) => {
             let boxed: Box<dyn NetworkDevice> = Box::new(device);
-            *NETWORK_DEVICE.lock() = Some(boxed);
+            // Register with the global network device registry in parent module
+            super::register_network_device(boxed);
             serial_println!("[Network] Network device initialized successfully");
             Ok(())
         }
@@ -566,9 +561,4 @@ pub fn init_network() -> Result<(), &'static str> {
             Err("No network device found")
         }
     }
-}
-
-/// Get reference to network device
-pub fn get_network_device() -> Option<&'static Mutex<Option<Box<dyn NetworkDevice>>>> {
-    Some(&NETWORK_DEVICE)
 }
