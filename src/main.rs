@@ -216,6 +216,12 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     
     // Launch desktop environment with menu integration
     let mut executor = Executor::new();
+    
+    // Initialize network stack (spawn RX/TX processing tasks)
+    println!("[Network] Initializing network stack...");
+    rustrial_os::net::stack::init(&mut executor);
+    println!("[Network] Network stack initialized");
+    
     executor.spawn(Task::new(desktop_loop()));
     executor.run();
 
@@ -252,6 +258,11 @@ fn kernel_main_custom() -> ! {
     
     // Launch desktop environment with menu integration
     let mut executor = Executor::new();
+    
+    // Initialize network stack (spawn RX/TX processing tasks)
+    // Note: Custom bootloader path has no DMA/heap, network may not work
+    rustrial_os::net::stack::init(&mut executor);
+    
     executor.spawn(Task::new(desktop_loop()));
     executor.run();
 }
