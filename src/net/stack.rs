@@ -3,18 +3,16 @@
 //! This module provides the core network stack that coordinates all protocol layers.
 //! It manages RX/TX processing, ARP resolution, routing, and network configuration.
 
-use alloc::boxed::Box;
 use alloc::collections::VecDeque;
-use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::net::Ipv4Addr;
 use spin::Mutex;
 
 use crate::{println, serial_println};
-use crate::drivers::net::{NetworkDevice, has_network_device, get_network_device, transmit_packet, get_mac_address};
+use crate::drivers::net::{has_network_device, get_network_device, transmit_packet, get_mac_address};
 use crate::net::arp::{arp_cache, create_arp_request, handle_arp_packet};
 use crate::net::ethernet::{EthernetFrame, ETHERTYPE_ARP, ETHERTYPE_IPV4};
-use crate::net::ipv4::{Ipv4Header, RoutingTable, ProtocolDispatcher, protocol};
+use crate::net::ipv4::{Ipv4Header, RoutingTable, protocol};
 use crate::net::icmp::{IcmpPacket, IcmpType};
 
 /// Network configuration
