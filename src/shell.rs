@@ -654,7 +654,10 @@ impl Shell {
 
     fn cmd_netinfo(&mut self, args: &[&str]) {
         // check network driver status
-        let driver_status = if let Some(device_mutex) = crate::drivers::net::rtl8139::get_network_device() {
+        use crate::drivers::net::{get_network_device, has_network_device};
+        
+        let driver_status = if has_network_device() {
+            let device_mutex = get_network_device();
             let device = device_mutex.lock();
             if let Some(ref dev) = *device {
                 if dev.is_ready() {
@@ -998,7 +1001,7 @@ impl Shell {
 
     fn cmd_ifconfig(&mut self, args: &[&str]) {
         use core::net::Ipv4Addr;
-        use crate::net::stack::{NetworkConfig, set_network_config, get_network_config};
+        use crate::net::stack::{NetworkConfig, set_network_config};
 
         if args.is_empty() {
             // Display current network configuration
