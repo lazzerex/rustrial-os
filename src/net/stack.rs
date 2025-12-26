@@ -305,7 +305,12 @@ fn handle_rx_icmp(ip_header: &Ipv4Header, data: &[u8]) {
     }
 }
 
-/// serial_println!("TX: Task started");
+/// TX Processing Task
+///
+/// This async function processes the transmit queue, performs ARP resolution,
+/// builds complete packets, and transmits them via the network device.
+pub async fn tx_processing_task() {
+    serial_println!("TX: Task started");
     
     loop {
         // Check if network device is available
@@ -329,12 +334,7 @@ fn handle_rx_icmp(ip_header: &Ipv4Header, data: &[u8]) {
 
         if let Some(tx_packet) = packet {
             // Process the packet
-            serial_println!("TX: Processing packet for {}", tx_packet.dest_ip);EUE.lock();
-            queue.pop_front()
-        };
-
-        if let Some(tx_packet) = packet {
-            // Process the packet
+            serial_println!("TX: Processing packet for {}", tx_packet.dest_ip);
             if let Err(e) = process_tx_packet(tx_packet, config).await {
                 serial_println!("TX: Failed to transmit packet: {:?}", e);
             }
