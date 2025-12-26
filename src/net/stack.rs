@@ -136,6 +136,9 @@ pub fn queue_tx_packet(dest_ip: Ipv4Addr, protocol: u8, payload: Vec<u8>) -> Res
 /// This async function continuously polls the network device for incoming packets,
 /// parses Ethernet frames, and dispatches them to the appropriate protocol handlers.
 pub async fn rx_processing_task() {
+    serial_println!("RX: Task started");
+    let mut packet_count = 0;
+    
     loop {
         // Check if network device is available
         if !has_network_device() {
@@ -155,9 +158,13 @@ pub async fn rx_processing_task() {
         };
 
         if let Some(packet_data) = packet {
+            packet_count += 1;
+            serial_println!("RX: Received packet #{}, {} bytes", packet_count, packet_data.len());
+            
             // Parse Ethernet frame
             match EthernetFrame::from_bytes(&packet_data) {
                 Ok(frame) => {
+                    serial_println!("RX: EtherType: 0x{:04X}", frame.ethertype);
                     handle_rx_frame(frame);
                 }
                 Err(e) => {
