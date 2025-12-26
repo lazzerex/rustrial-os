@@ -113,9 +113,12 @@ pub fn get_routing_table() -> Option<RoutingTable> {
 /// * `Ok(())` - Packet queued successfully
 /// * `Err(())` - Queue is full
 pub fn queue_tx_packet(dest_ip: Ipv4Addr, protocol: u8, payload: Vec<u8>) -> Result<(), ()> {
+    serial_println!("TX: Queuing packet for {}, protocol {}, {} bytes", dest_ip, protocol, payload.len());
+    
     let mut queue = TX_QUEUE.lock();
     
     if queue.len() >= MAX_TX_QUEUE_SIZE {
+        serial_println!("TX: Queue full!");
         return Err(());
     }
     
@@ -124,6 +127,8 @@ pub fn queue_tx_packet(dest_ip: Ipv4Addr, protocol: u8, payload: Vec<u8>) -> Res
         protocol,
         payload,
     });
+    
+    serial_println!("TX: Packet queued successfully, queue size: {}", queue.len());
     
     Ok(())
 }
@@ -300,11 +305,8 @@ fn handle_rx_icmp(ip_header: &Ipv4Header, data: &[u8]) {
     }
 }
 
-/// TX Processing Task
-///
-/// This async function processes the transmit queue, performs ARP resolution,
-/// builds complete packets, and transmits them via the network device.
-pub async fn tx_processing_task() {
+/// serial_println!("TX: Task started");
+    
     loop {
         // Check if network device is available
         if !has_network_device() {
@@ -322,6 +324,12 @@ pub async fn tx_processing_task() {
         // Check if there are packets to transmit
         let packet = {
             let mut queue = TX_QUEUE.lock();
+            queue.pop_front()
+        };
+
+        if let Some(tx_packet) = packet {
+            // Process the packet
+            serial_println!("TX: Processing packet for {}", tx_packet.dest_ip);EUE.lock();
             queue.pop_front()
         };
 
@@ -426,19 +434,29 @@ async fn resolve_mac_address(ip: Ipv4Addr) -> Result<[u8; 6], TxError> {
 
 /// Send an ARP request
 fn send_arp_request(target_ip: Ipv4Addr) -> Result<(), TxError> {
+    serial_println!("ARP: send_arp_request called for {}", target_ip);
+    
     let config = get_network_config();
     if !config.is_valid() {
+        serial_println!("ARP: Network config invalid!");
         return Err(TxError::NoRouting);
     }
 
     // Get our MAC address
     let our_mac = match get_mac_address() {
         Some(mac) => mac,
-        None => return Err(TxError::NoDevice),
+        None => {
+            serial_println!("ARP: No MAC address available!");
+            return Err(TxError::NoDevice);
+        }
     };
+
+    serial_println!("ARP: Our MAC: {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}", 
+                    our_mac[0], our_mac[1], our_mac[2], our_mac[3], our_mac[4], our_mac[5]);
 
     // Create ARP request
     let arp_request = create_arp_request(config.ip_addr, our_mac, target_ip);
+    serial_println!("ARP: Created request packet, {} bytes", arp_request.len());
 
     // Wrap in Ethernet frame (broadcast)
     let broadcast_mac = [0xFF; 6];
@@ -447,14 +465,21 @@ fn send_arp_request(target_ip: Ipv4Addr) -> Result<(), TxError> {
         our_mac,
         ETHERTYPE_ARP,
         arp_request,
-    ).map_err(|_| TxError::TransmitFailed)?;
+    ).map_err(|e| {
+        serial_println!("ARP: Failed to create Ethernet frame: {:?}", e);
+        TxError::TransmitFailed
+    })?;
 
     let frame_bytes = eth_frame.to_bytes();
+    serial_println!("ARP: Ethernet frame built, {} bytes total", frame_bytes.len());
 
     // Transmit
-    transmit_packet(&frame_bytes).map_err(|_| TxError::TransmitFailed)?;
+    transmit_packet(&frame_bytes).map_err(|e| {
+        serial_println!("ARP: Transmit failed: {:?}", e);
+        TxError::TransmitFailed
+    })?;
 
-    serial_println!("ARP: Sent request for {}", target_ip);
+    serial_println!("ARP: Successfully sent request for {}", target_ip);
 
     Ok(())
 }
