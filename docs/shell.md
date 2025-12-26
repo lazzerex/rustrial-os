@@ -2,7 +2,7 @@
 
 ## Overview
 
-RustrialOS now includes a fully functional command-line shell interface that provides a traditional terminal experience alongside the graphical desktop environment.
+RustrialOS now includes a fully functional command-line shell interface that provides a traditional terminal experience alongside the graphical desktop environment. The shell supports file operations, script execution, system management, and comprehensive network management commands.
 
 ## Features
 
@@ -13,8 +13,86 @@ RustrialOS now includes a fully functional command-line shell interface that pro
 - **Script Execution**: Run RustrialScript files directly from the shell
 - **Color Customization**: Change terminal colors on the fly
 - **Current Directory**: Navigate the filesystem with cd/pwd commands
+- **Network Management**: Configure and diagnose network connectivity
 
 ## Available Commands
+
+### Network Commands
+
+#### `ifconfig`
+Display network interface configuration including MAC address, IP address, and link status.
+
+**Usage:**
+```
+ifconfig
+```
+
+**Example Output:**
+```
+Network Interface Configuration:
+  Interface: eth0
+  MAC Address: 52:54:00:12:34:56
+  IP Address: 10.0.2.15
+  Status: Link Up
+  Driver: RTL8139
+```
+
+#### `ping <ip_address>`
+Send ICMP echo requests to a specified IP address to test network connectivity.
+
+**Usage:**
+```
+ping 10.0.2.2
+```
+
+**Arguments:**
+- `ip_address`: Target IP address in dotted-decimal notation (e.g., 10.0.2.2)
+
+**Example Output:**
+```
+Pinging 10.0.2.2...
+RX: ICMP Echo Reply from 10.0.2.2 (seq=1)
+RX: ICMP Echo Reply from 10.0.2.2 (seq=2)
+RX: ICMP Echo Reply from 10.0.2.2 (seq=3)
+```
+
+**Note:** In QEMU user-mode networking:
+- Gateway: 10.0.2.2 (DNS and internet gateway)
+- Host: 10.0.2.2 (accessible from guest)
+- Guest IP: 10.0.2.15 (automatically assigned)
+
+#### `arp`
+Display the ARP (Address Resolution Protocol) cache showing IP-to-MAC address mappings.
+
+**Usage:**
+```
+arp
+```
+
+**Example Output:**
+```
+ARP Cache:
+  10.0.2.2 -> 52:55:0a:00:02:02
+```
+
+#### `netinfo`
+Display comprehensive network stack information including statistics and configuration.
+
+**Usage:**
+```
+netinfo
+```
+
+**Example Output:**
+```
+Network Stack Information:
+  Packets Received: 15
+  Packets Transmitted: 12
+  ARP Cache Entries: 1
+  Active Connections: 0
+```
+
+**For detailed networking documentation, see:** [docs/net.md](net.md)
 
 ### File Operations
 - `ls [path]` - List files and directories in current or specified path
@@ -126,6 +204,36 @@ pub struct Shell {
 2. **Menu System**: Launch function in menu system (`src/rustrial_menu/menu_system/mod.rs`)
 3. **Filesystem**: Uses VFS abstractions (`src/fs/`)
 4. **Script Engine**: Executes RustrialScript files (`src/rustrial_script/`)
+5. **Network Stack**: Interfaces with network stack for diagnostics (`src/net/`)
+
+## Network Configuration Workflow
+
+To use networking features in QEMU:
+
+1. **Start QEMU with user-mode networking** (automatically configured):
+   ```powershell
+   qemu-system-x86_64 -drive format=raw,file=target/x86_64-rustrial_os/debug/bootimage-rustrial_os.bin -netdev user,id=net0 -device rtl8139,netdev=net0
+   ```
+
+2. **Launch the shell** from the desktop or menu
+
+3. **Check network configuration**:
+   ```
+   rustrial> ifconfig
+   ```
+   Should show MAC address 52:54:00:12:34:56 and IP 10.0.2.15
+
+4. **Test connectivity to QEMU gateway**:
+   ```
+   rustrial> ping 10.0.2.2
+   ```
+   Should receive ICMP echo replies
+
+5. **View ARP cache** (after ping):
+   ```
+   rustrial> arp
+   ```
+   Should show gateway MAC address mapping
 
 ## Future Enhancements
 

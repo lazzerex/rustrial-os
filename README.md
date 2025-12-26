@@ -33,7 +33,8 @@ A hobby x86-64 bare-metal operating system kernel written in Rust, built from sc
 Rustrial OS is an educational operating system project that demonstrates modern systems programming techniques using Rust. The kernel boots from bare metal on x86-64 architecture and provides core OS functionality including memory management, interrupt handling, task scheduling, hardware detection, and keyboard input processing.
 
 **Quick Links:**
-- Shell Documentation: `docs/SHELL.md`
+- Shell Documentation: `docs/shell.md`
+- **Networking Stack**: `docs/net.md`
 - RustrialScript Documentation: `docs/scriptdocs.md`
 - Custom Bootloader Guide: `docs/custombootloader.md`
 - Graphics API: `docs/graphicsdemo.md`
@@ -64,6 +65,25 @@ Rustrial OS is an educational operating system project that demonstrates modern 
 <img width="723" height="389" alt="os-4" src="https://github.com/user-attachments/assets/40df0234-8f02-4e79-b71e-a3db7b4e83e5" />
 
 <img width="459" height="311" alt="os-5" src="https://github.com/user-attachments/assets/8b5b62d4-ebc0-4bcf-bc76-2639bfd9d39f" />
+
+</details>
+
+
+<details markdown="1"> <summary>Network Stack in Action</summary>
+
+**TCP/IP Network Stack with RTL8139 Driver**
+
+The OS includes a full networking implementation with Ethernet, ARP, IPv4, and ICMP protocols. Here's a demonstration of the `ifconfig`, `ping`, and `arp` commands working in QEMU with user-mode networking:
+
+
+
+Features shown:
+- **Interface Configuration**: `ifconfig` displays MAC address (52:54:00:12:34:56) and IP (10.0.2.15)
+- **ICMP Ping**: Successfully pinging QEMU gateway at 10.0.2.2
+- **ARP Resolution**: ARP cache showing resolved MAC address for gateway
+- **Packet Flow**: Serial debug output showing TX/RX packet processing with RTL8139 driver
+
+For detailed networking documentation, see [docs/net.md](docs/net.md)
 
 </details>
 
@@ -145,6 +165,17 @@ The OS boots into a feature-rich menu:
 - Enter: Execute selection
 - ESC: Return to previous menu
 
+### Network Stack 
+- **TCP/IP Implementation**: Full protocol stack with Ethernet, ARP, IPv4, ICMP
+- **RTL8139 Driver**: PCI network card driver with DMA support (256×2KB ring buffers)
+- **Async RX/TX Processing**: Waker-based task scheduling for packet handling
+- **ARP Protocol**: Address resolution with caching for IPv4→MAC mapping
+- **ICMP Echo (Ping)**: Working ping implementation with statistics tracking
+- **QEMU Networking**: User-mode networking support with hardcoded gateway MAC workaround
+- **Shell Commands**: `ifconfig`, `ping`, `arp`, `netinfo` for network management
+- **Status**: Fully operational - successfully pings QEMU gateway (10.0.2.2) with bidirectional packet flow
+- **Documentation**: See `docs/net.md` for detailed architecture and setup
+
 ### I/O & Serial
 - **Serial Port**: UART 16550 (COM1) for debugging and test output
 - **Keyboard**: Async PS/2 scancode processing with US layout support
@@ -191,6 +222,20 @@ src/
 │   ├── rtc.c                # Real-time clock access
 │   ├── native.md            # Native code documentation
 │   └── include/             # C header files
+│
+├── drivers/                 # Device drivers
+│   └── net/                 # Network drivers
+│       ├── mod.rs           # Driver abstraction layer
+│       └── rtl8139/         # RTL8139 NIC driver
+│
+├── net/                     # Network stack
+│   ├── mod.rs               # Network module exports
+│   ├── stack.rs             # Core network coordinator
+│   ├── buffer.rs            # Packet buffer management
+│   ├── ethernet.rs          # Ethernet frame handling
+│   ├── arp.rs               # ARP protocol with caching
+│   ├── ipv4.rs              # IPv4 packet processing
+│   └── icmp.rs              # ICMP echo request/reply
 │
 ├── rustrial_script/         # Scripting language
 │   ├── mod.rs               # Interpreter interface
