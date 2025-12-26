@@ -1091,7 +1091,7 @@ impl Shell {
         // Use identifier = 0x1234 and sequence = 1 for this ping
         let identifier = 0x1234;
         let sequence = 1;
-        let data = alloc::vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]; // 8 bytes of test data
+        let data = Vec::from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]); // 8 bytes of test data
         
         match send_ping(dest_ip, identifier, sequence, data) {
             Ok(_) => {
