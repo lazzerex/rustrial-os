@@ -470,9 +470,12 @@ impl NetworkDevice for Rtl8139 {
         // Read command register to check if buffer is empty
         let cmd = self.read_reg_u8(CR);
         if (cmd & CMD_BUFE) != 0 {
-            // Buffer is empty
+            // Buffer is empty - this is expected when no packets
             return None;
         }
+
+        // We have a packet! Log it
+        serial_println!("[RTL8139] RX: Buffer not empty, cmd={:#x}", cmd);
 
         // Read packet header
         let header_addr = rx_buffer.virt_addr.as_u64() + *rx_offset as u64;
@@ -482,6 +485,8 @@ impl NetworkDevice for Rtl8139 {
 
         let status = (header & 0xFFFF) as u16;
         let length = ((header >> 16) & 0xFFFF) as u16;
+
+        serial_println!("[RTL8139] RX: Header read - status={:#x}, length={}", status, length);
 
         // Check for errors
         if (status & RX_ROK) == 0 {
