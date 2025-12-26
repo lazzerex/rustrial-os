@@ -35,3 +35,29 @@ impl TaskId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TaskId(u64);
+
+/// Yields execution to allow other tasks to run
+///
+/// This creates a future that returns Poll::Pending once, then Poll::Ready
+/// on the next poll, effectively yielding to the scheduler.
+pub async fn yield_now() {
+    struct YieldNow {
+        yielded: bool,
+    }
+
+    impl Future for YieldNow {
+        type Output = ();
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
+            if self.yielded {
+                Poll::Ready(())
+            } else {
+                self.yielded = true;
+                cx.waker().wake_by_ref();
+                Poll::Pending
+            }
+        }
+    }
+
+    YieldNow { yielded: false }.await
+}

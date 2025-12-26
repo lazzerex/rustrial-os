@@ -1,6 +1,6 @@
-//! Integration tests for ICMP (Internet Control Message Protocol)
-//!
-//! Tests echo request/reply, checksum calculation, and ping statistics.
+//Integration tests for ICMP (Internet Control Message Protocol)
+//
+// Tests echo request/reply, checksum calculation, and ping statistics.
 
 #![no_std]
 #![no_main]
