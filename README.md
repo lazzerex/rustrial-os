@@ -75,6 +75,7 @@ Rustrial OS is an educational operating system project that demonstrates modern 
 
 The OS includes a full networking implementation with Ethernet, ARP, IPv4, and ICMP protocols. Here's a demonstration of the `ifconfig`, `ping`, and `arp` commands working in QEMU with user-mode networking:
 
+<img width="1094" height="506" alt="image" src="https://github.com/user-attachments/assets/5f50768e-1b64-42f0-ad31-2298009f19b9" />
 
 
 Features shown:
