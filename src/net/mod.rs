@@ -5,9 +5,9 @@ pub mod buffer;
 pub mod ethernet;
 pub mod arp;
 pub mod ipv4;
+pub mod icmp;
 
 // Future modules to be implemented in later phases:
-// pub mod icmp;
 // pub mod udp;
 // pub mod tcp;
 // pub mod dns;
