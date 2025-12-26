@@ -245,16 +245,17 @@ impl Rtl8139 {
     fn configure_receiver(&mut self) {
         serial_println!("[RTL8139] Configuring receiver...");
 
-        // Accept broadcast, multicast, and packets matching our MAC
+        // Enable promiscuous mode to accept ALL packets (for debugging)
+        // Accept all packets, broadcast, multicast, and packets matching our MAC
         // Use 8KB buffer, unlimited DMA, 1024-byte FIFO threshold
-        let rcr = RCR_AB | RCR_AM | RCR_APM 
+        let rcr = RCR_AAP | RCR_AB | RCR_AM | RCR_APM 
             | RCR_RBLEN_8K 
             | RCR_MXDMA_UNLIMITED 
             | RCR_RXFTH_1024
             | RCR_WRAP;
 
         self.write_reg_u32(RCR, rcr);
-        serial_println!("[RTL8139] Receiver configured");
+        serial_println!("[RTL8139] Receiver configured (promiscuous mode enabled)");
     }
 
     /// Configure transmitter
