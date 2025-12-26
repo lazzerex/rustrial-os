@@ -213,6 +213,11 @@ impl Rtl8139 {
 
         // Write physical address to RBSTART register
         self.write_reg_u32(RBSTART, rx_buffer.phys_addr.as_u64() as u32);
+        
+        // Verify it was written correctly
+        let readback = self.read_reg_u32(RBSTART);
+        serial_println!("[RTL8139] RBSTART written: {:#x}, readback: {:#x}", 
+            rx_buffer.phys_addr.as_u64() as u32, readback);
 
         // Initialize RX offset to 0
         *self.rx_offset.lock() = 0;
@@ -286,6 +291,14 @@ impl Rtl8139 {
 
         let cmd = CMD_TE | CMD_RE;
         self.write_reg_u8(CR, cmd);
+        
+        // Verify command register
+        let cmd_readback = self.read_reg_u8(CR);
+        serial_println!("[RTL8139] Command register: written={:#x}, readback={:#x}", cmd, cmd_readback);
+        
+        // Also check RCR to make sure receiver config is set
+        let rcr = self.read_reg_u32(RCR);
+        serial_println!("[RTL8139] RCR (receiver config): {:#x}", rcr);
 
         serial_println!("[RTL8139] Transmitter and receiver enabled");
     }
