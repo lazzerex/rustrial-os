@@ -252,6 +252,8 @@ impl Shell {
             "netinfo" => self.cmd_netinfo(args),
             "pciinfo" => self.cmd_pciinfo(args),
             "arp" => self.cmd_arp(args),
+            "ifconfig" => self.cmd_ifconfig(args),
+            "ping" => self.cmd_ping(args),
             "exit" | "quit" => return true,
             _ => {
                 let msg = format!("Unknown command: '{}'. Type 'help' for available commands.", command);
@@ -291,6 +293,8 @@ impl Shell {
         self.sprintln("  netinfo [test]    - Display networking status (use 'test' to allocate DMA)");
         self.sprintln("  pciinfo [detail]  - Display PCI devices (use 'detail' for BAR info)");
         self.sprintln("  arp [clear]       - Display ARP cache (use 'clear' to flush cache)");
+        self.sprintln("  ifconfig [args]   - Configure or display network settings");
+        self.sprintln("  ping <ip>         - Send ICMP echo request to an IP address");
         self.sprintln("  exit, quit        - Return to desktop");
         self.sprintln("\nColors: 0=Black, 1=Blue, 2=Green, 3=Cyan, 4=Red, 5=Magenta, 6=Brown,");
         self.sprintln("        7=LightGray, 8=DarkGray, 9=LightBlue, 10=LightGreen, 11=LightCyan,");
@@ -990,6 +994,115 @@ impl Shell {
         
         self.sprintln("─────────────────────────────────────────────────");
         self.sprintln(&format!("Total entries: {}\n", entries.len()));
+    }
+
+    fn cmd_ifconfig(&mut self, args: &[&str]) {
+        use core::net::Ipv4Addr;
+        use crate::net::stack::{NetworkConfig, set_network_config, get_network_config};
+
+        if args.is_empty() {
+            // Display current network configuration
+            crate::net::stack::display_config();
+            return;
+        }
+
+        // Parse: ifconfig <ip> <netmask> [gateway]
+        if args.len() < 2 {
+            self.sprintln("Usage: ifconfig [<ip> <netmask> [gateway]]");
+            self.sprintln("Examples:");
+            self.sprintln("  ifconfig                                   - Show current config");
+            self.sprintln("  ifconfig 10.0.2.15 255.255.255.0           - Set IP and netmask");
+            self.sprintln("  ifconfig 10.0.2.15 255.255.255.0 10.0.2.2  - Set IP, netmask, and gateway");
+            return;
+        }
+
+        // Parse IP address
+        let ip_addr = match args[0].parse::<Ipv4Addr>() {
+            Ok(ip) => ip,
+            Err(_) => {
+                self.sprintln(&format!("Error: Invalid IP address '{}'", args[0]));
+                return;
+            }
+        };
+
+        // Parse netmask
+        let netmask = match args[1].parse::<Ipv4Addr>() {
+            Ok(mask) => mask,
+            Err(_) => {
+                self.sprintln(&format!("Error: Invalid netmask '{}'", args[1]));
+                return;
+            }
+        };
+
+        // Parse gateway (optional)
+        let gateway = if args.len() >= 3 {
+            match args[2].parse::<Ipv4Addr>() {
+                Ok(gw) => Some(gw),
+                Err(_) => {
+                    self.sprintln(&format!("Error: Invalid gateway '{}'", args[2]));
+                    return;
+                }
+            }
+        } else {
+            None
+        };
+
+        // Set configuration
+        let config = NetworkConfig::new(ip_addr, netmask, gateway);
+        set_network_config(config);
+
+        self.sprintln(&format!("Network configuration updated:"));
+        self.sprintln(&format!("  IP Address: {}", ip_addr));
+        self.sprintln(&format!("  Netmask:    {}", netmask));
+        if let Some(gw) = gateway {
+            self.sprintln(&format!("  Gateway:    {}", gw));
+        }
+    }
+
+    fn cmd_ping(&mut self, args: &[&str]) {
+        use core::net::Ipv4Addr;
+        use crate::net::stack::send_ping;
+
+        if args.is_empty() {
+            self.sprintln("Usage: ping <ip_address>");
+            self.sprintln("Example: ping 10.0.2.2");
+            return;
+        }
+
+        // Parse IP address
+        let dest_ip = match args[0].parse::<Ipv4Addr>() {
+            Ok(ip) => ip,
+            Err(_) => {
+                self.sprintln(&format!("Error: Invalid IP address '{}'", args[0]));
+                return;
+            }
+        };
+
+        // Check if network is configured
+        let config = crate::net::stack::get_network_config();
+        if !config.is_valid() {
+            self.sprintln("Error: Network not configured. Use 'ifconfig' to set IP address first.");
+            return;
+        }
+
+        // Send ping
+        self.sprintln(&format!("PING {} ...", dest_ip));
+        
+        // Use identifier = 0x1234 and sequence = 1 for this ping
+        let identifier = 0x1234;
+        let sequence = 1;
+        let data = alloc::vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]; // 8 bytes of test data
+        
+        match send_ping(dest_ip, identifier, sequence, data) {
+            Ok(_) => {
+                self.sprintln(&format!("Sent ICMP echo request to {}", dest_ip));
+                self.sprintln("Note: Check serial output for reply (async response)");
+            }
+            Err(_) => {
+                self.sprintln(&format!("Error: Failed to send ping to {}", dest_ip));
+                self.sprintln("TX queue might be full, try again later.");
+            }
+        }
     }
 }
 
