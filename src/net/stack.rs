@@ -14,6 +14,7 @@ use crate::net::arp::{arp_cache, create_arp_request, handle_arp_packet};
 use crate::net::ethernet::{EthernetFrame, ETHERTYPE_ARP, ETHERTYPE_IPV4};
 use crate::net::ipv4::{Ipv4Header, RoutingTable, protocol};
 use crate::net::icmp::{IcmpPacket, IcmpType};
+use crate::net::udp;
 
 /// Network configuration
 #[derive(Debug, Clone, Copy)]
@@ -295,6 +296,9 @@ fn handle_rx_ipv4(data: &[u8]) {
         protocol::ICMP => {
             handle_rx_icmp(&header, payload);
         }
+        protocol::UDP => {
+            handle_rx_udp(&header, payload);
+        }
         _ => {
             serial_println!("RX: Unsupported IPv4 protocol: {}", header.protocol);
         }
@@ -331,6 +335,12 @@ fn handle_rx_icmp(ip_header: &Ipv4Header, data: &[u8]) {
             serial_println!("RX: ICMP type {} from {}", packet.icmp_type, ip_header.src_ip);
         }
     }
+}
+
+/// Handle received UDP packet
+fn handle_rx_udp(ip_header: &Ipv4Header, data: &[u8]) {
+    // Delegate to UDP module handler
+    udp::handle_udp_packet(ip_header.src_ip, ip_header.dest_ip, data);
 }
 
 /// TX Processing Task
