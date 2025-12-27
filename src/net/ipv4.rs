@@ -377,7 +377,7 @@ impl Ipv4Packet {
 
     /// Parse an IPv4 packet from raw bytes
     pub fn from_bytes(data: &[u8]) -> Result<Self, Ipv4Error> {
-        let (header, offset) = Ipv4Header::from_bytes(data)?;
+        let (header, _offset) = Ipv4Header::from_bytes(data)?;
         let payload = header.payload(data).to_vec();
         Ok(Self { header, payload })
     }
