@@ -7,6 +7,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use alloc::collections::{BTreeMap, VecDeque};
 use alloc::boxed::Box;
+use alloc::sync::Arc;
 use core::net::Ipv4Addr;
 use spin::Mutex;
 use lazy_static::lazy_static;
@@ -110,7 +111,10 @@ impl UdpPacket {
     /// * `Ok(UdpPacket)` - Successfully parsed packet
     /// * `Err(UdpError)` - Parsing failed
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, UdpError> {
+        use crate::serial_println;
+        
         if bytes.len() < UDP_HEADER_SIZE {
+            serial_println!("UDP: Parse error - buffer too short: {} < {}", bytes.len(), UDP_HEADER_SIZE);
             return Err(UdpError::PacketTooShort);
         }
 
@@ -119,9 +123,20 @@ impl UdpPacket {
         let length = u16::from_be_bytes([bytes[4], bytes[5]]);
         let checksum = u16::from_be_bytes([bytes[6], bytes[7]]);
 
+        serial_println!("UDP: Parsing - buffer_len={}, udp_length={}, src_port={}, dst_port={}",
+                       bytes.len(), length, src_port, dest_port);
+
         // Validate length
-        if length < UDP_HEADER_SIZE as u16 || length as usize > bytes.len() {
+        // Note: bytes.len() can be larger than length due to Ethernet padding
+        if length < UDP_HEADER_SIZE as u16 {
+            serial_println!("UDP: Parse error - length too small: {} < {}", length, UDP_HEADER_SIZE);
             return Err(UdpError::InvalidLength);
+        }
+        
+        // Make sure we have enough bytes for the UDP packet
+        if (length as usize) > bytes.len() {
+            serial_println!("UDP: Parse error - length claims {} bytes but buffer only has {}", length, bytes.len());
+            return Err(UdpError::PacketTooShort);
         }
 
         let data = bytes[UDP_HEADER_SIZE..length as usize].to_vec();
@@ -231,7 +246,7 @@ pub struct UdpSocket {
     /// Local port this socket is bound to
     local_port: u16,
     /// Queue of received packets: (source_ip, source_port, data)
-    rx_queue: Mutex<VecDeque<(Ipv4Addr, u16, Vec<u8>)>>,
+    rx_queue: Arc<Mutex<VecDeque<(Ipv4Addr, u16, Vec<u8>)>>>,
     /// Maximum receive queue size
     max_queue_size: usize,
 }
@@ -262,11 +277,20 @@ impl UdpSocket {
 
         serial_println!("UDP: Bound socket to port {}", actual_port);
 
-        Ok(Self {
+        // Create shared receive queue
+        let rx_queue = Arc::new(Mutex::new(VecDeque::with_capacity(64)));
+
+        let socket = Self {
             local_port: actual_port,
-            rx_queue: Mutex::new(VecDeque::with_capacity(64)),
+            rx_queue: rx_queue.clone(),
             max_queue_size: 64,
-        })
+        };
+
+        // Register rx_queue in global registry for packet delivery
+        RX_QUEUE_REGISTRY.lock().insert(actual_port, rx_queue);
+        serial_println!("UDP: Registered socket on port {}", actual_port);
+
+        Ok(socket)
     }
 
     /// Get the local port this socket is bound to
@@ -337,6 +361,8 @@ impl UdpSocket {
 
 impl Drop for UdpSocket {
     fn drop(&mut self) {
+        // Unregister from RX queue registry
+        RX_QUEUE_REGISTRY.lock().remove(&self.local_port);
         // Unbind port when socket is dropped
         PORT_REGISTRY.lock().unbind(self.local_port);
         serial_println!("UDP: Unbound port {}", self.local_port);
@@ -414,24 +440,11 @@ lazy_static! {
     /// Global port registry for tracking bound UDP ports
     static ref PORT_REGISTRY: Mutex<PortRegistry> = Mutex::new(PortRegistry::new());
     
-    /// Global registry of active UDP sockets by port
-    static ref SOCKET_REGISTRY: Mutex<BTreeMap<u16, Box<UdpSocket>>> = Mutex::new(BTreeMap::new());
+    /// Global registry of RX queues for active UDP sockets
+    static ref RX_QUEUE_REGISTRY: Mutex<BTreeMap<u16, Arc<Mutex<VecDeque<(Ipv4Addr, u16, Vec<u8>)>>>>> = Mutex::new(BTreeMap::new());
 }
 
-/// Register a UDP socket in the global registry
-///
-/// This allows the network stack to deliver incoming packets to the correct socket.
-pub fn register_socket(socket: Box<UdpSocket>) {
-    let port = socket.local_port();
-    SOCKET_REGISTRY.lock().insert(port, socket);
-    serial_println!("UDP: Registered socket on port {}", port);
-}
 
-/// Unregister a UDP socket from the global registry
-pub fn unregister_socket(port: u16) {
-    SOCKET_REGISTRY.lock().remove(&port);
-    serial_println!("UDP: Unregistered socket on port {}", port);
-}
 
 /// Handle incoming UDP packet
 ///
@@ -463,10 +476,18 @@ pub fn handle_udp_packet(src_ip: Ipv4Addr, dest_ip: Ipv4Addr, data: &[u8]) {
     }
 
     // Deliver to socket if bound
-    let registry = SOCKET_REGISTRY.lock();
-    if let Some(socket) = registry.get(&packet.dest_port) {
-        socket.deliver(src_ip, packet.src_port, packet.data);
+    let registry = RX_QUEUE_REGISTRY.lock();
+    if let Some(rx_queue) = registry.get(&packet.dest_port) {
+        let mut queue = rx_queue.lock();
+        if queue.len() >= 64 {  // Max queue size
+            serial_println!("UDP: Socket port {} RX queue full, dropping packet", packet.dest_port);
+        } else {
+            let data_len = packet.data.len();
+            queue.push_back((src_ip, packet.src_port, packet.data.clone()));
+            serial_println!("UDP: Delivered {} bytes to socket port {}", data_len, packet.dest_port);
+        }
     } else {
         serial_println!("UDP: No socket bound to port {}, dropping packet", packet.dest_port);
     }
 }
+
