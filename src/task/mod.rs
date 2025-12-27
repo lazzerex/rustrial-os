@@ -14,7 +14,7 @@ pub mod mouse;
 static GLOBAL_TASKS: Mutex<Vec<Task>> = Mutex::new(Vec::new());
 
 /// Spawn a task to be picked up by the executor
-pub fn spawn_task(future: impl Future<Output = ()> + 'static) {
+pub fn spawn_task(future: impl Future<Output = ()> + Send + 'static) {
     let task = Task::new(future);
     GLOBAL_TASKS.lock().push(task);
 }
@@ -28,11 +28,11 @@ pub fn take_pending_tasks() -> Vec<Task> {
 
 pub struct Task {
     id: TaskId,
-    future: Pin<Box<dyn Future<Output = ()>>>,
+    future: Pin<Box<dyn Future<Output = ()> + Send>>,
 }
 
 impl Task {
-    pub fn new(future: impl Future<Output = ()> + 'static) -> Task {
+    pub fn new(future: impl Future<Output = ()> + Send + 'static) -> Task {
         Task {
             id: TaskId::new(),
             future: Box::pin(future),

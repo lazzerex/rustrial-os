@@ -1,4 +1,4 @@
-use crate::{print, println};
+use crate::{print, println, serial_println};
 use crate::task::keyboard;
 use crate::vga_buffer::{Color, WRITER};
 use crate::fs::FileSystem;
