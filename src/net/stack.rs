@@ -288,8 +288,12 @@ fn handle_rx_ipv4(data: &[u8]) {
         return;
     }
 
-    // Extract payload
-    let payload = &data[payload_offset..];
+    // Extract payload - use total_length to avoid including Ethernet padding
+    let payload_end = core::cmp::min(header.total_length as usize, data.len());
+    let payload = &data[payload_offset..payload_end];
+
+    serial_println!("RX: IPv4 from {} - total_len={}, header_len={}, payload_len={}, data_len={}",
+                   header.src_ip, header.total_length, payload_offset, payload.len(), data.len());
 
     // Dispatch based on protocol
     match header.protocol {
