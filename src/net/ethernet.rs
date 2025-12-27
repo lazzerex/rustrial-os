@@ -93,15 +93,12 @@ impl EthernetFrame {
         // Extract EtherType (bytes 12-13, big-endian)
         let ethertype = u16::from_be_bytes([data[12], data[13]]);
 
-        // Extract payload (everything after header, excluding CRC if present)
-        let payload_end = if data.len() >= HEADER_SIZE + MIN_PAYLOAD_SIZE + CRC_SIZE {
-            // Frame might include CRC at the end, strip it
-            data.len() - CRC_SIZE
-        } else {
-            data.len()
-        };
-        
-        let payload = data[HEADER_SIZE..payload_end].to_vec();
+        // Extract payload (everything after header)
+        // NOTE: We do NOT strip CRC here because:
+        // 1. We can't reliably detect if CRC is present (some NICs strip it, some don't)
+        // 2. Upper layers (IPv4) have length fields to determine actual payload size
+        // 3. Any trailing bytes will be ignored by upper protocol parsers
+        let payload = data[HEADER_SIZE..].to_vec();
 
         Ok(Self {
             dest_mac,
