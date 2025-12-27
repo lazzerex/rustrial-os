@@ -167,14 +167,17 @@ The OS boots into a feature-rich menu:
 - ESC: Return to previous menu
 
 ### Network Stack 
-- **TCP/IP Implementation**: Full protocol stack with Ethernet, ARP, IPv4, ICMP
+- **TCP/IP Implementation**: Full protocol stack with Ethernet, ARP, IPv4, ICMP, UDP
 - **RTL8139 Driver**: PCI network card driver with DMA support (256×2KB ring buffers)
 - **Async RX/TX Processing**: Waker-based task scheduling for packet handling
 - **ARP Protocol**: Address resolution with caching for IPv4→MAC mapping
-- **ICMP Echo (Ping)**: Working ping implementation with statistics tracking
+- **ICMP Echo (Ping)**: Working ping implementation with round-trip time tracking
+- **UDP Protocol**: Socket-based API with port registry and ephemeral port allocation
+- **DNS Client**: Full DNS resolver supporting A record queries (RFC 1035 compliant)
+- **Domain Name Resolution**: Ping any hostname (e.g., `ping google.com`) with automatic DNS lookup
 - **QEMU Networking**: User-mode networking support with hardcoded gateway MAC workaround
-- **Shell Commands**: `ifconfig`, `ping`, `arp`, `netinfo` for network management
-- **Status**: Fully operational - successfully pings QEMU gateway (10.0.2.2) with bidirectional packet flow
+- **Shell Commands**: `ifconfig`, `ping <ip|hostname>`, `arp`, `netinfo` for network management
+- **Status**: Fully operational - Successfully resolves DNS and communicates with internet hosts
 - **Documentation**: See `docs/net.md` for detailed architecture and setup
 
 ### I/O & Serial
