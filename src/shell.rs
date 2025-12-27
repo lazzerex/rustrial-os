@@ -294,7 +294,7 @@ impl Shell {
         self.sprintln("  pciinfo [detail]  - Display PCI devices (use 'detail' for BAR info)");
         self.sprintln("  arp [clear]       - Display ARP cache (use 'clear' to flush cache)");
         self.sprintln("  ifconfig [args]   - Configure or display network settings");
-        self.sprintln("  ping <ip>         - Send ICMP echo request to an IP address");
+        self.sprintln("  ping <ip|host>    - Send ICMP echo request (e.g., ping google.com)");
         self.sprintln("  exit, quit        - Return to desktop");
         self.sprintln("\nColors: 0=Black, 1=Blue, 2=Green, 3=Cyan, 4=Red, 5=Magenta, 6=Brown,");
         self.sprintln("        7=LightGray, 8=DarkGray, 9=LightBlue, 10=LightGreen, 11=LightCyan,");
@@ -1067,19 +1067,11 @@ impl Shell {
         use crate::net::stack::send_ping;
 
         if args.is_empty() {
-            self.sprintln("Usage: ping <ip_address>");
+            self.sprintln("Usage: ping <ip_address|hostname>");
             self.sprintln("Example: ping 10.0.2.2");
+            self.sprintln("Example: ping google.com");
             return;
         }
-
-        // Parse IP address
-        let dest_ip = match args[0].parse::<Ipv4Addr>() {
-            Ok(ip) => ip,
-            Err(_) => {
-                self.sprintln(&format!("Error: Invalid IP address '{}'", args[0]));
-                return;
-            }
-        };
 
         // Check if network is configured
         let config = crate::net::stack::get_network_config();
@@ -1088,7 +1080,56 @@ impl Shell {
             return;
         }
 
-        // Send ping
+        // Try to parse as IP address first
+        let dest_ip = match args[0].parse::<Ipv4Addr>() {
+            Ok(ip) => {
+                // Direct IP address provided
+                ip
+            }
+            Err(_) => {
+                // Not an IP, try DNS resolution
+                self.sprintln(&format!("Resolving '{}' via DNS...", args[0]));
+                
+                // Spawn async task to resolve hostname
+                use crate::net::dns::resolve;
+                use alloc::string::ToString;
+                let hostname = args[0].to_string();
+                
+                // Create a future that resolves the hostname and sends ping
+                let future = async move {
+                    match resolve(&hostname).await {
+                        Ok(ip) => {
+                            serial_println!("DNS: {} resolved to {}", hostname, ip);
+                            
+                            // Send ping
+                            let identifier = 0x1234;
+                            let sequence = 1;
+                            let data = alloc::vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
+                            
+                            match send_ping(ip, identifier, sequence, data) {
+                                Ok(_) => {
+                                    serial_println!("PING {} ({}) - sent ICMP echo request", hostname, ip);
+                                }
+                                Err(_) => {
+                                    serial_println!("Error: Failed to send ping to {} ({})", hostname, ip);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            serial_println!("DNS resolution failed: {}", e);
+                        }
+                    }
+                };
+                
+                // Spawn the future
+                crate::task::spawn(future);
+                
+                self.sprintln("DNS query sent. Check serial output for results.");
+                return;
+            }
+        };
+
+        // Direct IP ping (synchronous path)
         self.sprintln(&format!("PING {} ...", dest_ip));
         
         // Use identifier = 0x1234 and sequence = 1 for this ping
