@@ -12,15 +12,18 @@ RustrialOS features a full TCP/IP network stack implementation with support for 
 
 ```
 ┌─────────────────────────────────────────┐
-│     Application Layer (Shell)           │
+│     Application Layer                    │
+│   Shell Commands & DNS Client            │
 │   (ifconfig, ping, arp, netinfo)        │
 ├─────────────────────────────────────────┤
 │     Transport Layer                      │
-│         [Future: TCP/UDP]                │
+│   UDP (sockets, port registry)           │
+│         [Future: TCP]                    │
 ├─────────────────────────────────────────┤
 │     Network Layer                        │
 │   IPv4 (routing, checksums)              │
 │   ICMP (echo request/reply)              │
+│   DNS (A record queries)                 │
 ├─────────────────────────────────────────┤
 │     Data Link Layer                      │
 │   Ethernet (frame parsing/building)      │
@@ -271,6 +274,129 @@ rtl8139.transmit(&eth_frame)?;
 
 // 7. Wait for ICMP echo reply in RX task
 // RX task automatically prints: "RX: ICMP Echo Reply from 10.0.2.2 (seq=X)"
+```
+
+### UDP (User Datagram Protocol)
+
+**Purpose:** Connectionless, lightweight transport protocol for datagrams
+
+**Packet Format:**
+```
+┌──────────────┬──────────────┬─────────┬──────────┬──────────┐
+│ Source Port  │  Dest Port   │ Length  │ Checksum │  Data    │
+│   (2 bytes)  │  (2 bytes)   │  (2)    │   (2)    │  (var)   │
+└──────────────┴──────────────┴─────────┴──────────┴──────────┘
+```
+
+**Key Features:**
+- **Protocol Number**: 17 (in IPv4 header)
+- **Checksum**: Optional for IPv4, includes pseudo-header (src IP, dst IP, protocol)
+- **Port Range**: 0-65535 (ephemeral ports: 49152-65535)
+
+**Implementation:** `src/net/udp.rs`
+- `UdpSocket`: Socket-based API for sending/receiving
+- `UdpSocket::bind(port)`: Bind to specific port (0 = auto-allocate ephemeral)
+- `send_to(data, ip, port)`: Send datagram to remote host
+- `recv_from()`: Non-blocking receive with source IP/port
+- Port registry with automatic allocation and cleanup
+- RX queue registry using Arc<Mutex<>> for shared packet delivery
+
+**Socket Lifecycle:**
+```rust
+// Create socket (binds to ephemeral port)
+let socket = UdpSocket::bind(0)?;
+
+// Send data
+socket.send_to(b"Hello", Ipv4Addr::new(8, 8, 8, 8), 53)?;
+
+// Receive data (non-blocking)
+match socket.recv_from() {
+    Ok((data, src_ip, src_port)) => println!("Received from {}:{}", src_ip, src_port),
+    Err(RecvError::WouldBlock) => { /* No data yet */ }
+}
+
+// Socket automatically unregisters on drop
+```
+
+### DNS (Domain Name System)
+
+**Purpose:** Resolve hostnames to IP addresses
+
+**Query Packet Format (RFC 1035):**
+```
+┌──────────────────────────────────────┐
+│         Header (12 bytes)            │
+│  [ID][Flags][QDCOUNT][ANCOUNT]...   │
+├──────────────────────────────────────┤
+│         Question Section             │
+│  [QNAME][QTYPE][QCLASS]             │
+└──────────────────────────────────────┘
+```
+
+**Response Packet Format:**
+```
+┌──────────────────────────────────────┐
+│         Header (12 bytes)            │
+├──────────────────────────────────────┤
+│         Question Section             │
+│  (echoed from query)                 │
+├──────────────────────────────────────┤
+│         Answer Section               │
+│  [NAME][TYPE][CLASS][TTL][RDLENGTH] │
+│  [RDATA - IP address for A records] │
+└──────────────────────────────────────┘
+```
+
+**Key Features:**
+- **DNS Server**: 8.8.8.8 (Google Public DNS)
+- **Port**: 53 (UDP)
+- **Record Types**: A record (type 1) for IPv4 addresses
+- **Compression**: Supports DNS name compression (pointer following)
+- **Timeout**: 10 seconds (~1000 iterations with yield_now())
+
+**Implementation:** `src/net/dns.rs`
+- `resolve(hostname)`: Async function returning resolved IP
+- `build_query()`: Constructs DNS query packet with encoded domain name
+- `parse_response()`: Parses DNS response with answer section extraction
+- `encode_domain_name()`: Converts "google.com" to DNS label format
+- `parse_domain_name()`: Decodes DNS names with compression support
+
+**DNS Resolution Workflow:**
+```rust
+// User types: ping google.com
+
+// 1. Create UDP socket
+let socket = UdpSocket::bind(0)?;
+
+// 2. Build DNS query
+let query = build_query("google.com", transaction_id)?;
+// Query format: [6]google[3]com[0] (length-prefixed labels)
+
+// 3. Send to DNS server
+socket.send_to(&query, Ipv4Addr::new(8, 8, 8, 8), 53)?;
+
+// 4. Wait for response (async with yield_now())
+loop {
+    match socket.recv_from() {
+        Ok((data, _, _)) => {
+            // 5. Parse DNS response
+            let ips = parse_response(&data)?;
+            return Ok(ips[0]); // Return first IP address
+        }
+        Err(RecvError::WouldBlock) => yield_now().await,
+    }
+}
+
+// 6. Ping the resolved IP
+ping(resolved_ip);
+```
+
+**Example:**
+```bash
+rustrial> ping google.com
+Resolving 'google.com' via DNS...
+Resolved to 172.217.194.101
+PING 172.217.194.101 ...
 ```
 
 ## Async Task Architecture

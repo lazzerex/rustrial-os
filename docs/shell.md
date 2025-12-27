@@ -37,24 +37,41 @@ Network Interface Configuration:
   Driver: RTL8139
 ```
 
-#### `ping <ip_address>`
-Send ICMP echo requests to a specified IP address to test network connectivity.
+#### `ping <ip_address|hostname>`
+Send ICMP echo requests to a specified IP address or hostname to test network connectivity. Supports automatic DNS resolution for domain names.
 
 **Usage:**
 ```
 ping 10.0.2.2
+ping google.com
+ping example.org
 ```
 
 **Arguments:**
 - `ip_address`: Target IP address in dotted-decimal notation (e.g., 10.0.2.2)
+- `hostname`: Domain name to resolve via DNS (e.g., google.com, github.com)
 
-**Example Output:**
+**Example Output (IP address):**
 ```
-Pinging 10.0.2.2...
-RX: ICMP Echo Reply from 10.0.2.2 (seq=1)
-RX: ICMP Echo Reply from 10.0.2.2 (seq=2)
-RX: ICMP Echo Reply from 10.0.2.2 (seq=3)
+PING 10.0.2.2 ...
+Sent ICMP echo request to 10.0.2.2
+Note: Check serial output for reply (async response)
 ```
+
+**Example Output (hostname):**
+```
+Resolving 'google.com' via DNS...
+Resolved to 172.217.194.101
+PING 172.217.194.101 ...
+Sent ICMP echo request to 172.217.194.101
+Note: Check serial output for reply (async response)
+```
+
+**DNS Resolution:**
+- Uses Google's public DNS server (8.8.8.8)
+- Supports standard DNS A record queries (RFC 1035)
+- Timeout: 10 seconds
+- Handles DNS compression in responses
 
 **Note:** In QEMU user-mode networking:
 - Gateway: 10.0.2.2 (DNS and internet gateway)
