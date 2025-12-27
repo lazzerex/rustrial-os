@@ -76,6 +76,12 @@ impl Executor {
     }
 
     fn run_ready_tasks(&mut self) {
+        // Pick up any globally spawned tasks
+        let pending_tasks = crate::task::take_pending_tasks();
+        for task in pending_tasks {
+            self.spawn(task);
+        }
+
         let Self {
             tasks,
             task_queue,
