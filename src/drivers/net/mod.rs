@@ -81,17 +81,30 @@ use spin::Mutex;
 use lazy_static::lazy_static;
 
 lazy_static! {
-    /// Global network device registry
+    /// Global loopback device (127.0.0.1)
     /// 
-    /// Stores the currently active network interface card (NIC).
-    /// The protocol stack (Ethernet, IP, etc.) will use this to send/receive packets.
+    /// The loopback device is always available and handles 127.0.0.1 traffic.
+    pub static ref LOOPBACK_DEVICE: Mutex<Option<Box<dyn NetworkDevice>>> = Mutex::new(None);
+    
+    /// Global physical network device (primary NIC)
+    /// 
+    /// Stores the currently active physical network interface card (NIC).
+    /// The protocol stack will use this for non-loopback traffic.
     /// 
     /// Thread Safety
     /// Protected by a Mutex for safe concurrent access.
     pub static ref NETWORK_DEVICE: Mutex<Option<Box<dyn NetworkDevice>>> = Mutex::new(None);
 }
 
-/// Register a network device as the active NIC
+/// Register the loopback device
+/// 
+/// # Arguments
+/// * `device` - The loopback device to register
+pub fn register_loopback_device(device: Box<dyn NetworkDevice>) {
+    *LOOPBACK_DEVICE.lock() = Some(device);
+}
+
+/// Register a network device as the active physical NIC
 /// 
 /// Arguments
 /// * `device` - The network device to register (must implement NetworkDevice trait)
