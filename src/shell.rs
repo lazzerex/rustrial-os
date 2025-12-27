@@ -253,7 +253,7 @@ impl Shell {
             "pciinfo" => self.cmd_pciinfo(args),
             "arp" => self.cmd_arp(args),
             "ifconfig" => self.cmd_ifconfig(args),
-            "ping" => self.cmd_ping(args),
+            "ping" => self.cmd_ping(args).await,
             "exit" | "quit" => return true,
             _ => {
                 let msg = format!("Unknown command: '{}'. Type 'help' for available commands.", command);
@@ -1062,9 +1062,10 @@ impl Shell {
         }
     }
 
-    fn cmd_ping(&mut self, args: &[&str]) {
+    async fn cmd_ping(&mut self, args: &[&str]) {
         use core::net::Ipv4Addr;
         use crate::net::stack::send_ping;
+        use alloc::vec::Vec;
 
         if args.is_empty() {
             self.sprintln("Usage: ping <ip_address|hostname>");
@@ -1090,46 +1091,22 @@ impl Shell {
                 // Not an IP, try DNS resolution
                 self.sprintln(&format!("Resolving '{}' via DNS...", args[0]));
                 
-                // Spawn async task to resolve hostname
                 use crate::net::dns::resolve;
-                use alloc::string::ToString;
-                let hostname = args[0].to_string();
                 
-                // Create a future that resolves the hostname and sends ping
-                let future = async move {
-                    match resolve(&hostname).await {
-                        Ok(ip) => {
-                            serial_println!("DNS: {} resolved to {}", hostname, ip);
-                            
-                            // Send ping
-                            let identifier = 0x1234;
-                            let sequence = 1;
-                            let data = alloc::vec![0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
-                            
-                            match send_ping(ip, identifier, sequence, data) {
-                                Ok(_) => {
-                                    serial_println!("PING {} ({}) - sent ICMP echo request", hostname, ip);
-                                }
-                                Err(_) => {
-                                    serial_println!("Error: Failed to send ping to {} ({})", hostname, ip);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            serial_println!("DNS resolution failed: {}", e);
-                        }
+                match resolve(args[0]).await {
+                    Ok(ip) => {
+                        self.sprintln(&format!("Resolved to {}", ip));
+                        ip
                     }
-                };
-                
-                // Spawn the future
-                crate::task::spawn_task(future);
-                
-                self.sprintln("DNS query sent. Check serial output for results.");
-                return;
+                    Err(e) => {
+                        self.sprintln(&format!("DNS resolution failed: {}", e));
+                        return;
+                    }
+                }
             }
         };
 
-        // Direct IP ping (synchronous path)
+        // Send ping
         self.sprintln(&format!("PING {} ...", dest_ip));
         
         // Use identifier = 0x1234 and sequence = 1 for this ping
