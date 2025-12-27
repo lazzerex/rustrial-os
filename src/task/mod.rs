@@ -2,11 +2,29 @@ use core::{future::Future, pin::Pin};
 use alloc::boxed::Box;
 use core::task::{Context, Poll};
 use core::sync::atomic::{AtomicU64, Ordering};
+use spin::Mutex;
+use alloc::vec::Vec;
 
 pub mod simple_executor;
 pub mod keyboard;
 pub mod executor;
 pub mod mouse;
+
+/// Global task storage for spawning background tasks
+static GLOBAL_TASKS: Mutex<Vec<Task>> = Mutex::new(Vec::new());
+
+/// Spawn a task to be picked up by the executor
+pub fn spawn_task(future: impl Future<Output = ()> + 'static) {
+    let task = Task::new(future);
+    GLOBAL_TASKS.lock().push(task);
+}
+
+/// Get all pending tasks (called by executor)
+pub fn take_pending_tasks() -> Vec<Task> {
+    let mut tasks = GLOBAL_TASKS.lock();
+    let pending = tasks.drain(..).collect();
+    pending
+}
 
 pub struct Task {
     id: TaskId,

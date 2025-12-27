@@ -1122,7 +1122,7 @@ impl Shell {
                 };
                 
                 // Spawn the future
-                crate::task::spawn(future);
+                crate::task::spawn_task(future);
                 
                 self.sprintln("DNS query sent. Check serial output for results.");
                 return;
