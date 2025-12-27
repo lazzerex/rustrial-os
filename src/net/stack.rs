@@ -140,35 +140,58 @@ pub async fn rx_processing_task() {
     let mut packet_count = 0;
     
     loop {
-        // Check if network device is available
-        if !has_network_device() {
-            // No device, sleep and retry
-            crate::task::yield_now().await;
-            continue;
-        }
-
-        // Try to receive a packet
-        let packet = {
-            let mut device_opt = get_network_device().lock();
-            if let Some(ref mut device) = *device_opt {
-                device.receive()
+        // Try to receive from loopback device first
+        let loopback_packet = {
+            use crate::drivers::net::LOOPBACK_DEVICE;
+            let mut loopback_guard = LOOPBACK_DEVICE.lock();
+            if let Some(ref mut loopback) = *loopback_guard {
+                loopback.receive()
             } else {
                 None
             }
         };
 
-        if let Some(packet_data) = packet {
+        if let Some(packet_data) = loopback_packet {
             packet_count += 1;
-            serial_println!("RX: Received packet #{}, {} bytes", packet_count, packet_data.len());
+            serial_println!("RX: Received loopback packet #{}, {} bytes", packet_count, packet_data.len());
             
             // Parse Ethernet frame
             match EthernetFrame::from_bytes(&packet_data) {
                 Ok(frame) => {
-                    serial_println!("RX: EtherType: 0x{:04X}", frame.ethertype);
+                    serial_println!("RX: Loopback EtherType: 0x{:04X}", frame.ethertype);
                     handle_rx_frame(frame);
                 }
                 Err(e) => {
-                    serial_println!("RX: Failed to parse Ethernet frame: {:?}", e);
+                    serial_println!("RX: Failed to parse loopback Ethernet frame: {:?}", e);
+                }
+            }
+        }
+        
+        // Then check physical network device
+        if has_network_device() {
+            // Try to receive a packet
+            let packet = {
+                let mut device_opt = get_network_device().lock();
+                if let Some(ref mut device) = *device_opt {
+                    device.receive()
+                } else {
+                    None
+                }
+            };
+
+            if let Some(packet_data) = packet {
+                packet_count += 1;
+                serial_println!("RX: Received packet #{}, {} bytes", packet_count, packet_data.len());
+                
+                // Parse Ethernet frame
+                match EthernetFrame::from_bytes(&packet_data) {
+                    Ok(frame) => {
+                        serial_println!("RX: EtherType: 0x{:04X}", frame.ethertype);
+                        handle_rx_frame(frame);
+                    }
+                    Err(e) => {
+                        serial_println!("RX: Failed to parse Ethernet frame: {:?}", e);
+                    }
                 }
             }
         }
@@ -361,6 +384,15 @@ enum TxError {
 
 /// Process a single TX packet
 async fn process_tx_packet(packet: TxPacket, config: NetworkConfig) -> Result<(), TxError> {
+    // Check if destination is localhost (127.0.0.0/8)
+    let is_loopback = packet.dest_ip.octets()[0] == 127;
+    
+    if is_loopback {
+        // Route to loopback device
+        return process_loopback_packet(packet, config).await;
+    }
+    
+    // Regular packet processing for physical NIC
     // Get routing table
     let routing_table = RoutingTable::new(config.ip_addr, config.netmask, config.gateway);
 
@@ -403,6 +435,48 @@ async fn process_tx_packet(packet: TxPacket, config: NetworkConfig) -> Result<()
 
     // Transmit
     transmit_packet(&frame_bytes).map_err(|_| TxError::TransmitFailed)?;
+
+    Ok(())
+}
+
+/// Process a loopback packet
+async fn process_loopback_packet(packet: TxPacket, config: NetworkConfig) -> Result<(), TxError> {
+    serial_println!("TX: Routing packet to loopback ({})", packet.dest_ip);
+    
+    // Get loopback MAC (all zeros)
+    let loopback_mac = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+    
+    // Build IPv4 packet
+    let ip_header = Ipv4Header::new(
+        config.ip_addr,
+        packet.dest_ip,
+        packet.protocol,
+        packet.payload.len() as u16,
+    );
+
+    let mut ip_packet = ip_header.to_bytes();
+    ip_packet.extend_from_slice(&packet.payload);
+
+    // Build Ethernet frame for loopback
+    let eth_frame = EthernetFrame::new(
+        loopback_mac,
+        loopback_mac,
+        ETHERTYPE_IPV4,
+        ip_packet,
+    ).map_err(|_| TxError::TransmitFailed)?;
+
+    let frame_bytes = eth_frame.to_bytes();
+
+    // Transmit to loopback device
+    use crate::drivers::net::LOOPBACK_DEVICE;
+    let mut loopback_guard = LOOPBACK_DEVICE.lock();
+    if let Some(ref mut loopback) = *loopback_guard {
+        loopback.transmit(&frame_bytes).map_err(|_| TxError::TransmitFailed)?;
+        serial_println!("TX: Packet sent to loopback device");
+    } else {
+        serial_println!("TX: Loopback device not available");
+        return Err(TxError::NoDevice);
+    }
 
     Ok(())
 }
