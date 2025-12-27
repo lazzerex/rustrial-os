@@ -315,7 +315,9 @@ impl UdpSocket {
     /// * `Err(RecvError::WouldBlock)` - No data available
     pub fn recv_from(&self) -> Result<(Vec<u8>, Ipv4Addr, u16), RecvError> {
         let mut queue = self.rx_queue.lock();
-        queue.pop_front().ok_or(RecvError::WouldBlock)
+        queue.pop_front()
+            .map(|(src_ip, src_port, data)| (data, src_ip, src_port))
+            .ok_or(RecvError::WouldBlock)
     }
 
     /// Internal method to deliver received data to this socket
@@ -327,8 +329,9 @@ impl UdpSocket {
             return;
         }
 
+        let data_len = data.len();
         queue.push_back((src_ip, src_port, data));
-        serial_println!("UDP: Delivered {} bytes to socket port {}", data.len(), self.local_port);
+        serial_println!("UDP: Delivered {} bytes to socket port {}", data_len, self.local_port);
     }
 }
 
