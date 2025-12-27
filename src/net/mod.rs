@@ -7,9 +7,9 @@ pub mod arp;
 pub mod ipv4;
 pub mod icmp;
 pub mod stack;
+pub mod loopback;  // Phase 5.2 - Loopback interface
 
 // Future modules to be implemented in later phases:
 // pub mod udp;
 // pub mod tcp;
 // pub mod dns;
-// pub mod loopback;

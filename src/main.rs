@@ -172,6 +172,12 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     rustrial_os::memory::dma::init_dma(&mut mapper, &mut frame_allocator, phys_mem_offset)
         .expect("DMA initialization failed");
 
+    // Initialize loopback device (127.0.0.1)
+    println!("[Network] Initializing loopback interface...");
+    let loopback = rustrial_os::net::loopback::LoopbackDevice::default();
+    rustrial_os::drivers::net::register_loopback_device(alloc::boxed::Box::new(loopback));
+    println!("[Network] Loopback interface (lo) initialized");
+
     //initialize network driver
     println!("[Network] Initializing network driver...");
     match rustrial_os::drivers::net::rtl8139::init_network() {
