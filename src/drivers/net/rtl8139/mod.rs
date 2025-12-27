@@ -9,7 +9,7 @@ use x86_64::{PhysAddr, VirtAddr};
 
 use crate::serial_println;
 use crate::memory::dma::{allocate_dma_buffer, DmaBuffer};
-use crate::native_ffi::{enumerate_pci_devices, PciDevice, pci_enable_dma, pci_enable_mmio, pci_get_bar, pci_get_interrupt_line};
+use crate::native_ffi::{enumerate_pci_devices, PciDevice, pci_enable_dma, pci_get_bar, pci_get_interrupt_line};
 use super::{NetworkDevice, TransmitError, LinkStatus};
 
 mod consts;
