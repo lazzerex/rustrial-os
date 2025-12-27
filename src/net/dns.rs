@@ -12,11 +12,10 @@
 //! println!("google.com resolved to {}", ip);
 //! ```
 
-use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt;
 use crate::net::ipv4::Ipv4Addr;
-use crate::net::udp::{UdpSocket, BindError, SendError, RecvError};
+use crate::net::udp::{UdpSocket, RecvError};
 use crate::task::yield_now;
 
 /// DNS error types
@@ -427,9 +426,6 @@ pub async fn resolve(hostname: &str) -> Result<Ipv4Addr, DnsError> {
             Err(RecvError::WouldBlock) => {
                 // No data yet, yield and try again
                 yield_now().await;
-            }
-            Err(_) => {
-                return Err(DnsError::ParseError);
             }
         }
     }
