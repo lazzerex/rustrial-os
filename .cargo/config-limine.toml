@@ -1,0 +1,9 @@
+[build]
+target = "x86_64-rustrial_os.json"
+
+[target.x86_64-rustrial_os]
+rustflags = [
+    "-C", "link-arg=-Tlinker-limine.ld",
+    "-C", "link-arg=-znorelro",
+    "-C", "link-arg=-zmax-page-size=4096"
+]
