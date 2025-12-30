@@ -4,12 +4,7 @@ use spin::Mutex;
 use volatile::Volatile;
 
 lazy_static! {
-    
-    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
-        column_position: 0,
-        color_code: ColorCode::new(Color::Yellow, Color::Black),
-        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
-    });
+    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer::new());
 }
 
 
@@ -42,7 +37,7 @@ pub struct ColorCode(u8);
 
 impl ColorCode {
     
-    pub fn new(foreground: Color, background: Color) -> ColorCode {
+    pub const fn new(foreground: Color, background: Color) -> ColorCode {
         ColorCode((background as u8) << 4 | (foreground as u8))
     }
 }
@@ -71,6 +66,28 @@ pub struct Writer {
 }
 
 impl Writer {
+    /// Create a new Writer with default VGA buffer address
+    /// For Limine, call init_with_hhdm before using any print functions
+    #[cfg(not(feature = "limine"))]
+    const fn new() -> Self {
+        Self {
+            column_position: 0,
+            color_code: ColorCode::new(Color::Yellow, Color::Black),
+            buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
+        }
+    }
+    
+    /// Create a new Writer with safe dummy address for Limine
+    /// Must call init_with_hhdm before using
+    #[cfg(feature = "limine")]
+    const fn new() -> Self {
+        Self {
+            column_position: 0,
+            color_code: ColorCode::new(Color::Yellow, Color::Black),
+            // Use a high address that will fault if accessed before init
+            buffer: unsafe { &mut *(0xFFFF_FFFF_FFFF_F000 as *mut Buffer) },
+        }
+    }
 
     pub fn write_byte(&mut self, byte: u8) {
         match byte {
@@ -214,6 +231,22 @@ pub fn write_char_at(x: usize, y: usize, ch: u8, fg: Color, bg: Color) {
             writer.buffer.chars[y][x].write(screen_char);
         });
     }
+}
+
+/// Reinitialize VGA buffer with HHDM offset for higher-half kernels
+/// This MUST be called BEFORE any print operations when using Limine
+#[cfg(feature = "limine")]
+pub fn init_with_hhdm(hhdm_offset: u64) {
+    use x86_64::instructions::interrupts;
+    
+    // Interrupts aren't enabled yet at this point, but be safe
+    interrupts::without_interrupts(|| {
+        let mut writer = WRITER.lock();
+        writer.buffer = unsafe { 
+            &mut *((hhdm_offset + 0xb8000) as *mut Buffer) 
+        };
+        // DON'T clear the screen - keep any early debug output visible
+    });
 }
 
 

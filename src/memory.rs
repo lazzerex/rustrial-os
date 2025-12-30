@@ -9,7 +9,10 @@ use x86_64::{
     structures::paging::{Page, PhysFrame, Mapper, Size4KiB, FrameAllocator}
 };
 use x86_64::structures::paging::OffsetPageTable;
+
+#[cfg(feature = "bootloader")]
 use bootloader::bootinfo::MemoryMap;
+#[cfg(feature = "bootloader")]
 use bootloader::bootinfo::MemoryRegionType;
 
 // Phase 1.1: DMA memory management
@@ -101,12 +104,28 @@ unsafe impl FrameAllocator<Size4KiB> for EmptyFrameAllocator {
     }
 }
 
+/// Memory region kind (unified for both bootloaders)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemoryRegionKind {
+    Usable,
+    Reserved,
+    InUse,
+}
+
+#[cfg(feature = "bootloader")]
 pub struct BootInfoFrameAllocator {
     memory_map: &'static MemoryMap,
     next: usize,
 }
 
+#[cfg(feature = "limine")]
+pub struct BootInfoFrameAllocator {
+    memory_regions: alloc::vec::Vec<(u64, u64)>, // (start, end) pairs of usable memory
+    next: usize,
+}
+
 impl BootInfoFrameAllocator {
+    #[cfg(feature = "bootloader")]
     pub unsafe fn init(memory_map: &'static MemoryMap) -> Self {
         BootInfoFrameAllocator {
             memory_map,
@@ -114,12 +133,48 @@ impl BootInfoFrameAllocator {
         }
     }
 
+    #[cfg(feature = "limine")]
+    pub unsafe fn init_from_limine(boot_info: &crate::limine::LimineBootInfo) -> Option<Self> {
+        use alloc::vec::Vec;
+        
+        let mut memory_regions = Vec::new();
+        
+        if let Some(entries) = boot_info.memory_regions() {
+            for entry in entries {
+                if entry.entry_type == crate::limine::MemoryEntryType::USABLE {
+                    memory_regions.push((entry.base, entry.base + entry.length));
+                }
+            }
+        }
+        
+        // For now, if no memory regions, provide a default usable range
+        // This will be properly populated when using actual Limine bootloader
+        if memory_regions.is_empty() {
+            // Default: 16MB to 128MB (placeholder for testing)
+            memory_regions.push((0x1000000, 0x8000000));
+        }
+        
+        Some(BootInfoFrameAllocator {
+            memory_regions,
+            next: 0,
+        })
+    }
+
+    #[cfg(feature = "bootloader")]
     fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> {
         let regions = self.memory_map.iter();
         let usable_regions = regions.filter(|r| r.region_type == MemoryRegionType::Usable);
         let addr_ranges = usable_regions.map(|r| r.range.start_addr()..r.range.end_addr());
         let frame_addresses = addr_ranges.flat_map(|r| r.step_by(4096));
         frame_addresses.map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
+    }
+
+    #[cfg(feature = "limine")]
+    fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> + '_ {
+        self.memory_regions.iter().flat_map(|(start, end)| {
+            (*start..*end).step_by(4096)
+                .map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
+        })
     }
 }
 
