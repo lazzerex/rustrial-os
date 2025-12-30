@@ -6,14 +6,26 @@
 
 extern crate alloc;
 
-#[cfg(feature = "custom_bootloader")]
 use core::panic::PanicInfo;
 
-#[cfg(not(feature = "custom_bootloader"))]
+// Bootloader crate support (default - for cargo run)
+#[cfg(feature = "bootloader")]
 use bootloader::{BootInfo, entry_point};
 
-#[cfg(not(feature = "custom_bootloader"))]
-use core::panic::PanicInfo;
+// Limine bootloader support (for ISO builds)
+#[cfg(feature = "limine")]
+use rustrial_os::limine::LimineBootInfo;
+
+// Dedicated bootstrap stack for Limine entry (Limine does not set up a stack)
+#[cfg(feature = "limine")]
+const BOOT_STACK_SIZE: usize = 128 * 1024;
+
+#[cfg(feature = "limine")]
+#[repr(align(16))]
+struct BootStack([u8; BOOT_STACK_SIZE]);
+
+#[cfg(feature = "limine")]
+static mut BOOT_STACK: BootStack = BootStack([0; BOOT_STACK_SIZE]);
 
 use rustrial_os::println;
 use rustrial_os::task::Task;
@@ -85,17 +97,39 @@ async fn desktop_loop() {
         }
     }
 }
-#[cfg(not(feature = "custom_bootloader"))]
+
+// ============================================================================
+// BOOTLOADER ENTRY POINTS
+// ============================================================================
+
+// Entry point for bootloader crate (default - used by cargo run)
+#[cfg(feature = "bootloader")]
 entry_point!(kernel_main);
 
-// Custom bootloader entry point, no BootInfo available
-#[cfg(feature = "custom_bootloader")]
+// Entry point for Limine bootloader (ISO builds)
+#[cfg(feature = "limine")]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
-    kernel_main_custom()
+    // Install our own stack before doing anything else; Limine leaves RSP undefined
+    unsafe {
+        core::arch::asm!(
+            "lea rsp, [{stack} + {size}]",
+            "xor rbp, rbp",
+            stack = sym BOOT_STACK,
+            size = const BOOT_STACK_SIZE,
+            options(nostack),
+        );
+    }
+
+    kernel_main_limine()
 }
 
-#[cfg(not(feature = "custom_bootloader"))]
+// ============================================================================
+// BOOTLOADER-SPECIFIC INITIALIZATION
+// ============================================================================
+
+// Bootloader crate initialization (default - used by cargo run)
+#[cfg(feature = "bootloader")]
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
     //i should really clean these
     //use rustrial_os::memory::active_level_4_table;
@@ -233,6 +267,143 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     println!("It did not crash!");
     //rustrial_os::hlt_loop();
+}
+
+// Limine bootloader initialization (ISO builds)
+#[cfg(feature = "limine")]
+fn kernel_main_limine() -> ! {
+    use rustrial_os::allocator;
+    use x86_64::VirtAddr;
+    use rustrial_os::memory::{self, BootInfoFrameAllocator};
+
+    // EARLY: Initialize serial port FIRST (doesn't need HHDM)
+    rustrial_os::serial_println!("Limine kernel starting...");
+    
+    // Get boot info from Limine FIRST
+    let boot_info = LimineBootInfo::get();
+    rustrial_os::serial_println!("Got boot info");
+    
+    // Try Limine terminal
+    LimineBootInfo::terminal_write("*** Rustrial OS Booting via Limine Terminal ***\n");
+    
+    // CRITICAL: Get HHDM offset BEFORE touching ANY memory
+    let hhdm_offset = match boot_info.physical_memory_offset() {
+        Some(offset) => {
+            rustrial_os::serial_println!("HHDM offset: {:#x}", offset);
+            offset
+        }
+        None => {
+            rustrial_os::serial_println!("ERROR: No HHDM offset from Limine!");
+            // Limine didn't provide HHDM - halt
+            loop {
+                x86_64::instructions::hlt();
+            }
+        }
+    };
+    
+    // EARLY DEBUG: Write to VGA through HHDM mapping - FILL SCREEN TO TEST
+    unsafe {
+        let vga = (hhdm_offset + 0xB8000) as *mut u16;
+        // Fill entire first line with bright colors to make it obvious
+        for i in 0..80 {
+            *vga.offset(i) = 0x4F00 | (b'A' + (i % 26) as u8) as u16; // Red background, white text
+        }
+        // Second line
+        for i in 0..80 {
+            *vga.offset(80 + i) = 0x2F00 | (b'0' + (i % 10) as u8) as u16; // Green background
+        }
+    }
+    rustrial_os::serial_println!("VGA test written at {:#x}", hhdm_offset + 0xB8000);
+    
+    // Initialize VGA buffer with HHDM offset BEFORE any init/println
+    rustrial_os::vga_buffer::init_with_hhdm(hhdm_offset);
+    rustrial_os::serial_println!("VGA buffer initialized");
+
+    // Point text-graphics helpers at the HHDM VGA buffer so splash/screens use the right mapping
+    rustrial_os::graphics::text_graphics::init_with_hhdm(hhdm_offset);
+
+    // Point other graphics helpers (like clear_region) at the same HHDM VGA buffer
+    rustrial_os::graphics::init_with_hhdm(hhdm_offset);
+    
+    // Test: write directly again after init
+    unsafe {
+        let vga = (hhdm_offset + 0xB8000) as *mut u16;
+        *vga.offset(10) = 0x0F54; // 'T' 
+        *vga.offset(11) = 0x0F45; // 'E'
+        *vga.offset(12) = 0x0F53; // 'S'
+        *vga.offset(13) = 0x0F54; // 'T'
+    }
+    rustrial_os::serial_println!("Direct VGA write after init");
+    
+    // Now we can safely initialize and print
+    rustrial_os::serial_println!("About to print to VGA...");
+    println!("=== Rustrial OS - Limine Boot ===");
+    rustrial_os::serial_println!("VGA print successful!");
+    
+    rustrial_os::serial_println!("About to call rustrial_os::init()...");
+    rustrial_os::init();
+    rustrial_os::serial_println!("init() complete");
+    
+    println!("[OK] Core initialization complete");
+    println!("[INFO] HHDM Offset: {:#x}", hhdm_offset);
+    
+    // Initialize memory with Limine's HHDM offset
+    let phys_mem_offset = VirtAddr::new(hhdm_offset);
+    
+    println!("[INFO] Initializing memory management...");
+    let mut mapper = unsafe { memory::init(phys_mem_offset) };
+    let mut frame_allocator = unsafe { 
+        BootInfoFrameAllocator::init_from_limine(&boot_info)
+            .expect("Failed to create frame allocator from Limine memory map")
+    };
+    println!("[OK] Memory management initialized");
+
+    println!("[INFO] Initializing heap...");
+    allocator::init_heap(&mut mapper, &mut frame_allocator)
+        .expect("heap initialization failed");
+    println!("[OK] Heap initialized");
+
+    // Initialize DMA memory for networking
+    rustrial_os::memory::dma::init_dma(&mut mapper, &mut frame_allocator, phys_mem_offset)
+        .expect("DMA initialization failed");
+
+    // Initialize loopback device (127.0.0.1)
+    println!("[Network] Initializing loopback interface...");
+    let loopback = rustrial_os::net::loopback::LoopbackDevice::default();
+    rustrial_os::drivers::net::register_loopback_device(alloc::boxed::Box::new(loopback));
+    println!("[Network] Loopback interface (lo) initialized");
+
+    // Initialize network driver
+    println!("[Network] Initializing network driver...");
+    match rustrial_os::drivers::net::rtl8139::init_network() {
+        Ok(_) => println!("[Network] Network driver initialized successfully"),
+        Err(e) => println!("[Network] Failed to initialize network driver: {}", e),
+    }
+
+    // Initialize filesystem and load scripts
+    rustrial_os::fs::init();
+    rustrial_os::script_loader::load_scripts()
+        .expect("failed to load scripts");
+
+    #[cfg(test)]
+    test_main();
+
+    // Display boot splash with staged progress before entering the desktop
+    rustrial_os::graphics::splash::run_boot_sequence();
+
+    // Initialize mouse support
+    rustrial_os::task::mouse::init();
+    
+    // Launch desktop environment with menu integration
+    let mut executor = Executor::new();
+    
+    // Initialize network stack (spawn RX/TX processing tasks)
+    println!("[Network] Initializing network stack...");
+    rustrial_os::net::stack::init(&mut executor);
+    println!("[Network] Network stack initialized");
+    
+    executor.spawn(Task::new(desktop_loop()));
+    executor.run();
 }
 
 #[cfg(not(test))]
