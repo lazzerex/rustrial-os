@@ -4,6 +4,21 @@ use crate::vga_buffer::{Color, ColorCode};
 use x86_64::instructions::interrupts;
 use volatile::Volatile;
 
+// Pointer to the active VGA text buffer. For Limine builds this gets
+// re-pointed to the HHDM-mapped VGA memory at runtime.
+#[cfg(feature = "limine")]
+static mut TEXT_BUFFER_PTR: *mut [[Volatile<ScreenChar>; 80]; 25] =
+    0xFFFF_FFFF_FFFF_F000 as *mut _;
+
+#[cfg(not(feature = "limine"))]
+static mut TEXT_BUFFER_PTR: *mut [[Volatile<ScreenChar>; 80]; 25] =
+    0xb8000 as *mut _;
+
+#[inline]
+fn buffer() -> &'static mut [[Volatile<ScreenChar>; 80]; 25] {
+    unsafe { &mut *TEXT_BUFFER_PTR }
+}
+
 /// Box drawing characters
 pub const BOX_HORIZONTAL: u8 = 0xC4; // ─
 pub const BOX_VERTICAL: u8 = 0xB3;   // │
@@ -45,7 +60,7 @@ pub fn draw_box(x: usize, y: usize, width: usize, height: usize, fg: Color, bg: 
         return; // Invalid dimensions
     }
 
-    let buffer = unsafe { &mut *(0xb8000 as *mut [[Volatile<ScreenChar>; 80]; 25]) };
+    let buffer = buffer();
     let color = ColorCode::new(fg, bg);
 
     interrupts::without_interrupts(|| {
@@ -101,7 +116,7 @@ pub fn draw_filled_box(x: usize, y: usize, width: usize, height: usize, fg: Colo
         return;
     }
 
-    let buffer = unsafe { &mut *(0xb8000 as *mut [[Volatile<ScreenChar>; 80]; 25]) };
+    let buffer = buffer();
     let color = ColorCode::new(fg, bg);
 
     interrupts::without_interrupts(|| {
@@ -122,7 +137,7 @@ pub fn draw_double_box(x: usize, y: usize, width: usize, height: usize, fg: Colo
         return;
     }
 
-    let buffer = unsafe { &mut *(0xb8000 as *mut [[Volatile<ScreenChar>; 80]; 25]) };
+    let buffer = buffer();
     let color = ColorCode::new(fg, bg);
 
     interrupts::without_interrupts(|| {
@@ -178,7 +193,7 @@ pub fn write_at(x: usize, y: usize, text: &str, fg: Color, bg: Color) {
         return;
     }
 
-    let buffer = unsafe { &mut *(0xb8000 as *mut [[Volatile<ScreenChar>; 80]; 25]) };
+    let buffer = buffer();
     let color = ColorCode::new(fg, bg);
 
     interrupts::without_interrupts(|| {
@@ -198,13 +213,21 @@ pub fn write_at(x: usize, y: usize, text: &str, fg: Color, bg: Color) {
     });
 }
 
+/// For Limine builds, point text graphics at the HHDM-mapped VGA buffer.
+#[cfg(feature = "limine")]
+pub fn init_with_hhdm(hhdm_offset: u64) {
+    interrupts::without_interrupts(|| unsafe {
+        TEXT_BUFFER_PTR = (hhdm_offset + 0xb8000) as *mut _;
+    });
+}
+
 /// Draw a horizontal line
 pub fn draw_hline(x: usize, y: usize, length: usize, fg: Color, bg: Color) {
     if y >= 25 || x + length > 80 {
         return;
     }
 
-    let buffer = unsafe { &mut *(0xb8000 as *mut [[Volatile<ScreenChar>; 80]; 25]) };
+    let buffer = buffer();
     let color = ColorCode::new(fg, bg);
 
     interrupts::without_interrupts(|| {
@@ -223,7 +246,7 @@ pub fn draw_progress_bar(x: usize, y: usize, width: usize, progress: usize, tota
         return;
     }
 
-    let buffer = unsafe { &mut *(0xb8000 as *mut [[Volatile<ScreenChar>; 80]; 25]) };
+    let buffer = buffer();
     let color_filled = ColorCode::new(fg, bg);
     let color_empty = ColorCode::new(Color::DarkGray, bg);
 
@@ -251,7 +274,6 @@ pub fn draw_progress_bar(x: usize, y: usize, width: usize, progress: usize, tota
     let text = format!(" {}%", percentage);
     write_at(x + width + 1, y, &text, fg, Color::Black);
 }
-
 /// Center text on a line
 pub fn write_centered(y: usize, text: &str, fg: Color, bg: Color) {
     if y >= 25 {
@@ -275,7 +297,7 @@ pub fn draw_shadow_box(x: usize, y: usize, width: usize, height: usize, fg: Colo
     // Draw shadow (if space available)
     if x + width + 1 < 80 && y + height < 25 {
         let shadow_color = ColorCode::new(Color::DarkGray, Color::Black);
-        let buffer = unsafe { &mut *(0xb8000 as *mut [[Volatile<ScreenChar>; 80]; 25]) };
+        let buffer = buffer();
         
         interrupts::without_interrupts(|| {
             // Right shadow
