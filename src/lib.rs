@@ -34,6 +34,10 @@ pub mod net;
 //Network drivers
 pub mod drivers;
 
+// Limine bootloader support (optional)
+#[cfg(feature = "limine")]
+pub mod limine;
+
 pub fn init() {
     gdt::init();
     interrupts::init_idt();
