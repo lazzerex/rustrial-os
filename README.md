@@ -33,6 +33,7 @@ A hobby x86-64 bare-metal operating system kernel written in Rust, built from sc
 Rustrial OS is an educational operating system project that demonstrates modern systems programming techniques using Rust. The kernel boots from bare metal on x86-64 architecture and provides core OS functionality including memory management, interrupt handling, task scheduling, hardware detection, and keyboard input processing.
 
 **Quick Links:**
+- **Limine Bootloader & ISO Creation**: `docs/limine.md` ⭐ NEW!
 - Shell Documentation: `docs/shell.md`
 - **Networking Stack**: `docs/net.md`
 - RustrialScript Documentation: `docs/scriptdocs.md`
@@ -101,7 +102,10 @@ For detailed networking documentation, see [docs/net.md](docs/net.md)
 ## Features
 
 ### Core Kernel Features
-- **x86-64 Bare Metal Architecture**: Boots on real hardware and QEMU using the Bootloader crate
+- **x86-64 Bare Metal Architecture**: Boots on real hardware and QEMU
+- **Dual Bootloader Support**: 
+  - Bootloader crate (default) for quick `cargo run` testing
+  - **Limine bootloader** for production ISO images (BIOS + UEFI)
 - **Interrupt Handling**: Complete IDT with handlers for breakpoints, double faults, page faults, timer, and keyboard interrupts
 - **Memory Management**: 
   - Page table support with virtual-to-physical address translation
@@ -324,6 +328,11 @@ build.rs                     # Build script (NASM + Clang)
    - **macOS**: Included with Xcode Command Line Tools
    - **Windows**: Install LLVM from [llvm.org](https://llvm.org/)
 
+8. **xorriso** (optional - for creating bootable ISO images)
+   - **Linux**: `sudo apt install xorriso` or `sudo pacman -S libisoburn`
+   - **macOS**: `brew install xorriso`
+   - **Windows**: Use WSL or download mkisofs
+
 ### System Requirements
 - Rust 1.70+ nightly (edition 2024)
 - 2 GB RAM minimum
@@ -331,31 +340,53 @@ build.rs                     # Build script (NASM + Clang)
 
 ## Build & Run
 
-### Quick Start
+### Quick Start (Development)
 
 ```bash
 # Clone the repository
 git clone https://github.com/lazzerex/rustrial-os.git
 cd rustrial-os
 
-# Build and run (all-in-one)
+# Build and run with bootloader crate (fastest for testing)
 cargo run
 ```
 
-The OS boots into an interactive menu:
-1. **Normal Mode**: System info + keyboard echo
-2. **RustrialScript**: Run demo or browse embedded scripts
-3. **Graphics Demo**: Showcase text-mode graphics
-4. **Hardware Info**: CPU, RTC, and PCI device details
-5. **Help**: Usage instructions
+### Create Bootable ISO (Production)
+
+**For real hardware or distribution:**
+
+```bash
+# Linux/macOS - One command to create bootable ISO
+./build-iso.sh
+
+# The script will:
+# - Build kernel with Limine support
+# - Download Limine bootloader
+# - Create rustrial_os.iso
+
+# Test the ISO with QEMU
+qemu-system-x86_64 -cdrom rustrial_os.iso -m 256M -serial stdio
+```
+
+**For detailed ISO instructions, see [`docs/limine.md`](docs/limine.md)**
+
+The OS boots into an interactive desktop environment with icons for:
+- Interactive menu system
+- System information
+- RustrialScript browser
+- Hardware detection
+- Shell/Terminal
 
 ### Manual Build Commands
 
 ```bash
-# Build kernel only
+# Build kernel only (bootloader crate)
 cargo build --target x86_64-rustrial_os.json
 
-# Create bootable image
+# Build kernel for Limine ISO
+cargo build --target x86_64-rustrial_os.json --features limine
+
+# Create bootable image (bootloader crate)
 cargo bootimage --target x86_64-rustrial_os.json
 
 # Run with custom QEMU options
