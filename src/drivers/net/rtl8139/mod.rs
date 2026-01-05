@@ -204,8 +204,9 @@ impl Rtl8139 {
     fn setup_rx_buffer(&mut self) -> Result<(), &'static str> {
         serial_println!("[RTL8139] Setting up RX buffer...");
 
-        // Allocate DMA buffer for reception
-        let rx_buffer = allocate_dma_buffer(RX_BUFFER_SIZE)
+        // Allocate unpooled DMA buffer for reception (long-lived)
+        // RX buffers are used continuously and should not be pooled
+        let rx_buffer = crate::memory::dma::allocate_dma_buffer_unpooled(RX_BUFFER_SIZE)
             .map_err(|_| "Failed to allocate RX buffer")?;
 
         serial_println!("[RTL8139] RX buffer allocated: virt={:#x}, phys={:#x}, size={}",
@@ -233,7 +234,9 @@ impl Rtl8139 {
         serial_println!("[RTL8139] Setting up TX buffers...");
 
         for i in 0..TX_BUFFER_COUNT {
-            let tx_buffer = allocate_dma_buffer(TX_BUFFER_SIZE)
+            // Allocate unpooled DMA buffer for transmission (long-lived)
+            // TX buffers are reused continuously and should not be pooled
+            let tx_buffer = crate::memory::dma::allocate_dma_buffer_unpooled(TX_BUFFER_SIZE)
                 .map_err(|_| "Failed to allocate TX buffer")?;
 
             serial_println!("[RTL8139] TX buffer {} allocated: virt={:#x}, phys={:#x}",
