@@ -254,6 +254,7 @@ impl Shell {
             "arp" => self.cmd_arp(args),
             "ifconfig" => self.cmd_ifconfig(args),
             "ping" => self.cmd_ping(args).await,
+            "dmastat" => self.cmd_dmastat(),
             "exit" | "quit" => return true,
             _ => {
                 let msg = format!("Unknown command: '{}'. Type 'help' for available commands.", command);
@@ -295,6 +296,7 @@ impl Shell {
         self.sprintln("  arp [clear]       - Display ARP cache (use 'clear' to flush cache)");
         self.sprintln("  ifconfig [args]   - Configure or display network settings");
         self.sprintln("  ping <ip|host>    - Send ICMP echo request (e.g., ping google.com)");
+        self.sprintln("  dmastat           - Display DMA memory statistics");
         self.sprintln("  exit, quit        - Return to desktop");
         self.sprintln("\nColors: 0=Black, 1=Blue, 2=Green, 3=Cyan, 4=Red, 5=Magenta, 6=Brown,");
         self.sprintln("        7=LightGray, 8=DarkGray, 9=LightBlue, 10=LightGreen, 11=LightCyan,");
@@ -1124,6 +1126,43 @@ impl Shell {
                 self.sprintln("TX queue might be full, try again later.");
             }
         }
+    }
+
+    fn cmd_dmastat(&mut self) {
+        self.sprintln("\n╔════════════════════════════════════════════════════════════════════╗");
+        self.sprintln("║                    DMA Memory Statistics                           ║");
+        self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
+        
+        let stats = crate::memory::dma::get_dma_stats();
+        
+        self.sprintln(&format!("║  Total Allocated:       {:>8} bytes ({:>6} KB)                  ║",
+            stats.total_allocated, stats.total_allocated / 1024));
+        self.sprintln(&format!("║  Total Freed:           {:>8} bytes ({:>6} KB)                  ║",
+            stats.total_freed, stats.total_freed / 1024));
+        self.sprintln(&format!("║  Current Usage:         {:>8} bytes ({:>6} KB)                  ║",
+            stats.current_usage, stats.current_usage / 1024));
+        self.sprintln(&format!("║  Peak Usage:            {:>8} bytes ({:>6} KB)                  ║",
+            stats.peak_usage, stats.peak_usage / 1024));
+        self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
+        self.sprintln(&format!("║  Pool Hits:             {:>8}                                    ║", stats.pool_hits));
+        self.sprintln(&format!("║  Pool Misses:           {:>8}                                    ║", stats.pool_misses));
+        
+        if stats.pool_hits + stats.pool_misses > 0 {
+            let hit_rate = (stats.pool_hits as f64) / ((stats.pool_hits + stats.pool_misses) as f64) * 100.0;
+            self.sprintln(&format!("║  Pool Hit Rate:         {:>7.1}%                                  ║", hit_rate));
+        } else {
+            self.sprintln("║  Pool Hit Rate:              N/A                                  ║");
+        }
+        
+        self.sprintln(&format!("║  Buffers in Pool:       {:>8}                                    ║", stats.pool_size));
+        self.sprintln(&format!("║  Total Regions:         {:>8}                                    ║", stats.total_regions));
+        self.sprintln("╚════════════════════════════════════════════════════════════════════╝");
+        
+        // Add usage notes
+        self.sprintln("\nNotes:");
+        self.sprintln("  • DMA buffers are used for network card operations");
+        self.sprintln("  • Buffer pool reuses freed buffers for better performance");
+        self.sprintln("  • Long-lived buffers (RX/TX rings) are not pooled");
     }
 }
 
