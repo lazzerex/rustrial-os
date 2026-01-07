@@ -4,11 +4,13 @@ use core::ptr::{read_volatile, write_volatile};
 use core::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use alloc::vec::Vec;
 use alloc::boxed::Box;
+use alloc::collections::VecDeque;
 use spin::Mutex;
 use x86_64::{PhysAddr, VirtAddr};
+use lazy_static::lazy_static;
 
 use crate::serial_println;
-use crate::memory::dma::{allocate_dma_buffer, DmaBuffer};
+use crate::memory::dma::DmaBuffer;
 use crate::native_ffi::{enumerate_pci_devices, PciDevice, pci_enable_dma, pci_get_bar, pci_get_interrupt_line};
 use super::{NetworkDevice, TransmitError, LinkStatus};
 
@@ -17,6 +19,15 @@ mod registers;
 
 use consts::*;
 use registers::*;
+
+// Wrapper to make the pointer Send (safe because we control access through Mutex)
+struct SendPtr(*mut Rtl8139);
+unsafe impl Send for SendPtr {}
+
+// Global driver instance for interrupt handler access
+lazy_static! {
+    static ref RTL8139_DRIVER: Mutex<Option<SendPtr>> = Mutex::new(None);
+}
 
 /// RTL8139 Network Card Driver
 pub struct Rtl8139 {
@@ -42,6 +53,10 @@ pub struct Rtl8139 {
     pci_device: PciDevice,
     /// Current RX buffer read offset
     rx_offset: Mutex<u16>,
+    /// Pending received packets (filled by interrupt handler)
+    rx_queue: Mutex<VecDeque<Vec<u8>>>,
+    /// Flag to indicate packets are available
+    packets_available: AtomicBool,
 }
 
 impl Rtl8139 {
@@ -96,6 +111,8 @@ impl Rtl8139 {
             initialized: AtomicBool::new(false),
             pci_device: *rtl8139_device,
             rx_offset: Mutex::new(0),
+            rx_queue: Mutex::new(VecDeque::with_capacity(32)),
+            packets_available: AtomicBool::new(false),
         };
 
         // Initialize the device
@@ -162,6 +179,9 @@ impl Rtl8139 {
 
         // Step 8: Enable transmitter and receiver
         self.enable_tx_rx();
+
+        // Step 9: Register interrupt handler
+        self.register_interrupt_handler();
 
         self.initialized.store(true, Ordering::SeqCst);
         serial_println!("[RTL8139] Initialization complete!");
@@ -285,7 +305,25 @@ impl Rtl8139 {
         let imr = IMR_ROK | IMR_TOK | IMR_RER | IMR_TER | IMR_RXOVW;
         self.write_reg_u16(IMR, imr);
 
-        serial_println!("[RTL8139] Interrupts enabled");
+        serial_println!("[RTL8139] Interrupts enabled (hardware)");
+    }
+
+    /// Register interrupt handler with the IRQ system
+    fn register_interrupt_handler(&mut self) {
+        serial_println!("[RTL8139] Registering interrupt handler for IRQ {}...", self.irq);
+
+        // Store a raw pointer to this driver instance in the global
+        // SAFETY: This is safe because:
+        // 1. The driver is boxed and stored in NETWORK_DEVICE, so it won't move
+        // 2. The pointer is only dereferenced in the interrupt handler
+        // 3. We ensure the driver outlives the interrupt handler registration
+        // 4. Access is synchronized through the Mutex
+        *RTL8139_DRIVER.lock() = Some(SendPtr(self as *mut Rtl8139));
+
+        // Register our interrupt handler with the kernel IRQ system
+        crate::interrupts::register_irq_handler(self.irq, rtl8139_irq_handler);
+
+        serial_println!("[RTL8139] Interrupt handler registered");
     }
 
     /// Enable transmitter and receiver
@@ -307,20 +345,20 @@ impl Rtl8139 {
     }
 
     /// Handle interrupt (called by interrupt handler)
-    pub fn handle_interrupt(&mut self) {
+    fn handle_interrupt(&mut self) {
         let isr = self.read_reg_u16(ISR);
         
         // Clear interrupts by writing back
         self.write_reg_u16(ISR, isr);
 
         if isr & ISR_ROK != 0 {
-            // Packet received
-            serial_println!("[RTL8139] RX interrupt");
+            // Packet received - process all available packets
+            self.process_rx_packets();
         }
 
         if isr & ISR_TOK != 0 {
-            // Packet transmitted
-            serial_println!("[RTL8139] TX interrupt");
+            // Packet transmitted successfully
+            serial_println!("[RTL8139] TX interrupt - packet sent");
         }
 
         if isr & ISR_RER != 0 {
@@ -332,8 +370,89 @@ impl Rtl8139 {
         }
 
         if isr & ISR_RXOVW != 0 {
-            serial_println!("[RTL8139] RX buffer overflow interrupt");
+            serial_println!("[RTL8139] RX buffer overflow interrupt - packets may be lost");
         }
+    }
+
+    /// Process received packets from hardware buffer and queue them
+    fn process_rx_packets(&mut self) {
+        let mut packets_received = 0;
+        
+        // Process all available packets
+        while let Some(packet) = self.receive_packet_internal() {
+            // Add to queue
+            let mut queue = self.rx_queue.lock();
+            if queue.len() < 64 {
+                queue.push_back(packet);
+                packets_received += 1;
+            } else {
+                serial_println!("[RTL8139] RX queue full, dropping packet");
+                break;
+            }
+        }
+
+        if packets_received > 0 {
+            serial_println!("[RTL8139] Received {} packet(s) in interrupt", packets_received);
+            self.packets_available.store(true, Ordering::Release);
+        }
+    }
+
+    /// Internal packet receive implementation (used by interrupt handler)
+    fn receive_packet_internal(&mut self) -> Option<Vec<u8>> {
+        let rx_buffer = self.rx_buffer.as_ref()?;
+        let mut rx_offset = self.rx_offset.lock();
+
+        // Read command register to check if buffer is empty
+        let cmd = self.read_reg_u8(CR);
+        if (cmd & CMD_BUFE) != 0 {
+            // Buffer is empty
+            return None;
+        }
+
+        // Read packet header
+        let header_addr = rx_buffer.virt_addr.as_u64() + *rx_offset as u64;
+        let header = unsafe {
+            core::ptr::read_volatile(header_addr as *const u32)
+        };
+
+        let status = (header & 0xFFFF) as u16;
+        let length = ((header >> 16) & 0xFFFF) as u16;
+
+        // Check for errors
+        if (status & RX_ROK) == 0 {
+            serial_println!("[RTL8139] RX error: status={:#x}", status);
+            // Skip this packet
+            *rx_offset = (*rx_offset + length + 4 + 3) & !3; // Align to 4 bytes
+            let capr_value = *rx_offset - 16;
+            drop(rx_offset);
+            self.write_reg_u16(CAPR, capr_value);
+            return None;
+        }
+
+        // Allocate buffer for packet (excluding CRC)
+        let packet_len = (length - 4) as usize; // Remove 4-byte CRC
+        let mut packet = Vec::with_capacity(packet_len);
+
+        // Copy packet data
+        let data_addr = header_addr + 4;
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                data_addr as *const u8,
+                packet.as_mut_ptr(),
+                packet_len
+            );
+            packet.set_len(packet_len);
+        }
+
+        // Update read offset (align to 4 bytes)
+        *rx_offset = (*rx_offset + length + 4 + 3) & !3;
+        
+        // Update CAPR register (need to subtract 16 as per RTL8139 quirk)
+        let capr_value = *rx_offset - 16;
+        drop(rx_offset);
+        self.write_reg_u16(CAPR, capr_value);
+
+        Some(packet)
     }
 
     // MMIO/I/O port register access helpers
@@ -481,67 +600,21 @@ impl NetworkDevice for Rtl8139 {
             return None;
         }
 
-        let rx_buffer = self.rx_buffer.as_ref()?;
-        let mut rx_offset = self.rx_offset.lock();
-
-        // Read command register to check if buffer is empty
-        let cmd = self.read_reg_u8(CR);
-        if (cmd & CMD_BUFE) != 0 {
-            // Buffer is empty - this is expected when no packets
+        // Check if packets are available in the queue (set by interrupt handler)
+        if !self.packets_available.load(Ordering::Acquire) {
             return None;
         }
 
-        // We have a packet! Log it
-        serial_println!("[RTL8139] RX: Buffer not empty, cmd={:#x}", cmd);
-
-        // Read packet header
-        let header_addr = rx_buffer.virt_addr.as_u64() + *rx_offset as u64;
-        let header = unsafe {
-            core::ptr::read_volatile(header_addr as *const u32)
-        };
-
-        let status = (header & 0xFFFF) as u16;
-        let length = ((header >> 16) & 0xFFFF) as u16;
-
-        serial_println!("[RTL8139] RX: Header read - status={:#x}, length={}", status, length);
-
-        // Check for errors
-        if (status & RX_ROK) == 0 {
-            serial_println!("[RTL8139] RX error: status={:#x}", status);
-            // Skip this packet
-            *rx_offset = (*rx_offset + length + 4 + 3) & !3; // Align to 4 bytes
-            let capr_value = *rx_offset - 16;
-            drop(rx_offset); // Drop lock before calling write_reg_u16
-            self.write_reg_u16(CAPR, capr_value);
-            return None;
-        }
-
-        // Allocate buffer for packet (excluding CRC)
-        let packet_len = (length - 4) as usize; // Remove 4-byte CRC
-        let mut packet = Vec::with_capacity(packet_len);
-
-        // Copy packet data
-        let data_addr = header_addr + 4;
-        unsafe {
-            core::ptr::copy_nonoverlapping(
-                data_addr as *const u8,
-                packet.as_mut_ptr(),
-                packet_len
-            );
-            packet.set_len(packet_len);
-        }
-
-        // Update read offset (align to 4 bytes)
-        *rx_offset = (*rx_offset + length + 4 + 3) & !3;
+        // Dequeue a packet from the interrupt handler's queue
+        let mut queue = self.rx_queue.lock();
+        let packet = queue.pop_front();
         
-        // Update CAPR register (need to subtract 16 as per RTL8139 quirk)
-        let capr_value = *rx_offset - 16;
-        drop(rx_offset); // Drop lock before calling write_reg_u16
-        self.write_reg_u16(CAPR, capr_value);
-
-        serial_println!("[RTL8139] Received packet: {} bytes", packet_len);
-
-        Some(packet)
+        // Update flag if queue is now empty
+        if queue.is_empty() {
+            self.packets_available.store(false, Ordering::Release);
+        }
+        
+        packet
     }
 
     fn link_status(&self) -> LinkStatus {
@@ -562,6 +635,27 @@ impl NetworkDevice for Rtl8139 {
 
     fn is_ready(&self) -> bool {
         self.initialized.load(Ordering::SeqCst)
+    }
+}
+
+/// Global interrupt handler for RTL8139
+/// This function is called by the kernel's interrupt dispatcher
+fn rtl8139_irq_handler() {
+    // Get the driver instance
+    let driver_ptr = {
+        let guard = RTL8139_DRIVER.lock();
+        match *guard {
+            Some(ref ptr) => ptr.0,
+            None => return, // No driver registered
+        }
+    };
+
+    // SAFETY: The pointer is valid because:
+    // 1. It was set during driver initialization
+    // 2. The driver is stored in a Box in NETWORK_DEVICE and won't move
+    // 3. The driver outlives the interrupt handler
+    unsafe {
+        (*driver_ptr).handle_interrupt();
     }
 }
 
