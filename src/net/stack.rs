@@ -303,6 +303,9 @@ fn handle_rx_ipv4(data: &[u8]) {
         protocol::UDP => {
             handle_rx_udp(&header, payload);
         }
+        protocol::TCP => {
+            handle_rx_tcp(&header, payload);
+        }
         _ => {
             serial_println!("RX: Unsupported IPv4 protocol: {}", header.protocol);
         }
@@ -345,6 +348,15 @@ fn handle_rx_icmp(ip_header: &Ipv4Header, data: &[u8]) {
 fn handle_rx_udp(ip_header: &Ipv4Header, data: &[u8]) {
     // Delegate to UDP module handler
     udp::handle_udp_packet(ip_header.src_ip, ip_header.dest_ip, data);
+}
+
+/// Handle received TCP packet
+fn handle_rx_tcp(ip_header: &Ipv4Header, data: &[u8]) {
+    // Delegate to TCP module handler
+    use crate::net::tcp;
+    if let Err(e) = tcp::handle_tcp_packet(data, ip_header.src_ip, ip_header.dest_ip) {
+        serial_println!("RX: TCP packet handling error: {:?}", e);
+    }
 }
 
 /// TX Processing Task
