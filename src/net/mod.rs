@@ -10,6 +10,4 @@ pub mod stack;
 pub mod loopback;  // Phase 5.2 - Loopback interface
 pub mod udp;       // Phase 6.1 - UDP protocol
 pub mod dns;       // Phase 6.2 - DNS client
-
-// Future modules to be implemented in later phases:
-// pub mod tcp;
+pub mod tcp;       // Phase 7 - TCP protocol
