@@ -197,8 +197,9 @@ Hardware → DMA to RX buffer
 **QEMU Workaround:**
 ```rust
 // QEMU user-mode networking doesn't send traditional ARP replies
-// Hardcode gateway MAC in stack initialization
-arp_cache.insert([10, 0, 2, 2], [0x52, 0x55, 0x0a, 0x00, 0x02, 0x02]);
+// Hardcode gateway and DNS server MACs in stack initialization
+arp_cache.insert([10, 0, 2, 2], [0x52, 0x55, 0x0a, 0x00, 0x02, 0x02]); // Gateway
+arp_cache.insert([10, 0, 2, 3], [0x52, 0x55, 0x0a, 0x00, 0x02, 0x03]); // DNS server
 ```
 
 ### IPv4 (Internet Protocol v4)
@@ -348,7 +349,7 @@ match socket.recv_from() {
 ```
 
 **Key Features:**
-- **DNS Server**: 8.8.8.8 (Google Public DNS)
+- **DNS Server**: 10.0.2.3 (QEMU DNS server - forwards to host DNS)
 - **Port**: 53 (UDP)
 - **Record Types**: A record (type 1) for IPv4 addresses
 - **Compression**: Supports DNS name compression (pointer following)
@@ -372,8 +373,8 @@ let socket = UdpSocket::bind(0)?;
 let query = build_query("google.com", transaction_id)?;
 // Query format: [6]google[3]com[0] (length-prefixed labels)
 
-// 3. Send to DNS server
-socket.send_to(&query, Ipv4Addr::new(8, 8, 8, 8), 53)?;
+// 3. Send to DNS server (QEMU's internal DNS at 10.0.2.3)
+socket.send_to(&query, Ipv4Addr::new(10, 0, 2, 3), 53)?;
 
 // 4. Wait for response (async with yield_now())
 loop {
@@ -546,11 +547,12 @@ qemu-system-x86_64 `
 ```
 
 **Network Configuration:**
-- **Guest IP**: 10.0.2.15 (auto-assigned by QEMU DHCP)
-- **Gateway IP**: 10.0.2.2 (QEMU gateway, DNS forwarder)
-- **DNS Server**: 10.0.2.3 (forwarded to host DNS)
+- **Guest IP**: 10.0.2.15 (set via ifconfig, or auto-assigned by QEMU DHCP)
+- **Gateway IP**: 10.0.2.2 (QEMU gateway for external routing)
+- **DNS Server**: 10.0.2.3 (QEMU DNS - forwards queries to host DNS resolver)
 - **Host Access**: 10.0.2.2 (same as gateway)
 - **Subnet Mask**: 255.255.255.0 (/24)
+- **Pre-populated ARP entries**: Gateway (10.0.2.2) and DNS (10.0.2.3) MACs are hardcoded
 
 **Limitations:**
 - ICMP from guest→host works (ping 10.0.2.2)
@@ -772,10 +774,30 @@ Pinging 10.0.2.2...
    // src/drivers/net/rtl8139/mod.rs
    const RCR_ACCEPT_ALL: u32 = 0x0000000F; // Accept all packets
    ```
-5. Try hardcoded gateway MAC in `stack::init()`:
+5. Try hardcoded gateway and DNS MACs in `stack::init()`:
    ```rust
-   arp_cache.insert([10, 0, 2, 2], [0x52, 0x55, 0x0a, 0x00, 0x02, 0x02]);
+   arp_cache.insert([10, 0, 2, 2], [0x52, 0x55, 0x0a, 0x00, 0x02, 0x02]); // Gateway
+   arp_cache.insert([10, 0, 2, 3], [0x52, 0x55, 0x0a, 0x00, 0x02, 0x03]); // DNS
    ```
+
+---
+
+### Issue: DNS resolution times out
+
+**Symptoms:**
+```
+rustrial> ping google.com
+Resolving 'google.com' via DNS...
+DNS resolution failed: DNS query timed out
+```
+
+**Solutions:**
+1. Ensure DNS server is set to 10.0.2.3 (not 8.8.8.8 or 10.0.2.2)
+2. Verify DNS server MAC is in ARP cache: `arp` command should show 10.0.2.3
+3. Check that RTL8139 polling is enabled (interrupts may not work in all QEMU configurations)
+4. In QEMU user-mode networking:
+   - 10.0.2.2 = Gateway (for routing, NOT for DNS)
+   - 10.0.2.3 = DNS server (forwards to host's DNS resolver)
 
 ---
 
@@ -812,11 +834,11 @@ Pinging 10.0.2.2...
 
 ## Future Roadmap
 
-### Phase 6: UDP & Sockets (Next)
-- [ ] UDP protocol implementation
-- [ ] Socket abstraction layer
-- [ ] Port management
-- [ ] DNS client (query 10.0.2.3 in QEMU)
+### Phase 6: UDP & Sockets (Completed)
+- [x] UDP protocol implementation
+- [x] Socket abstraction layer  
+- [x] Port management
+- [x] DNS client (queries 10.0.2.3 in QEMU, resolves hostnames to IPv4)
 - [ ] DHCP client (dynamic IP configuration)
 
 ### Phase 7: TCP Implementation
@@ -910,6 +932,6 @@ Network stack development follows these guidelines:
 
 ---
 
-**Last Updated:** After successful completion of Phase 5.1 (ICMP ping working)  
+**Last Updated:** After successful completion of Phase 6 (UDP, DNS working)  
 **Tested On:** QEMU 7.0.0, RTL8139 emulated NIC  
-**Working Status:** Fully operational network stack with bidirectional packet flow
+**Working Status:** Fully operational network stack with DNS resolution and hostname ping support
