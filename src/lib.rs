@@ -38,6 +38,29 @@ pub fn init() {
     gdt::init();
     interrupts::init_idt();
     unsafe { interrupts::PICS.lock().initialize() };
+    
+    // Unmask IRQ 12 (mouse) on the secondary PIC
+    // The secondary PIC's IMR is at port 0xA1
+    // IRQ 12 is bit 4 on the secondary PIC (IRQ 12 = 8 + 4)
+    // We also need to unmask IRQ 2 on primary PIC (cascade to secondary)
+    unsafe {
+        use x86_64::instructions::port::Port;
+        
+        // Read current masks
+        let mut pic1_data: Port<u8> = Port::new(0x21); // Primary PIC data/IMR
+        let mut pic2_data: Port<u8> = Port::new(0xA1); // Secondary PIC data/IMR
+        
+        // Unmask IRQ 2 on primary (cascade) - bit 2
+        let mask1: u8 = pic1_data.read();
+        pic1_data.write(mask1 & !0x04);
+        
+        // Unmask IRQ 12 on secondary (mouse) - bit 4
+        let mask2: u8 = pic2_data.read();
+        pic2_data.write(mask2 & !0x10);
+        
+        serial_println!("[PIC] Unmasked IRQ2 (cascade) and IRQ12 (mouse)");
+    }
+    
     x86_64::instructions::interrupts::enable();
 }
 pub trait Testable {
