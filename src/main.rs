@@ -217,8 +217,9 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     // Display boot splash with staged progress before entering the desktop
     rustrial_os::graphics::splash::run_boot_sequence();
 
-    // Initialize mouse support
+    // Initialize mouse support (queue first, then hardware)
     rustrial_os::task::mouse::init();
+    rustrial_os::task::mouse::init_hardware();
     
     // Launch desktop environment with menu integration
     let mut executor = Executor::new();
@@ -259,8 +260,9 @@ fn kernel_main_custom() -> ! {
     // Display boot splash with staged progress before entering the desktop
     rustrial_os::graphics::splash::run_boot_sequence();
 
-    // Initialize mouse support
+    // Initialize mouse support (queue first, then hardware)
     rustrial_os::task::mouse::init();
+    rustrial_os::task::mouse::init_hardware();
     
     // Launch desktop environment with menu integration
     let mut executor = Executor::new();
