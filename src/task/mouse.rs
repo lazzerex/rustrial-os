@@ -107,6 +107,13 @@ impl MouseStream {
     pub fn try_next(&mut self) -> Option<MousePacket> {
         if let Ok(queue) = MOUSE_QUEUE.try_get() {
             while let Some(byte) = queue.pop() {
+                // Packet synchronization: first byte must have bit 3 set
+                // If we're looking for first byte and it doesn't have bit 3, skip it
+                if self.buffer_index == 0 && (byte & 0x08) == 0 {
+                    // Not a valid first byte, skip and try next
+                    continue;
+                }
+                
                 self.packet_buffer[self.buffer_index] = byte;
                 self.buffer_index += 1;
 
@@ -115,6 +122,8 @@ impl MouseStream {
                     if let Some(packet) = MousePacket::from_bytes(self.packet_buffer) {
                         return Some(packet);
                     }
+                    // If parsing failed, the packet was invalid
+                    // buffer_index is already 0, next iteration will look for valid first byte
                 }
             }
         }
@@ -172,27 +181,150 @@ pub fn is_right_button_pressed() -> bool {
 }
 
 /// PS/2 Mouse controller ports
-const MOUSE_DATA_PORT: u16 = 0x60;
-const MOUSE_COMMAND_PORT: u16 = 0x64;
+const DATA_PORT: u16 = 0x60;
+const STATUS_PORT: u16 = 0x64;
+const COMMAND_PORT: u16 = 0x64;
+
+/// Wait for PS/2 controller to be ready for input
+fn wait_for_write() {
+    use x86_64::instructions::port::Port;
+    let mut status_port: Port<u8> = Port::new(STATUS_PORT);
+    
+    for _ in 0..100_000 {
+        let status: u8 = unsafe { status_port.read() };
+        if status & 0x02 == 0 {
+            return;
+        }
+    }
+}
+
+/// Wait for PS/2 controller to have data available
+fn wait_for_read() -> bool {
+    use x86_64::instructions::port::Port;
+    let mut status_port: Port<u8> = Port::new(STATUS_PORT);
+    
+    for _ in 0..100_000 {
+        let status: u8 = unsafe { status_port.read() };
+        if status & 0x01 != 0 {
+            return true;
+        }
+    }
+    false
+}
+
+/// Read a byte from the PS/2 data port
+fn read_data() -> Option<u8> {
+    use x86_64::instructions::port::Port;
+    let mut data_port: Port<u8> = Port::new(DATA_PORT);
+    
+    if wait_for_read() {
+        Some(unsafe { data_port.read() })
+    } else {
+        None
+    }
+}
+
+/// Write a command to the PS/2 controller
+fn write_command(cmd: u8) {
+    use x86_64::instructions::port::Port;
+    let mut cmd_port: Port<u8> = Port::new(COMMAND_PORT);
+    
+    wait_for_write();
+    unsafe { cmd_port.write(cmd); }
+}
+
+/// Write data to the PS/2 data port
+fn write_data(data: u8) {
+    use x86_64::instructions::port::Port;
+    let mut data_port: Port<u8> = Port::new(DATA_PORT);
+    
+    wait_for_write();
+    unsafe { data_port.write(data); }
+}
+
+/// Send a command to the mouse (via PS/2 controller)
+fn mouse_write(cmd: u8) -> Option<u8> {
+    // Tell controller to send next byte to mouse
+    write_command(0xD4);
+    write_data(cmd);
+    
+    // Wait for ACK from mouse
+    read_data()
+}
 
 /// Initialize PS/2 mouse hardware
+/// 
+/// This performs a complete PS/2 controller and mouse initialization
+/// that is compatible with QEMU and real hardware.
 pub fn init_hardware() {
-    use x86_64::instructions::port::Port;
+    use x86_64::instructions::interrupts;
+    use crate::serial_println;
     
-    unsafe {
-        let mut cmd_port = Port::new(MOUSE_COMMAND_PORT);
-        let mut data_port = Port::new(MOUSE_DATA_PORT);
+    serial_println!("[Mouse] Starting PS/2 mouse initialization...");
+    
+    // Disable interrupts during initialization
+    interrupts::without_interrupts(|| {
+        // Step 1: Disable both PS/2 ports
+        write_command(0xAD); // Disable keyboard
+        write_command(0xA7); // Disable mouse
         
-        // Enable auxiliary device (mouse)
-        cmd_port.write(0xA8u8);
+        // Step 2: Flush the output buffer
+        {
+            use x86_64::instructions::port::Port;
+            let mut data_port: Port<u8> = Port::new(DATA_PORT);
+            let mut status_port: Port<u8> = Port::new(STATUS_PORT);
+            for _ in 0..100 {
+                let status: u8 = unsafe { status_port.read() };
+                if status & 0x01 != 0 {
+                    let _: u8 = unsafe { data_port.read() };
+                } else {
+                    break;
+                }
+            }
+        }
         
-        // Tell the controller we want to send a command to the mouse
-        cmd_port.write(0xD4u8);
+        // Step 3: Read controller configuration byte
+        write_command(0x20);
+        let mut config = read_data().unwrap_or(0);
+        serial_println!("[Mouse] Controller config: {:#04X}", config);
         
-        // Enable data reporting
-        data_port.write(0xF4u8);
+        // Step 4: Enable mouse interrupt (bit 1) and mouse clock (clear bit 5)
+        config |= 0x02;  // Enable IRQ12
+        config &= !0x20; // Enable mouse clock
         
-        // Read acknowledgment
-        let _ack: u8 = data_port.read();
-    }
+        // Step 5: Write updated configuration
+        write_command(0x60);
+        write_data(config);
+        serial_println!("[Mouse] Updated config: {:#04X}", config);
+        
+        // Step 6: Enable auxiliary device (mouse port)
+        write_command(0xA8);
+        
+        // Step 7: Reset mouse
+        if let Some(ack) = mouse_write(0xFF) {
+            serial_println!("[Mouse] Reset ACK: {:#04X}", ack);
+            // Mouse sends 0xAA (self-test passed) and 0x00 (device ID)
+            if let Some(result) = read_data() {
+                serial_println!("[Mouse] Self-test result: {:#04X}", result);
+            }
+            if let Some(id) = read_data() {
+                serial_println!("[Mouse] Device ID: {:#04X}", id);
+            }
+        }
+        
+        // Step 8: Set defaults
+        if let Some(ack) = mouse_write(0xF6) {
+            serial_println!("[Mouse] Set defaults ACK: {:#04X}", ack);
+        }
+        
+        // Step 9: Enable data reporting
+        if let Some(ack) = mouse_write(0xF4) {
+            serial_println!("[Mouse] Enable data reporting ACK: {:#04X}", ack);
+        }
+        
+        // Step 10: Re-enable keyboard
+        write_command(0xAE);
+        
+        serial_println!("[Mouse] PS/2 mouse initialization complete!");
+    });
 }
