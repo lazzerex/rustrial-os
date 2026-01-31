@@ -600,21 +600,20 @@ impl NetworkDevice for Rtl8139 {
             return None;
         }
 
-        // Check if packets are available in the queue (set by interrupt handler)
-        if !self.packets_available.load(Ordering::Acquire) {
-            return None;
+        // First check if packets are available in the interrupt queue
+        {
+            let mut queue = self.rx_queue.lock();
+            if let Some(packet) = queue.pop_front() {
+                if queue.is_empty() {
+                    self.packets_available.store(false, Ordering::Release);
+                }
+                return Some(packet);
+            }
         }
 
-        // Dequeue a packet from the interrupt handler's queue
-        let mut queue = self.rx_queue.lock();
-        let packet = queue.pop_front();
-        
-        // Update flag if queue is now empty
-        if queue.is_empty() {
-            self.packets_available.store(false, Ordering::Release);
-        }
-        
-        packet
+        // Fallback: Poll hardware directly if interrupts aren't working
+        // This is needed for some emulators and when IRQs aren't properly routed
+        self.receive_packet_internal()
     }
 
     fn link_status(&self) -> LinkStatus {
