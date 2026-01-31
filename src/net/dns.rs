@@ -375,7 +375,8 @@ fn parse_response(data: &[u8]) -> Result<Vec<Ipv4Addr>, DnsError> {
 
 /// Resolve a hostname to an IPv4 address using DNS
 ///
-/// Sends a DNS query to 8.8.8.8 (Google Public DNS) and returns the first A record found.
+/// Sends a DNS query to 10.0.2.3 (QEMU DNS server) and returns the first A record found.
+/// For QEMU user-mode networking, the DNS server is at 10.0.2.3.
 ///
 /// # Arguments
 /// * `hostname` - The hostname to resolve (e.g., "google.com")
@@ -390,7 +391,7 @@ fn parse_response(data: &[u8]) -> Result<Vec<Ipv4Addr>, DnsError> {
 /// println!("Resolved to: {}", ip);
 /// ```
 pub async fn resolve(hostname: &str) -> Result<Ipv4Addr, DnsError> {
-    const DNS_SERVER: Ipv4Addr = Ipv4Addr::new(8, 8, 8, 8);
+    const DNS_SERVER: Ipv4Addr = Ipv4Addr::new(10, 0, 2, 3);  // QEMU DNS server
     const DNS_PORT: u16 = 53;
     const TIMEOUT_ITERATIONS: u32 = 1000;  // ~10 seconds with 10ms yields
 
