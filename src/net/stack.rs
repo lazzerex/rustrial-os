@@ -619,13 +619,20 @@ pub fn send_ping(dest_ip: Ipv4Addr, identifier: u16, sequence: u16, data: Vec<u8
 pub fn init(executor: &mut crate::task::executor::Executor) {
     println!("Network stack initializing...");
     
-    // WORKAROUND: QEMU user networking doesn't send ARP replies for the gateway (10.0.2.2)
+    // WORKAROUND: QEMU user networking doesn't send ARP replies for internal IPs
     // Hardcode the gateway MAC address (QEMU uses 52:55:0a:00:02:02 for 10.0.2.2)
     let gateway_ip = Ipv4Addr::new(10, 0, 2, 2);
     let gateway_mac = [0x52, 0x55, 0x0a, 0x00, 0x02, 0x02];
     arp_cache().insert(gateway_ip, gateway_mac, 0); // Time 0, never expires
     println!("Network: Pre-populated ARP cache with gateway 10.0.2.2 -> {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
              gateway_mac[0], gateway_mac[1], gateway_mac[2], gateway_mac[3], gateway_mac[4], gateway_mac[5]);
+    
+    // Hardcode the DNS server MAC address (QEMU uses 52:55:0a:00:02:03 for 10.0.2.3)
+    let dns_ip = Ipv4Addr::new(10, 0, 2, 3);
+    let dns_mac = [0x52, 0x55, 0x0a, 0x00, 0x02, 0x03];
+    arp_cache().insert(dns_ip, dns_mac, 0); // Time 0, never expires
+    println!("Network: Pre-populated ARP cache with DNS 10.0.2.3 -> {:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+             dns_mac[0], dns_mac[1], dns_mac[2], dns_mac[3], dns_mac[4], dns_mac[5]);
     
     // Spawn RX processing task
     executor.spawn(crate::task::Task::new(rx_processing_task()));
