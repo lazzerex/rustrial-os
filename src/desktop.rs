@@ -56,14 +56,15 @@ impl DesktopIcon {
         let fg_color = Color::White;
         
         // Draw icon background
-        draw_filled_box(
-            self.x as usize,
-            self.y as usize,
-            self.width as usize,
-            self.height as usize,
-            fg_color,
-            bg_color,
-        );
+            // Always clear icon background with bg_color only
+            draw_filled_box(
+                self.x as usize,
+                self.y as usize,
+                self.width as usize,
+                self.height as usize,
+                bg_color,
+                bg_color,
+            );
         
         // Draw icon border
         draw_box(
@@ -220,15 +221,13 @@ impl Desktop {
         // Render all icons
         for (idx, icon) in self.icons.iter().enumerate() {
             if icon.action == IconAction::Shutdown {
-                // Render shutdown as a special button - always maintain red color
                 let shutdown_btn = ShutdownButton {
                     x: icon.x as usize,
                     y: icon.y as usize,
                     width: icon.width as usize,
                     height: icon.height as usize,
                 };
-                // Pass false to keep red color even when selected
-                shutdown_btn.render(false);
+                shutdown_btn.render(true);
             } else {
                 icon.render(Some(idx) == self.selected_icon);
             }
@@ -241,10 +240,9 @@ impl Desktop {
 
     fn render_cursor(&self, x: i16, y: i16) {
         use crate::vga_buffer::{write_char_at, Color};
-        
+        // mouse cursor
         if x >= 0 && x < BUFFER_WIDTH as i16 && y >= 0 && y < BUFFER_HEIGHT as i16 {
-            // Draw a bright, visible cursor
-            write_char_at(x as usize, y as usize, b'X', Color::Black, Color::White);
+            write_char_at(x as usize, y as usize, b'^', Color::Black, Color::White);
         }
     }
 
@@ -355,13 +353,13 @@ impl Desktop {
     }
 
     pub async fn run(&mut self) -> IconAction {
-        // Initialize mouse hardware
-        crate::task::mouse::init_hardware();
+        // Mouse hardware is already initialized in main.rs
         
         // Render initial desktop
         self.render_desktop();
         
-        let mut scancodes = keyboard::ScancodeStream::new();
+        // Initialize keyboard - use ScancodeStream to ensure queue is initialized
+        let _scancodes = keyboard::ScancodeStream::new();
         let mut kb = Keyboard::new(
             ScancodeSet1::new(),
             layouts::Us104Key,
@@ -369,21 +367,19 @@ impl Desktop {
         );
         
         let mut mouse_stream = MouseStream::new();
-        let mut left_button_was_pressed = false;
+        let mut left_button_was_pressed = true; // Start true to ignore any held button from before
         let mut double_click_timer = 0u32;
         let mut last_clicked_icon: Option<usize> = None;
         
+        // Drain any stale mouse packets from before entering desktop
+        while mouse_stream.try_next().is_some() {}
+        
+        // Wait for button to be released before accepting clicks
+        left_button_was_pressed = is_left_button_pressed();
+        
         loop {
-            // Periodically re-render desktop for real-time clock about every 60 frames
-            // mouse control is having some issues regarding this counter
-            // frame_counter += 1;
-            // if frame_counter >= 60 {
-            //     self.render_desktop();
-            //     frame_counter = 0;
-            // }
-
-            // Process mouse input
-            if let Some(packet) = mouse_stream.try_next() {
+            // Process ALL pending mouse packets (non-blocking)
+            while let Some(packet) = mouse_stream.try_next() {
                 update_position(packet.x_movement, packet.y_movement);
                 update_buttons(packet.buttons);
                 
@@ -396,13 +392,13 @@ impl Desktop {
                 }
                 
                 // Handle left button clicks
-                let left_pressed = is_left_button_pressed();
+                let left_pressed = packet.left_button();
                 if left_pressed && !left_button_was_pressed {
-                    // Button just pressed
+                    // Button just pressed - check if hovering over an icon
                     if let Some(icon_idx) = self.selected_icon {
-                        // Check for double-click
+                        // Check for double-click on same icon
                         if double_click_timer > 0 && last_clicked_icon == Some(icon_idx) {
-                            // Double-click detected!
+                            // Double-click detected! Activate the icon
                             if let Some(action) = self.handle_icon_click(icon_idx) {
                                 if action == IconAction::Shutdown {
                                     shutdown_system();
@@ -410,31 +406,28 @@ impl Desktop {
                                 return action;
                             }
                         } else {
-                            // First click
+                            // First click - start timer
                             last_clicked_icon = Some(icon_idx);
-                            double_click_timer = 50; // About 1 second at typical polling rate
+                            double_click_timer = 5000; // Much longer timer for double-click window
                         }
+                    } else {
+                        // Clicked outside any icon - reset
+                        last_clicked_icon = None;
+                        double_click_timer = 0;
                     }
                 }
                 left_button_was_pressed = left_pressed;
             }
             
-            // Decrement double-click timer
+            // Decrement double-click timer (slowly)
             if double_click_timer > 0 {
-                double_click_timer -= 1;
-                if double_click_timer == 0 {
-                    last_clicked_icon = None;
-                }
+                double_click_timer = double_click_timer.saturating_sub(1);
             }
             
-            // Process keyboard input (for keyboard navigation AND cursor control)
-            if let Some(scancode) = scancodes.next().await {
+            // Process keyboard input (non-blocking polling)
+            while let Some(scancode) = keyboard::try_pop_scancode() {
                 if let Ok(Some(key_event)) = kb.add_byte(scancode) {
                     if let Some(key) = kb.process_keyevent(key_event) {
-                        let mut cursor_moved = false;
-                        let mut new_x = self.last_mouse_x;
-                        let mut new_y = self.last_mouse_y;
-                        
                         match key {
                             DecodedKey::Unicode('\n') | DecodedKey::Unicode(' ') => {
                                 // Enter/Space activates selected icon OR simulates click
@@ -453,47 +446,39 @@ impl Desktop {
                                     }
                                 }
                             }
-                            // Arrow keys move the cursor
+                            // Arrow keys move the cursor (update the atomic position like real mouse)
                             DecodedKey::RawKey(KeyCode::ArrowLeft) => {
-                                if new_x > 0 {
-                                    new_x -= 1;
-                                    cursor_moved = true;
-                                }
+                                update_position(-2, 0);  // Move left
+                                let (mx, my) = get_position();
+                                self.update_cursor_position(mx, my);
+                                self.update_mouse_selection(mx, my);
                             }
                             DecodedKey::RawKey(KeyCode::ArrowRight) => {
-                                if new_x < BUFFER_WIDTH as i16 - 1 {
-                                    new_x += 1;
-                                    cursor_moved = true;
-                                }
+                                update_position(2, 0);  // Move right
+                                let (mx, my) = get_position();
+                                self.update_cursor_position(mx, my);
+                                self.update_mouse_selection(mx, my);
                             }
                             DecodedKey::RawKey(KeyCode::ArrowUp) => {
-                                if new_y > 0 {
-                                    new_y -= 1;
-                                    cursor_moved = true;
-                                }
+                                update_position(0, 2);  // Move up (inverted Y)
+                                let (mx, my) = get_position();
+                                self.update_cursor_position(mx, my);
+                                self.update_mouse_selection(mx, my);
                             }
                             DecodedKey::RawKey(KeyCode::ArrowDown) => {
-                                if new_y < BUFFER_HEIGHT as i16 - 1 {
-                                    new_y += 1;
-                                    cursor_moved = true;
-                                }
+                                update_position(0, -2);  // Move down (inverted Y)
+                                let (mx, my) = get_position();
+                                self.update_cursor_position(mx, my);
+                                self.update_mouse_selection(mx, my);
                             }
                             _ => {}
-                        }
-                        
-                        // Update cursor efficiently if moved
-                        if cursor_moved {
-                            self.update_cursor_position(new_x, new_y);
-                            self.update_mouse_selection(new_x, new_y);
                         }
                     }
                 }
             }
             
-            // Small delay to prevent busy-waiting
-            for _ in 0..1000 {
-                core::hint::spin_loop();
-            }
+            // Yield to allow other async tasks to run
+            crate::task::yield_now().await;
         }
     }
 }
