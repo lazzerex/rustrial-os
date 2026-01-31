@@ -103,10 +103,20 @@ extern "x86-interrupt" fn mouse_interrupt_handler(
 {
     use x86_64::instructions::port::Port;
     
-    let mut port = Port::new(0x60);
-    let packet_byte: u8 = unsafe { port.read() };
+    // Check status port first - bit 5 indicates mouse data (vs keyboard)
+    let mut status_port: Port<u8> = Port::new(0x64);
+    let status: u8 = unsafe { status_port.read() };
     
-    crate::task::mouse::add_byte(packet_byte);
+    // Only read if data is available
+    if status & 0x01 != 0 {
+        let mut port: Port<u8> = Port::new(0x60);
+        let packet_byte: u8 = unsafe { port.read() };
+        
+        // Only add to queue if this is mouse data (bit 5 of status)
+        if status & 0x20 != 0 {
+            crate::task::mouse::add_byte(packet_byte);
+        }
+    }
     
     unsafe {
         PICS.lock()
