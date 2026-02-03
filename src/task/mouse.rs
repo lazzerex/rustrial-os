@@ -10,9 +10,9 @@ use crossbeam_queue::ArrayQueue;
 /// Global mouse packet queue
 static MOUSE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
 
-/// Mouse cursor position (in screen coordinates)
-pub static MOUSE_X: AtomicI16 = AtomicI16::new(40); // Center of 80-column screen
-pub static MOUSE_Y: AtomicI16 = AtomicI16::new(12); // Center of 25-row screen
+/// Mouse cursor position (in screen coordinates, with subpixel precision)
+pub static MOUSE_X: AtomicI16 = AtomicI16::new(40 * 8); // Center, scaled by 8
+pub static MOUSE_Y: AtomicI16 = AtomicI16::new(12 * 8); // Center, scaled by 8
 
 /// Mouse button states
 pub static MOUSE_LEFT_BUTTON: AtomicU8 = AtomicU8::new(0);
@@ -21,6 +21,9 @@ pub static MOUSE_RIGHT_BUTTON: AtomicU8 = AtomicU8::new(0);
 /// Screen bounds
 const SCREEN_WIDTH: i16 = 80;
 const SCREEN_HEIGHT: i16 = 25;
+
+/// subpixel scaling factor for smooth movement
+const SUBPIXEL_SHIFT: i16 = 3; // 2^3 = 8x precision
 
 /// Mouse packet structure
 #[derive(Debug, Clone, Copy)]
@@ -136,31 +139,28 @@ pub fn update_position(dx: i16, dy: i16) {
     let mut x = MOUSE_X.load(Ordering::Relaxed);
     let mut y = MOUSE_Y.load(Ordering::Relaxed);
 
-    // Update X coordinate
-    x += dx / 2; // Scale down movement for better control
-    if x < 0 {
-        x = 0;
-    } else if x >= SCREEN_WIDTH {
-        x = SCREEN_WIDTH - 1;
-    }
-
-    // Update Y coordinate (invert Y because PS/2 Y is opposite)
-    y -= dy / 2; // Scale down and invert
-    if y < 0 {
-        y = 0;
-    } else if y >= SCREEN_HEIGHT {
-        y = SCREEN_HEIGHT - 1;
-    }
+    // apply movement directly to subpixel coordinates
+    x += dx;
+    y -= dy; // invert y because ps/2 y is opposite
+    
+    // clamp to screen bounds (accounting for subpixel scaling)
+    let min_x = 0;
+    let max_x = (SCREEN_WIDTH << SUBPIXEL_SHIFT) - 1;
+    let min_y = 0;
+    let max_y = (SCREEN_HEIGHT << SUBPIXEL_SHIFT) - 1;
+    
+    x = x.max(min_x).min(max_x);
+    y = y.max(min_y).min(max_y);
 
     MOUSE_X.store(x, Ordering::Relaxed);
     MOUSE_Y.store(y, Ordering::Relaxed);
 }
 
-/// Get current mouse position
+/// Get current mouse position (converts from subpixel to screen coordinates)
 pub fn get_position() -> (i16, i16) {
     (
-        MOUSE_X.load(Ordering::Relaxed),
-        MOUSE_Y.load(Ordering::Relaxed),
+        MOUSE_X.load(Ordering::Relaxed) >> SUBPIXEL_SHIFT,
+        MOUSE_Y.load(Ordering::Relaxed) >> SUBPIXEL_SHIFT,
     )
 }
 
