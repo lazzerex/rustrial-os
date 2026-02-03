@@ -26,7 +26,7 @@
 
 # Rustrial OS
 
-A hobby x86-64 bare-metal operating system kernel written in Rust, built from scratch to explore low-level systems programming, memory management,PS/2 mouse support and async concurrency on real hardware.
+A hobby x86-64 bare-metal operating system kernel written in Rust, built from scratch to explore low-level systems programming, memory management, PS/2 mouse support and async concurrency on real hardware.
 
 ## Overview
 
