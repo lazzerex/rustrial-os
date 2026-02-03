@@ -6,7 +6,7 @@
 extern crate alloc;
 use alloc::vec::Vec;
 use alloc::collections::{BTreeMap, VecDeque};
-use alloc::boxed::Box;
+
 use alloc::sync::Arc;
 use core::net::Ipv4Addr;
 use spin::Mutex;
