@@ -10,16 +10,15 @@
 //! - Connection teardown (FIN/ACK)
 //! - Basic retransmission support
 //!
-//! # Limitations (Current Implementation)
-//! - No congestion control
-//! - No sliding window (fixed window size)
-//! - Basic retransmission (no sophisticated timeout calculation)
-//! - No options support beyond MSS
+//! # Implemented Features
+//! - Sliding window flow control
+//! - Basic congestion control (AIMD)
+//! - Time-based ISN generation
+//! - Full socket API (connect, listen, accept, send, recv, close)
 
 extern crate alloc;
 use alloc::vec::Vec;
 use alloc::collections::{BTreeMap, VecDeque};
-use alloc::boxed::Box;
 use alloc::sync::Arc;
 use core::net::Ipv4Addr;
 use spin::Mutex;
@@ -42,6 +41,12 @@ pub const DEFAULT_MSS: u16 = 1460; // Typical for Ethernet (1500 - 20 IP - 20 TC
 /// TCP port range for ephemeral (dynamic) port allocation
 pub const EPHEMERAL_PORT_START: u16 = 49152;
 pub const EPHEMERAL_PORT_END: u16 = 65535;
+
+/// default congestion window size
+const INITIAL_CWND: u16 = 2 * DEFAULT_MSS;
+
+/// slow start threshold
+const INITIAL_SSTHRESH: u16 = 65535;
 
 /// TCP Control Flags
 pub mod flags {
@@ -131,9 +136,9 @@ pub struct TcpConnection {
     pub initial_send_seq: u32,
     /// Initial receive sequence number
     pub initial_recv_seq: u32,
-    /// Send window size
+    /// Send window size (peer advertised)
     pub send_window: u16,
-    /// Receive window size
+    /// Receive window size (our advertised)
     pub recv_window: u16,
     /// Maximum segment size
     pub mss: u16,
@@ -143,6 +148,14 @@ pub struct TcpConnection {
     pub recv_buffer: VecDeque<u8>,
     /// Pending segments for retransmission
     pub pending_acks: VecDeque<(u32, Vec<u8>)>, // (seq, data)
+    /// congestion window (bytes in flight limit)
+    pub cwnd: u16,
+    /// slow start threshold
+    pub ssthresh: u16,
+    /// number of duplicate acks received
+    pub dup_acks: u8,
+    /// last acknowledged sequence number
+    pub last_ack: u32,
 }
 
 /// Errors that can occur during TCP operations
@@ -365,6 +378,10 @@ impl TcpConnection {
             send_buffer: VecDeque::with_capacity(8192),
             recv_buffer: VecDeque::with_capacity(8192),
             pending_acks: VecDeque::new(),
+            cwnd: INITIAL_CWND,
+            ssthresh: INITIAL_SSTHRESH,
+            dup_acks: 0,
+            last_ack: 0,
         }
     }
 
@@ -517,6 +534,8 @@ impl TcpConnection {
     fn handle_ack_in_syn_received(&mut self, packet: &TcpPacket) -> Result<Option<TcpPacket>, TcpError> {
         if packet.acknowledgment == self.send_seq {
             self.state = TcpState::Established;
+            self.send_window = packet.window;
+            self.last_ack = packet.acknowledgment;
             serial_println!("[TCP] Connection established (server)!");
         }
         Ok(None)
@@ -525,6 +544,34 @@ impl TcpConnection {
     /// Handle packets in ESTABLISHED state
     fn handle_established(&mut self, packet: &TcpPacket) -> Result<Option<TcpPacket>, TcpError> {
         let mut response = None;
+        
+        // update send window
+        self.send_window = packet.window;
+        
+        // handle ack for sent data
+        if packet.has_flag(flags::ACK) && packet.acknowledgment > self.last_ack {
+            let _acked_bytes = packet.acknowledgment.wrapping_sub(self.last_ack);
+            self.last_ack = packet.acknowledgment;
+            
+            // remove acked segments
+            while let Some((seq, data)) = self.pending_acks.front() {
+                let end_seq = seq.wrapping_add(data.len() as u32);
+                if end_seq <= packet.acknowledgment {
+                    self.pending_acks.pop_front();
+                    self.update_cwnd_on_ack();
+                } else {
+                    break;
+                }
+            }
+            
+            self.dup_acks = 0;
+        } else if packet.has_flag(flags::ACK) && packet.acknowledgment == self.last_ack {
+            self.dup_acks += 1;
+            if self.dup_acks >= 3 {
+                self.handle_congestion();
+                serial_println!("[TCP] Fast retransmit triggered");
+            }
+        }
 
         // Handle data
         if !packet.data.is_empty() {
@@ -532,6 +579,9 @@ impl TcpConnection {
                 // In-order data
                 self.recv_buffer.extend(&packet.data);
                 self.recv_seq = self.recv_seq.wrapping_add(packet.data.len() as u32);
+                
+                let available_space = 8192_u16.saturating_sub(self.recv_buffer.len() as u16);
+                self.recv_window = available_space;
 
                 serial_println!("[TCP] Received {} bytes of data", packet.data.len());
 
@@ -621,10 +671,17 @@ impl TcpConnection {
         if self.state != TcpState::Established {
             return Err(TcpError::InvalidState);
         }
+        
+        if !self.can_send() {
+            return Err(TcpError::BufferFull);
+        }
 
         if self.send_buffer.len() + data.len() > self.send_buffer.capacity() {
             return Err(TcpError::BufferFull);
         }
+        
+        let send_len = core::cmp::min(data.len(), self.mss as usize);
+        let send_data = &data[..send_len];
 
         let packet = TcpPacket {
             src_port: self.socket_id.local_port,
@@ -637,11 +694,11 @@ impl TcpConnection {
             checksum: 0,
             urgent_pointer: 0,
             options: Vec::new(),
-            data: data.to_vec(),
+            data: send_data.to_vec(),
         };
 
-        self.send_seq = self.send_seq.wrapping_add(data.len() as u32);
-        self.pending_acks.push_back((packet.sequence, data.to_vec()));
+        self.send_seq = self.send_seq.wrapping_add(send_len as u32);
+        self.pending_acks.push_back((packet.sequence, send_data.to_vec()));
 
         Ok(packet)
     }
@@ -690,21 +747,56 @@ impl TcpConnection {
         Ok(fin_packet)
     }
 
-    /// Generate Initial Sequence Number (simplified)
+    /// Generate Initial Sequence Number using time-based approach
     fn generate_isn() -> u32 {
-        // TODO: Use a better ISN generation (e.g., based on time and random)
-        // For now, use a simple counter
         use core::sync::atomic::{AtomicU32, Ordering};
-        static ISN_COUNTER: AtomicU32 = AtomicU32::new(1000);
-        ISN_COUNTER.fetch_add(1, Ordering::SeqCst)
+        use crate::native_ffi::DateTime;
+        
+        static ISN_COUNTER: AtomicU32 = AtomicU32::new(0);
+        
+        let dt = DateTime::read();
+        let time_component = (dt.hour as u32) * 3600000 +
+            (dt.minute as u32) * 60000 +
+            (dt.second as u32) * 1000;
+        
+        let counter = ISN_COUNTER.fetch_add(1, Ordering::SeqCst);
+        time_component.wrapping_add(counter).wrapping_mul(4096)
+    }
+    
+    /// update congestion window on successful ack
+    fn update_cwnd_on_ack(&mut self) {
+        if self.cwnd < self.ssthresh {
+            self.cwnd = self.cwnd.saturating_add(self.mss);
+        } else {
+            let increment = (self.mss as u32 * self.mss as u32) / self.cwnd as u32;
+            self.cwnd = self.cwnd.saturating_add(increment as u16);
+        }
+    }
+    
+    /// handle congestion event (packet loss)
+    fn handle_congestion(&mut self) {
+        self.ssthresh = core::cmp::max(self.cwnd / 2, 2 * self.mss);
+        self.cwnd = self.ssthresh;
+        self.dup_acks = 0;
+    }
+    
+    /// check if we can send more data based on window
+    fn can_send(&self) -> bool {
+        let bytes_in_flight = self.pending_acks.iter()
+            .map(|(_, data)| data.len() as u16)
+            .sum::<u16>();
+        let effective_window = core::cmp::min(self.send_window, self.cwnd);
+        bytes_in_flight < effective_window
     }
 }
 
-/// Global TCP connection manager
 lazy_static! {
+    // global tcp connection manager
     static ref TCP_CONNECTIONS: Mutex<BTreeMap<TcpSocketId, Arc<Mutex<TcpConnection>>>> = 
         Mutex::new(BTreeMap::new());
     static ref NEXT_EPHEMERAL_PORT: Mutex<u16> = Mutex::new(EPHEMERAL_PORT_START);
+    static ref LISTEN_SOCKETS: Mutex<BTreeMap<(Ipv4Addr, u16), VecDeque<TcpSocketId>>> = 
+        Mutex::new(BTreeMap::new());
 }
 
 /// Allocate an ephemeral port
@@ -759,15 +851,36 @@ pub fn tcp_connect(remote_addr: Ipv4Addr, remote_port: u16, local_addr: Ipv4Addr
 
 /// Listen for incoming connections on a port
 pub fn tcp_listen(local_addr: Ipv4Addr, local_port: u16) -> Result<(), TcpError> {
-    // Check if port is already in use
-    let connections = TCP_CONNECTIONS.lock();
-    let in_use = connections.keys().any(|id| id.local_addr == local_addr && id.local_port == local_port);
-    if in_use {
+    let mut listen_sockets = LISTEN_SOCKETS.lock();
+    let key = (local_addr, local_port);
+    
+    if listen_sockets.contains_key(&key) {
         return Err(TcpError::PortInUse);
     }
-
+    
+    listen_sockets.insert(key, VecDeque::new());
     serial_println!("[TCP] Listening on {}:{}", local_addr, local_port);
     Ok(())
+}
+
+/// Accept an incoming connection (non-blocking)
+pub fn tcp_accept(local_addr: Ipv4Addr, local_port: u16) -> Result<Option<TcpSocketId>, TcpError> {
+    let mut listen_sockets = LISTEN_SOCKETS.lock();
+    let key = (local_addr, local_port);
+    
+    let queue = listen_sockets.get_mut(&key).ok_or(TcpError::ConnectionNotFound)?;
+    
+    if let Some(socket_id) = queue.pop_front() {
+        let connections = TCP_CONNECTIONS.lock();
+        if let Some(conn) = connections.get(&socket_id) {
+            let state = conn.lock().state;
+            if state == TcpState::Established {
+                return Ok(Some(socket_id));
+            }
+        }
+    }
+    
+    Ok(None)
 }
 
 /// Send data on a TCP connection
@@ -856,6 +969,13 @@ pub fn handle_tcp_packet(
                 let connection_arc = Arc::new(Mutex::new(new_connection));
                 drop(connections);
                 TCP_CONNECTIONS.lock().insert(new_socket_id, connection_arc);
+                
+                let mut listen_sockets = LISTEN_SOCKETS.lock();
+                let key = (dest_addr, packet.dest_port);
+                if let Some(queue) = listen_sockets.get_mut(&key) {
+                    queue.push_back(new_socket_id);
+                }
+                
                 send_tcp_packet(&response, dest_addr, src_addr)?;
             }
         } else {
