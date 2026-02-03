@@ -137,7 +137,10 @@ For detailed networking documentation, see [docs/net.md](docs/net.md)
 - **Interactive CLI**: Full-featured command-line interface with command parsing
 - **File Commands**: `ls`, `cat`, `mkdir`, `touch`, `cd`, `pwd` for filesystem operations
 - **Script Execution**: `run` command to execute RustrialScript files
+- **Network Commands**: `ifconfig`, `ping`, `arp`, `tcptest` for network diagnostics
+- **System Commands**: `rustrialfetch`, `netinfo`, `pciinfo`, `dmastat` for system info
 - **Command History**: Navigate previous commands with arrow keys (up to 50 commands)
+- **Scrollback Buffer**: Page Up/Down to scroll through command history
 - **Customization**: `color` command to change terminal colors, `clear` to reset screen
 - **Path Resolution**: Support for absolute paths, relative paths, `.` and `..`
 - **Desktop Integration**: Accessible via Shell icon in the desktop environment
@@ -150,6 +153,13 @@ For detailed networking documentation, see [docs/net.md](docs/net.md)
 - **VGA Integration**: Direct output to screen during script execution
 - **Example Scripts**: Fibonacci, factorial, GCD, prime checker, Collatz conjecture, sum of squares
 
+### Desktop GUI Environment
+- **Interactive Desktop**: Graphical environment with mouse-driven interface
+- **Icon System**: Launch applications via double-click (Shell, Scripts, Hardware Info, etc.)
+- **Smooth Mouse Cursor**: 8x subpixel precision for fluid diagonal movement
+- **Visual Feedback**: Icon highlighting and click detection
+- **Multi-window Support**: Switch between desktop and applications seamlessly
+
 ### Interactive Menu System
 The OS boots into a feature-rich menu:
 1. **Normal Mode**: System info with hardware detection summary + keyboard echo
@@ -159,24 +169,31 @@ The OS boots into a feature-rich menu:
 3. **Graphics Demo**: Comprehensive showcase of text graphics capabilities
 4. **Hardware Info**: Detailed CPU, RTC, and PCI device information
 5. **Help**: Documentation and usage instructions
+6. **Desktop**: Launch graphical desktop environment with mouse support
 
 **Navigation:**
 - Number keys: Select menu options
 - ↑/↓ or W/S: Navigate script browser
 - Enter: Execute selection
 - ESC: Return to previous menu
+- Mouse: Point and click in desktop mode
 
 ### Network Stack 
-- **TCP/IP Implementation**: Full protocol stack with Ethernet, ARP, IPv4, ICMP, UDP
+- **TCP/IP Implementation**: Full protocol stack with Ethernet, ARP, IPv4, ICMP, UDP, TCP
 - **RTL8139 Driver**: PCI network card driver with DMA support (256×2KB ring buffers)
 - **Async RX/TX Processing**: Waker-based task scheduling for packet handling
 - **ARP Protocol**: Address resolution with caching for IPv4→MAC mapping
 - **ICMP Echo (Ping)**: Working ping implementation with round-trip time tracking
 - **UDP Protocol**: Socket-based API with port registry and ephemeral port allocation
+- **TCP Protocol**: Full socket API (connect, listen, accept, send, recv, close)
+  - Time-based ISN generation using RTC for secure sequence numbers
+  - Sliding window flow control for efficient data transmission
+  - Congestion control with AIMD algorithm and fast retransmit
+  - 3-way handshake and graceful connection teardown
 - **DNS Client**: Full DNS resolver supporting A record queries (RFC 1035 compliant)
 - **Domain Name Resolution**: Ping any hostname (e.g., `ping google.com`) with automatic DNS lookup
 - **QEMU Networking**: User-mode networking support with hardcoded gateway MAC workaround
-- **Shell Commands**: `ifconfig`, `ping <ip|hostname>`, `arp`, `netinfo` for network management
+- **Shell Commands**: `ifconfig`, `ping <ip|hostname>`, `arp`, `netinfo`, `tcptest` for network management
 - **Status**: Fully operational - Successfully resolves DNS and communicates with internet hosts
 - **Documentation**: See `docs/net.md` for detailed architecture and setup
 
@@ -239,7 +256,11 @@ src/
 │   ├── ethernet.rs          # Ethernet frame handling
 │   ├── arp.rs               # ARP protocol with caching
 │   ├── ipv4.rs              # IPv4 packet processing
-│   └── icmp.rs              # ICMP echo request/reply
+│   ├── icmp.rs              # ICMP echo request/reply
+│   ├── udp.rs               # UDP socket implementation
+│   ├── tcp.rs               # TCP with sliding window & congestion control
+│   ├── dns.rs               # DNS client (A records)
+│   └── loopback.rs          # Loopback interface (127.0.0.1)
 │
 ├── rustrial_script/         # Scripting language
 │   ├── mod.rs               # Interpreter interface
@@ -254,7 +275,8 @@ src/
     ├── mod.rs               # Task structures
     ├── executor.rs          # Waker-based executor
     ├── simple_executor.rs   # Basic executor
-    └── keyboard.rs          # Async keyboard processing
+    ├── keyboard.rs          # Async keyboard processing
+    └── mouse.rs             # Async PS/2 mouse driver
 
 tests/                       # Integration tests
 ├── basic_boot.rs            # Boot verification
@@ -492,8 +514,9 @@ gdb target/x86_64-rustrial_os/debug/rustrial_os
 - **No persistence**: RAMfs only, no disk I/O
 - **No user-space**: Kernel-only, no process isolation
 - **Cooperative multitasking**: Async/await only, no preemption
-- **Limited drivers**: VGA, PS/2, serial only
+- **Limited drivers**: VGA, PS/2 (keyboard + mouse), serial, RTL8139 NIC
 - **100 KiB heap**: Configurable but fixed at build time
+- **Text mode only**: VGA 80×25 (Mode 13h experimental)
 
 ## Roadmap
 
@@ -501,15 +524,19 @@ gdb target/x86_64-rustrial_os/debug/rustrial_os
 - RAMfs in-memory filesystem with VFS abstraction
 - RustrialScript interpreter (stack-based VM)
 - Interactive menu with hardware detection
-- Text-mode graphics library
+- Text-mode graphics library and desktop GUI
 - Native C/Assembly hardware detection (CPU, PCI, RTC)
+- Network stack with TCP/IP (Ethernet, ARP, IPv4, ICMP, UDP, TCP, DNS)
+- PS/2 mouse driver with smooth cursor movement
+- Shell with network diagnostics and scrollback
 
 **In Progress / Planned:**
+- [ ] HTTP client (TCP ready, needs implementation)
+- [ ] DHCP client for dynamic IP configuration
 - [ ] Block device drivers (ATA/AHCI)
-- [ ] Persistent filesystem (FAT32)
+- [ ] Persistent filesystem (FAT32 or ext2)
 - [ ] Pre-emptive multitasking
 - [ ] User-space programs with system calls
-- [ ] Network stack (TCP/IP)
 - [ ] ACPI and power management
 - [ ] USB support
 - [ ] Higher resolution graphics (VESA/VBE)
