@@ -53,7 +53,6 @@ impl DesktopIcon {
         use crate::graphics::text_graphics::*;
         
         let bg_color = if selected { Color::LightBlue } else { Color::Blue };
-        let fg_color = Color::White;
         
         // Draw icon background
             // Always clear icon background with bg_color only
