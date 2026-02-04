@@ -41,40 +41,58 @@ impl CpuInfo {
     }
     
     pub fn vendor_str(&self) -> &str {
-        core::str::from_utf8(&self.vendor).unwrap_or("Unknown")
+        let vendor = core::str::from_utf8(&self.vendor).unwrap_or("Unknown");
+        if vendor.is_empty() || vendor.chars().all(|c| c == '\0') {
+            "Unknown"
+        } else {
+            vendor.trim_end_matches('\0').trim()
+        }
     }
     
     pub fn brand_str(&self) -> &str {
-        let s = core::str::from_utf8(&self.brand).unwrap_or("Unknown CPU");
-        s.trim_end_matches('\0').trim()
+        let brand = core::str::from_utf8(&self.brand).unwrap_or("Unknown CPU");
+        let trimmed = brand.trim_end_matches('\0').trim();
+        if trimmed.is_empty() {
+            "Unknown CPU"
+        } else {
+            trimmed
+        }
     }
     
     pub fn has_sse(&self) -> bool { (self.features & (1 << 25)) != 0 }
     pub fn has_sse2(&self) -> bool { (self.features & (1 << 26)) != 0 }
-    pub fn has_sse3(&self) -> bool { (self.features & (1 << 32)) != 0 }
-    pub fn has_avx(&self) -> bool { (self.features & (1 << 60)) != 0 }
+    pub fn has_sse3(&self) -> bool { (self.features & (1 << 0)) != 0 } // ecx bit 0
+    pub fn has_avx(&self) -> bool { (self.features & (1 << 28)) != 0 } // ecx bit 28
+    pub fn has_fpu(&self) -> bool { (self.features & (1 << 0)) != 0 }
+    pub fn has_mmx(&self) -> bool { (self.features & (1 << 23)) != 0 }
+    pub fn has_msr(&self) -> bool { (self.features & (1 << 5)) != 0 }
+    
+    pub fn features_str(&self) -> alloc::string::String {
+        use alloc::string::String;
+        use alloc::vec::Vec;
+        
+        let mut features = Vec::new();
+        if self.has_fpu() { features.push("FPU"); }
+        if self.has_msr() { features.push("MSR"); }
+        if self.has_mmx() { features.push("MMX"); }
+        if self.has_sse() { features.push("SSE"); }
+        if self.has_sse2() { features.push("SSE2"); }
+        if self.has_sse3() { features.push("SSE3"); }
+        if self.has_avx() { features.push("AVX"); }
+        
+        if features.is_empty() {
+            String::from("None detected")
+        } else {
+            features.join(", ")
+        }
+    }
 }
 
 impl fmt::Display for CpuInfo {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "CPU Vendor: {}", self.vendor_str())?;
-        writeln!(f, "CPU Brand:  {}", self.brand_str())?;
-        write!(f, "Features:   ")?;
-        
-        let mut first = true;
-        for (feature, name) in [
-            (self.has_sse(), "SSE"),
-            (self.has_sse2(), "SSE2"),
-            (self.has_sse3(), "SSE3"),
-            (self.has_avx(), "AVX"),
-        ] {
-            if feature {
-                if !first { write!(f, ", ")?; }
-                write!(f, "{}", name)?;
-                first = false;
-            }
-        }
-        
+        writeln!(f, "CPU Vendor:   {}", self.vendor_str())?;
+        writeln!(f, "CPU Brand:    {}", self.brand_str())?;
+        write!(f, "Features:     {}", self.features_str())?;
         Ok(())
     }
 }
@@ -134,25 +152,37 @@ impl PciDevice {
     pub fn class_name(&self) -> &'static str {
         unsafe {
             let ptr = pci_get_class_name(self.class_code);
+            if ptr.is_null() {
+                return "Unknown Class";
+            }
             let bytes = core::slice::from_raw_parts(ptr, 64);
             let len = bytes.iter().position(|&b| b == 0).unwrap_or(64);
-            core::str::from_utf8(&bytes[..len]).unwrap_or("Unknown")
+            let name = core::str::from_utf8(&bytes[..len]).unwrap_or("Unknown Class");
+            if name.is_empty() { "Unknown Class" } else { name }
         }
     }
     
     pub fn vendor_name(&self) -> &'static str {
         unsafe {
             let ptr = pci_get_vendor_name(self.vendor_id);
+            if ptr.is_null() {
+                return "Unknown Vendor";
+            }
             let bytes = core::slice::from_raw_parts(ptr, 64);
             let len = bytes.iter().position(|&b| b == 0).unwrap_or(64);
-            core::str::from_utf8(&bytes[..len]).unwrap_or("Unknown")
+            let name = core::str::from_utf8(&bytes[..len]).unwrap_or("Unknown Vendor");
+            if name.is_empty() { "Unknown Vendor" } else { name }
         }
+    }
+    
+    pub fn is_valid(&self) -> bool {
+        self.vendor_id != 0xFFFF && self.vendor_id != 0x0000
     }
 }
 
 impl fmt::Display for PciDevice {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[{:02X}:{:02X}.{}] {:04X}:{:04X} {} - {}",
+        write!(f, "[{:02X}:{:02X}.{}] {:04X}:{:04X} {:16} - {}",
             self.bus, self.device, self.function,
             self.vendor_id, self.device_id,
             self.vendor_name(),
@@ -169,7 +199,8 @@ pub fn enumerate_pci_devices() -> Vec<PciDevice> {
         let count = pci_enumerate_devices(devices.as_mut_ptr(), MAX_DEVICES as i32);
         devices.set_len(count as usize);
     }
-    devices
+    // filter out invalid devices
+    devices.into_iter().filter(|d| d.is_valid()).collect()
 }
 
 /// representation of a pci bar returned to rust
@@ -305,7 +336,33 @@ impl DateTime {
         unsafe {
             rtc_read_datetime(&mut dt as *mut DateTime);
         }
-        dt
+        dt.validate()
+    }
+    
+    fn validate(mut self) -> Self {
+        // validate and clamp values to reasonable ranges
+        if self.year < 1970 || self.year > 2100 {
+            self.year = 2026; // default to current year
+        }
+        if self.month < 1 || self.month > 12 {
+            self.month = 1;
+        }
+        if self.day < 1 || self.day > 31 {
+            self.day = 1;
+        }
+        if self.hour > 23 {
+            self.hour = 0;
+        }
+        if self.minute > 59 {
+            self.minute = 0;
+        }
+        if self.second > 59 {
+            self.second = 0;
+        }
+        if self.weekday > 7 {
+            self.weekday = 0;
+        }
+        self
     }
     
     pub fn weekday_str(&self) -> &'static str {
