@@ -58,7 +58,7 @@ pub fn show_hardware_submenu() {
         write_at(FRAME_X + 10, base_y + 1, description, Color::LightGray, Color::Black);
     }
 
-    show_status_bar("Press 1-4 to select  • 0 returns to desktop");
+    show_status_bar("Press 1-4 to select - 0 returns to desktop");
 }
 
 /// Display all hardware information in one comprehensive view

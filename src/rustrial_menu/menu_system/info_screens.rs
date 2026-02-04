@@ -26,7 +26,7 @@ pub fn show_system_info() {
     for i in 0..500 {
         vec_buffer.push(i);
     }
-    let vec_line = alloc::format!("Vec capacity {} elements • buffer @ {:p}", vec_buffer.capacity(), vec_buffer.as_ptr());
+    let vec_line = alloc::format!("Vec capacity {} elements - buffer @ {:p}", vec_buffer.capacity(), vec_buffer.as_ptr());
 
     let reference_counted = Rc::new(vec![1, 2, 3]);
     let cloned_reference = reference_counted.clone();
@@ -49,7 +49,7 @@ pub fn show_system_info() {
     write_at(FRAME_X + 4, FRAME_Y + 12, "Keyboard echo mode active:", Color::LightCyan, Color::Black);
     write_at(FRAME_X + 4, FRAME_Y + 13, "Type to see characters appear; ESC returns to the main menu", Color::LightGray, Color::Black);
 
-    show_status_bar("Normal mode • Type freely • ESC returns to main menu");
+    show_status_bar("Normal mode - Type freely - ESC returns to main menu");
 }
 
 
@@ -74,11 +74,11 @@ pub fn show_help() {
     write_at(FRAME_X + 4, section_y, "Core Capabilities", Color::White, Color::Black);
     section_y += 1;
     let capabilities = [
-        "• Custom memory management and heap allocation",
-        "• Interrupt handling with async task executor",
-        "• In-memory filesystem (RAMfs) with VFS layer",
-        "• RustrialScript interpreter and demos",
-        "• Styled text-mode UI with graphics showcase",
+        "* Custom memory management and heap allocation",
+        "* Interrupt handling with async task executor",
+        "* In-memory filesystem (RAMfs) with VFS layer",
+        "* RustrialScript interpreter and demos",
+        "* Styled text-mode UI with graphics showcase",
     ];
     for line in &capabilities {
         write_at(FRAME_X + 6, section_y, line, Color::LightGray, Color::Black);

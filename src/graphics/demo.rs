@@ -32,18 +32,18 @@ pub fn run_graphics_demo() {
     clear_screen();
 
     if aborted {
-        println!("\n╔═══════════════════════════════════════╗");
-        println!("║  Graphics Demo cancelled (ESC pressed) ║");
-        println!("╚═══════════════════════════════════════╝");
+        println!("\n+=========================================+");
+        println!("|  Graphics Demo cancelled (ESC pressed)  |");
+        println!("+=========================================+");
     } else {
-        println!("\n╔═══════════════════════════════════════╗");
-        println!("║     Graphics Demo Complete!           ║");
-        println!("╚═══════════════════════════════════════╝");
+        println!("\n+=========================================+");
+        println!("|     Graphics Demo Complete!             |");
+        println!("+=========================================+");
         println!("\nDemo showcased:");
-        println!("  • Box drawing (single/double lines)");
-        println!("  • Progress bars and animations");
-        println!("  • UI elements (message boxes, status bars)");
-        println!("  • Terminal windows and spinners");
+        println!("  * Box drawing (single/double lines)");
+        println!("  * Progress bars and animations");
+        println!("  * UI elements (message boxes, status bars)");
+        println!("  * Terminal windows and spinners");
     }
 }
 

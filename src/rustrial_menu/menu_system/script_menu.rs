@@ -47,7 +47,7 @@ pub fn show_script_choice() {
         write_at(FRAME_X + 11, base_y + 1, "- Press corresponding number to continue", Color::LightGray, Color::Black);
     }
 
-    show_status_bar("Press 1-2 to choose  • ESC returns to the main menu");
+    show_status_bar("Press 1-2 to choose - ESC returns to the main menu");
 }
 
 /// Display the script browser with pagination
@@ -115,7 +115,7 @@ pub fn show_script_browser(selected_index: usize, page: usize) {
     let footer_y = FRAME_Y + FRAME_HEIGHT - 4;
     write_at(FRAME_X + 4, footer_y, &format!("Page {}/{} | Showing {}-{} of {} scripts", page + 1, total_pages, window_start + 1, window_end, total), Color::LightGray, Color::Black);
     write_at(FRAME_X + 4, footer_y + 1, "↑/↓: Move  ←/→: Page  Enter: Run", Color::LightGray, Color::Black);
-    show_status_bar("ESC returns • Enter runs selection");
+    show_status_bar("ESC returns - Enter runs selection");
 }
 
 /// Handle keyboard input for the script browser
@@ -205,9 +205,9 @@ pub fn handle_script_browser_input(
 
 /// Run a script at the given index from /scripts directory
 pub fn run_selected_script(index: usize) {
-    println!("\n╔════════════════════════════════════════╗");
+    println!("\n+========================================+");
     println!("           Running Script");
-    println!("╚════════════════════════════════════════╝\n");
+    println!("+========================================+\n");
     
     if let Some(fs) = crate::fs::root_fs() {
         let fs = fs.lock();
@@ -221,8 +221,8 @@ pub fn run_selected_script(index: usize) {
                     match fs.read_file_to_string(script_path) {
                         Ok(content) => {
                             match crate::rustrial_script::run(&content) {
-                                Ok(_) => println!("\n✓ Script completed successfully!"),
-                                Err(e) => println!("\n✗ Script error: {}", e),
+                                Ok(_) => println!("\n[OK] Script completed successfully!"),
+                                Err(e) => println!("\n[ERROR] Script error: {}", e),
                             }
                         }
                         Err(e) => {
