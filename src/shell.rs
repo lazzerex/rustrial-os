@@ -73,20 +73,20 @@ impl Shell {
     }
 
     fn print_welcome(&mut self) {
-        self.add_to_scrollback("\n╔════════════════════════════════════════════════════════════════════╗");
-        self.add_to_scrollback("║              Welcome to RustrialOS Shell v0.1                      ║");
-        self.add_to_scrollback("╠════════════════════════════════════════════════════════════════════╣");
-        self.add_to_scrollback("║  Type 'help' for available commands                               ║");
-        self.add_to_scrollback("║  Type 'exit' to return to desktop                                 ║");
-        self.add_to_scrollback("║  Use PageUp/PageDown to scroll through output                     ║");
-        self.add_to_scrollback("╚════════════════════════════════════════════════════════════════════╝\n");
-        println!("\n╔════════════════════════════════════════════════════════════════════╗");
-        println!("║              Welcome to RustrialOS Shell v0.1                      ║");
-        println!("╠════════════════════════════════════════════════════════════════════╣");
-        println!("║  Type 'help' for available commands                               ║");
-        println!("║  Type 'exit' to return to desktop                                 ║");
-        println!("║  Use PageUp/PageDown to scroll through output                     ║");
-        println!("╚════════════════════════════════════════════════════════════════════╝\n");
+        self.add_to_scrollback("\n+--------------------------------------------------------------------+");
+        self.add_to_scrollback("|              Welcome to RustrialOS Shell v0.1                      |");
+        self.add_to_scrollback("+--------------------------------------------------------------------+");
+        self.add_to_scrollback("|  Type 'help' for available commands                                |");
+        self.add_to_scrollback("|  Type 'exit' to return to desktop                                  |");
+        self.add_to_scrollback("|  Use PageUp/PageDown to scroll through output                      |");
+        self.add_to_scrollback("+--------------------------------------------------------------------+\n");
+        println!("\n+--------------------------------------------------------------------+");
+        println!("|              Welcome to RustrialOS Shell v0.1                      |");
+        println!("+--------------------------------------------------------------------+");
+        println!("|  Type 'help' for available commands                                |");
+        println!("|  Type 'exit' to return to desktop                                  |");
+        println!("|  Use PageUp/PageDown to scroll through output                      |");
+        println!("+--------------------------------------------------------------------+\n");
     }
 
     fn print_prompt(&self) {
@@ -327,7 +327,7 @@ impl Shell {
             match fs.list_dir(&full_path) {
                 Ok(entries) => {
                     self.sprintln(&format!("\nDirectory: {}", full_path));
-                    self.sprintln("─────────────────────────────────────");
+                    self.sprintln("-------------------------------------");
                     
                     if entries.is_empty() {
                         self.sprintln("  (empty)");
@@ -679,20 +679,20 @@ impl Shell {
             format!("[NOT FOUND] Network driver not loaded")
         };
 
-        self.sprintln("\n╔════════════════════════════════════════════════════════════════════╗");
-        self.sprintln("║              Network Stack Status - Phase 2.1                      ║");
-        self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
-        self.sprintln("║ Heap Size:        2 MB (expanded for networking)                  ║");
-        self.sprintln("║ DMA Region:       1 MB allocated                                   ║");
-        self.sprintln("║ Ring Buffers:     256 × 2KB (RX/TX)                                ║");
-        self.sprintln(&format!("║ Driver Status:    {:<47} ║", truncate_str_shell(&driver_status, 47)));
-        self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
-        self.sprintln("║ Phase 1.1:        [OK] Enhanced Memory Management                 ║");
-        self.sprintln("║ Phase 1.2:        [OK] PCI Driver Enhancement                      ║");
-        self.sprintln("║ Phase 2.1:        [OK] Network Driver (RTL8139)                    ║");
-        self.sprintln("║ Phase 3:          [PENDING] Ethernet/ARP Protocol                 ║");
-        self.sprintln("║ Phase 4:          [PENDING] IP/ICMP Protocol (ping)               ║");
-        self.sprintln("╚════════════════════════════════════════════════════════════════════╝\n");
+        self.sprintln("\n+--------------------------------------------------------------------+");
+        self.sprintln("|              Network Stack Status - Phase 2.1                      |");
+        self.sprintln("+--------------------------------------------------------------------+");
+        self.sprintln("| Heap Size:        2 MB (expanded for networking)                   |");
+        self.sprintln("| DMA Region:       1 MB allocated                                   |");
+        self.sprintln("| Ring Buffers:     256 x 2KB (RX/TX)                                |");
+        self.sprintln(&format!("| Driver Status:    {:<48}|", truncate_str_shell(&driver_status, 48)));
+        self.sprintln("+--------------------------------------------------------------------+");
+        self.sprintln("| Phase 1.1:        [OK] Enhanced Memory Management                  |");
+        self.sprintln("| Phase 1.2:        [OK] PCI Driver Enhancement                      |");
+        self.sprintln("| Phase 2.1:        [OK] Network Driver (RTL8139)                    |");
+        self.sprintln("| Phase 3:          [PENDING] Ethernet/ARP Protocol                  |");
+        self.sprintln("| Phase 4:          [PENDING] IP/ICMP Protocol (ping)                |");
+        self.sprintln("+--------------------------------------------------------------------+\n");
 
         if args.len() > 0 && args[0] == "test" {
             self.sprintln("Testing DMA allocation...");
@@ -999,7 +999,7 @@ impl Shell {
             }
         }
         
-        self.sprintln("─────────────────────────────────────────────────");
+        self.sprintln("-------------------------------------------------");
         self.sprintln(&format!("Total entries: {}\n", entries.len()));
     }
 
@@ -1171,9 +1171,9 @@ impl Shell {
         use core::net::Ipv4Addr;
         use crate::net::tcp::{TcpConnection, TcpSocketId, TcpState};
         
-        self.sprintln("\n╔════════════════════════════════════════════════════════════════════╗");
-        self.sprintln("║                    TCP Stack Test Suite                            ║");
-        self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
+        self.sprintln("\n+--------------------------------------------------------------------+");
+        self.sprintln("|                    TCP Stack Test Suite                            |");
+        self.sprintln("+--------------------------------------------------------------------+");
         
         let local_addr = Ipv4Addr::new(10, 0, 2, 15);
         let remote_addr = Ipv4Addr::new(10, 0, 2, 2);
@@ -1185,57 +1185,57 @@ impl Shell {
             remote_port: 80,
         };
         
-        self.sprintln("║ Test 1: Connection Initialization                                 ║");
+        self.sprintln("| Test 1: Connection Initialization                                  |");
         let conn = TcpConnection::new(socket_id);
         if conn.state == TcpState::Closed {
-            self.sprintln("║   ✓ Initial state is CLOSED                                        ║");
+            self.sprintln("|   [OK] Initial state is CLOSED                                     |");
         } else {
-            self.sprintln("║   ✗ Initial state incorrect                                        ║");
+            self.sprintln("|   [FAIL] Initial state incorrect                                   |");
         }
         
-        self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
-        self.sprintln("║ Test 2: Congestion Control Parameters                             ║");
-        self.sprintln(&format!("║   Initial CWND:       {} bytes                                 ║", conn.cwnd));
-        self.sprintln(&format!("║   Initial SSThresh:   {} bytes                                ║", conn.ssthresh));
+        self.sprintln("+--------------------------------------------------------------------+");
+        self.sprintln("| Test 2: Congestion Control Parameters                              |");
+        self.sprintln(&format!("|   Initial CWND:       {} bytes                                  |", conn.cwnd));
+        self.sprintln(&format!("| Initial SSThresh:   {} bytes                                 |", conn.ssthresh));
         if conn.cwnd == 2920 && conn.ssthresh == 65535 {
-            self.sprintln("║   ✓ Congestion control initialized correctly                       ║");
+            self.sprintln("|   [OK] Congestion control initialized correctly                    |");
         } else {
-            self.sprintln("║   ✗ Congestion control parameters incorrect                        ║");
+            self.sprintln("|   [FAIL] Congestion control parameters incorrect                   |");
         }
         
-        self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
-        self.sprintln("║ Test 3: ISN Generation (Time-based)                               ║");
+        self.sprintln("+--------------------------------------------------------------------+");
+        self.sprintln("| Test 3: ISN Generation (Time-based)                                |");
         let mut conn = TcpConnection::new(socket_id);
         match conn.connect() {
             Ok(_) => {
-                self.sprintln(&format!("║   ISN Generated:      {}                                      ║", conn.initial_send_seq));
-                self.sprintln("║   ✓ ISN generation successful                                      ║");
+                self.sprintln(&format!("| ISN Generated:      {}                                       |", conn.initial_send_seq));
+                self.sprintln("|   [OK] ISN generation successful                                   |");
                 if conn.state == TcpState::SynSent {
-                    self.sprintln("║   ✓ State changed to SYN_SENT                                      ║");
+                    self.sprintln("|   [OK] State changed to SYN_SENT                                   |");
                 } else {
-                    self.sprintln("║   ✗ State transition failed                                        ║");
+                    self.sprintln("|   [FAIL] State transition failed                                   |");
                 }
             }
             Err(_) => {
-                self.sprintln("║   ✗ ISN generation failed                                          ║");
+                self.sprintln("|   [FAIL] ISN generation failed                                     |");
             }
         }
         
-        self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
-        self.sprintln("║ Test 4: Sliding Window Support                                    ║");
+        self.sprintln("+--------------------------------------------------------------------+");
+        self.sprintln("| Test 4: Sliding Window Support                                     |");
         let mut conn = TcpConnection::new(socket_id);
         conn.state = TcpState::Established;
-        self.sprintln(&format!("║   Send Window:        {} bytes                                 ║", conn.send_window));
-        self.sprintln(&format!("║   Receive Window:     {} bytes                                 ║", conn.recv_window));
-        self.sprintln("║   ✓ Sliding window tracking enabled                                ║");
+        self.sprintln(&format!("|   Send Window:        {} bytes                                  |", conn.send_window));
+        self.sprintln(&format!("|   Receive Window:     {} bytes                                  |", conn.recv_window));
+        self.sprintln("|   [OK] Sliding window tracking enabled                             |");
         
-        self.sprintln("╠════════════════════════════════════════════════════════════════════╣");
-        self.sprintln("║ Summary                                                            ║");
-        self.sprintln("║   • Time-based ISN generation: working                             ║");
-        self.sprintln("║   • Sliding window flow control: implemented                       ║");
-        self.sprintln("║   • Congestion control (AIMD): active                              ║");
-        self.sprintln("║   • Socket API: connect/listen/accept/send/recv                    ║");
-        self.sprintln("╚════════════════════════════════════════════════════════════════════╝");
+        self.sprintln("+--------------------------------------------------------------------+");
+        self.sprintln("| Summary                                                            |");
+        self.sprintln("|   * Time-based ISN generation: working                             |");
+        self.sprintln("|   * Sliding window flow control: implemented                       |");
+        self.sprintln("|   * Congestion control (AIMD): active                              |");
+        self.sprintln("|   * Socket API: connect/listen/accept/send/recv                    |");
+        self.sprintln("+--------------------------------------------------------------------+");
         self.sprintln("");
         self.sprintln("Note: For full TCP testing, use 'cargo test --test tcp_test'");
     }
