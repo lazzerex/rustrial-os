@@ -26,11 +26,11 @@
 
 # Rustrial OS
 
-A hobby x86-64 bare-metal operating system kernel written in Rust, built from scratch to explore low-level systems programming, memory management, PS/2 mouse support and async concurrency on real hardware.
+A hobby x86-64 bare-metal operating system kernel written in Rust, built from scratch to explore low-level systems programming, memory management, and async concurrency on real hardware.
 
 ## Overview
 
-Rustrial OS is an educational operating system project that demonstrates modern systems programming techniques using Rust. The kernel boots from bare metal on x86-64 architecture and provides core OS functionality including memory management, interrupt handling, task scheduling, hardware detection, and keyboard input processing.
+Rustrial OS is an educational operating system project that demonstrates modern systems programming techniques using Rust. The kernel boots from bare metal on x86-64 architecture and provides core OS functionality including memory management, interrupt handling, task scheduling, hardware detection, PS/2 mouse support and keyboard input processing.
 
 **Quick Links:**
 - Shell Documentation: `docs/shell.md`
