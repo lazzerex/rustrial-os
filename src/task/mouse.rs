@@ -23,7 +23,10 @@ const SCREEN_WIDTH: i16 = 80;
 const SCREEN_HEIGHT: i16 = 25;
 
 /// subpixel scaling factor for smooth movement
-const SUBPIXEL_SHIFT: i16 = 3; // 2^3 = 8x precision
+const SUBPIXEL_SHIFT: i16 = 4; // 2^4 = 16x precision
+
+pub static MOUSE_SENSITIVITY: AtomicU8 = AtomicU8::new(12);
+const DEADZONE: i16 = 1;
 
 /// Mouse packet structure
 #[derive(Debug, Clone, Copy)]
@@ -135,26 +138,74 @@ impl MouseStream {
 }
 
 /// Update mouse position based on movement
+// pub fn update_position(dx: i16, dy: i16) {
+//     let mut x = MOUSE_X.load(Ordering::Relaxed);
+//     let mut y = MOUSE_Y.load(Ordering::Relaxed);
+
+//     // apply movement directly to subpixel coordinates
+//     x += dx;
+//     y -= dy; // invert y because ps/2 y is opposite
+    
+//     // clamp to screen bounds (accounting for subpixel scaling)
+//     let min_x = 0;
+//     let max_x = (SCREEN_WIDTH << SUBPIXEL_SHIFT) - 1;
+//     let min_y = 0;
+//     let max_y = (SCREEN_HEIGHT << SUBPIXEL_SHIFT) - 1;
+    
+//     x = x.max(min_x).min(max_x);
+//     y = y.max(min_y).min(max_y);
+
+//     MOUSE_X.store(x, Ordering::Relaxed);
+//     MOUSE_Y.store(y, Ordering::Relaxed);
+// }
+
+fn apply_acceleration(movement: i16) -> i16 {
+    let abs_mov = movement.abs();
+    let multiplier = if abs_mov < 5 {
+        1.0
+    } else if abs_mov < 15 {
+        1.5
+    } else {
+        2.0
+    };
+    let result = (movement as f32 * multiplier) as i16;
+    result
+}
+
 pub fn update_position(dx: i16, dy: i16) {
+    //apply deadzone here
+    let dx = if dx.abs() < DEADZONE {0} else {dx};
+    let dy = if dy.abs() < DEADZONE {0} else {dy};
+
+    if dx == 0 && dy == 0 {
+        return;
+    }
+
+    let dx_accel = apply_acceleration(dx);
+    let dy_accel = apply_acceleration(dy);
+    let sensitivity = MOUSE_SENSITIVITY.load(Ordering::Relaxed) as i16;
+
+    let dx_final = (dx_accel * sensitivity) / 10;
+    let dy_final = (dy_accel * sensitivity) / 10;
+
     let mut x = MOUSE_X.load(Ordering::Relaxed);
     let mut y = MOUSE_Y.load(Ordering::Relaxed);
 
-    // apply movement directly to subpixel coordinates
-    x += dx;
-    y -= dy; // invert y because ps/2 y is opposite
-    
-    // clamp to screen bounds (accounting for subpixel scaling)
+    x += dx_final;
+    y -= dy_final; //ps/2 is opposite so invert
+
     let min_x = 0;
     let max_x = (SCREEN_WIDTH << SUBPIXEL_SHIFT) - 1;
     let min_y = 0;
     let max_y = (SCREEN_HEIGHT << SUBPIXEL_SHIFT) - 1;
-    
+
     x = x.max(min_x).min(max_x);
     y = y.max(min_y).min(max_y);
-
     MOUSE_X.store(x, Ordering::Relaxed);
     MOUSE_Y.store(y, Ordering::Relaxed);
 }
+
+
 
 /// Get current mouse position (converts from subpixel to screen coordinates)
 pub fn get_position() -> (i16, i16) {
@@ -320,6 +371,24 @@ pub fn init_hardware() {
         // Step 9: Enable data reporting
         if let Some(ack) = mouse_write(0xF4) {
             serial_println!("[Mouse] Enable data reporting ACK: {:#04X}", ack);
+        }
+
+        if let Some(ack) = mouse_write(0xE8) {
+            serial_println!("[Mouse] Set resolution command ACK: {:#04X}", ack);
+
+            if let Some(ack) = mouse_write(0x03) {
+                serial_println!("[Mouse] Resolution set to 8 counts/mm ACK: {:#04X}", ack);
+            }
+        }
+
+       
+
+        if let Some(ack) = mouse_write(0xF3) {
+            serial_println!("[Mouse] Set sample rate command ACK: {:#04X}", ack);
+
+            if let Some(ack) = mouse_write(200) {
+                serial_println!("[Mouse] Sample rate 200Hz ACK: {:#04X}", ack);
+            }
         }
         
         // Step 10: Re-enable keyboard
