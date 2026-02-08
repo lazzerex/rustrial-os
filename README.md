@@ -200,6 +200,70 @@ The OS boots into a feature-rich menu:
 ### I/O & Serial
 - **Serial Port**: UART 16550 (COM1) for debugging and test output
 - **Keyboard**: Async PS/2 scancode processing with US layout support
+- 
+## Architecture
+
+### System Overview
+
+<img width="1065" height="632" alt="image" src="https://github.com/user-attachments/assets/46e40508-430a-435d-8418-5df8b07de51a" />
+
+
+### Boot Sequence
+
+<img width="1195" height="135" alt="image" src="https://github.com/user-attachments/assets/1b9c7ee2-8225-47c4-9c79-b3a4bfc1ea72" />
+
+
+### Memory Architecture
+#### Virtual memory layout and allocation strategy
+
+<img width="709" height="506" alt="image" src="https://github.com/user-attachments/assets/d5bd1048-9353-4c10-be72-2eabf0d09437" />
+
+
+### Interrupt System
+#### Exception and hardware interrupt handling
+
+<img width="699" height="602" alt="image" src="https://github.com/user-attachments/assets/bb6b3ee3-18b9-4a60-9138-7b6d3121e516" />
+
+
+### Async Task System
+#### Cooperative multitasking with async/await
+
+<img width="772" height="471" alt="image" src="https://github.com/user-attachments/assets/c16ce3b6-059b-4b93-9467-1e34f6f6fda9" />
+
+
+### Filesystem Architecture
+#### Virtual filesystem with in-memory storage
+
+<img width="413" height="652" alt="image" src="https://github.com/user-attachments/assets/b97d6f0d-b9df-4e2a-b094-c2f7af65ead1" />
+
+
+### Network Stack
+#### TCP/IP implementation with RTL8139 driver
+
+<img width="458" height="799" alt="image" src="https://github.com/user-attachments/assets/dbabf908-208d-415c-a644-f8bc30fb99eb" />
+
+
+### Graphics System
+#### VGA text mode and desktop environment
+
+<img width="729" height="535" alt="image" src="https://github.com/user-attachments/assets/9413386b-103e-4a7d-b955-a9595b4fb58a" />
+
+
+### Hardware Detection
+#### Native C/Assembly for performance-critical hardware access
+
+<img width="581" height="521" alt="image" src="https://github.com/user-attachments/assets/8ac4b1b1-04d0-47d1-bb3e-c318f738ed80" />
+
+
+### RustrialScript Interpreter
+#### Stack-based virtual machine for embedded scripting
+
+<img width="953" height="155" alt="image" src="https://github.com/user-attachments/assets/2d7b8f02-aa28-41dd-9718-2e3edc125dca" />
+
+### User Interaction Flow
+
+<img width="1005" height="378" alt="image" src="https://github.com/user-attachments/assets/947ddd33-05bf-4d37-94f2-0905e1818565" />
+
 
 ## Project Structure
 
