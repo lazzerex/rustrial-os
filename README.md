@@ -28,6 +28,16 @@
 
 A hobby x86-64 bare-metal operating system kernel written in Rust, built from scratch to explore low-level systems programming, memory management, and async concurrency on real hardware.
 
+## Star History
+
+<a href="https://www.star-history.com/#lazzerex/rustrial-os&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=lazzerex/rustrial-os&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=lazzerex/rustrial-os&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=lazzerex/rustrial-os&type=date&legend=top-left" />
+ </picture>
+</a>
+
 ## Overview
 
 Rustrial OS is an educational operating system project that demonstrates modern systems programming techniques using Rust. The kernel boots from bare metal on x86-64 architecture and provides core OS functionality including memory management, interrupt handling, task scheduling, hardware detection, PS/2 mouse support and keyboard input processing.
