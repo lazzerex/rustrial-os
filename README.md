@@ -1,4 +1,3 @@
-# Rustrial OS
 
 <img width="1334" height="421" alt="Rustrial OS Banner" src="https://github.com/user-attachments/assets/6c85e6bc-03b3-49c7-a90b-c38535edd7c1" />
 
