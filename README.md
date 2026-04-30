@@ -82,13 +82,15 @@ Rustrial OS is an educational operating system project that demonstrates modern 
 
 **TCP/IP Network Stack with RTL8139 Driver**
 
-The OS includes a full networking implementation with Ethernet, ARP, IPv4, and ICMP protocols. Here's a demonstration of the `ifconfig`, `ping`, and `arp` commands working in QEMU with user-mode networking:
+The OS includes a full networking implementation with Ethernet, ARP, IPv4, ICMP, UDP, and TCP protocols. DHCP lease acquisition and NTP sync now work in QEMU user-mode networking, and the existing `ifconfig`, `ping`, and `arp` commands still work as before:
 
 <img width="1094" height="506" alt="image" src="https://github.com/user-attachments/assets/5f50768e-1b64-42f0-ad31-2298009f19b9" />
 
 
 Features shown:
 - **Interface Configuration**: `ifconfig` displays MAC address (52:54:00:12:34:56) and IP (10.0.2.15)
+- **DHCP Lease**: `dhcp-acquire` obtains IP, netmask, gateway, and DNS settings automatically
+- **NTP Sync**: `ntp-sync` synchronizes time through the QEMU host test server
 - **ICMP Ping**: Successfully pinging QEMU gateway at 10.0.2.2
 - **ARP Resolution**: ARP cache showing resolved MAC address for gateway
 - **Packet Flow**: Serial debug output showing TX/RX packet processing with RTL8139 driver
@@ -146,7 +148,7 @@ For detailed networking documentation, see [docs/net.md](docs/net.md)
 - **Interactive CLI**: Full-featured command-line interface with command parsing
 - **File Commands**: `ls`, `cat`, `mkdir`, `touch`, `cd`, `pwd` for filesystem operations
 - **Script Execution**: `run` command to execute RustrialScript files
-- **Network Commands**: `ifconfig`, `ping`, `arp`, `tcptest` for network diagnostics
+- **Network Commands**: `ifconfig`, `ping`, `arp`, `tcptest`, `dhcp-acquire`, `ntp-sync`, `http-get` for network diagnostics
 - **System Commands**: `rustrialfetch`, `netinfo`, `pciinfo`, `dmastat` for system info
 - **Command History**: Navigate previous commands with arrow keys (up to 50 commands)
 - **Scrollback Buffer**: Page Up/Down to scroll through command history
@@ -199,11 +201,14 @@ The OS boots into a feature-rich menu:
   - Sliding window flow control for efficient data transmission
   - Congestion control with AIMD algorithm and fast retransmit
   - 3-way handshake and graceful connection teardown
+- **DHCP Client**: Dynamic IPv4 lease acquisition with subnet, gateway, and DNS support
+- **NTP Client**: Time synchronization over UDP with offset tracking
+- **HTTP Client**: Basic HTTP/1.1 GET client for fetching web resources
 - **DNS Client**: Full DNS resolver supporting A record queries (RFC 1035 compliant)
 - **Domain Name Resolution**: Ping any hostname (e.g., `ping google.com`) with automatic DNS lookup
 - **QEMU Networking**: User-mode networking support with hardcoded gateway MAC workaround
-- **Shell Commands**: `ifconfig`, `ping <ip|hostname>`, `arp`, `netinfo`, `tcptest` for network management
-- **Status**: Fully operational - Successfully resolves DNS and communicates with internet hosts
+- **Shell Commands**: `ifconfig`, `ping <ip|hostname>`, `arp`, `netinfo`, `tcptest`, `dhcp-acquire`, `ntp-sync`, `http-get` for network management
+- **Status**: DHCP and NTP working in QEMU; HTTP client present but still under validation
 - **Documentation**: See `docs/net.md` for detailed architecture and setup
 
 ### I/O & Serial
