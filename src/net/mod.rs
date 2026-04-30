@@ -11,3 +11,6 @@ pub mod loopback;  // Phase 5.2 - Loopback interface
 pub mod udp;       // Phase 6.1 - UDP protocol
 pub mod dns;       // Phase 6.2 - DNS client
 pub mod tcp;       // Phase 7 - TCP protocol
+pub mod ntp;       // Phase 8.1 - NTP time sync
+pub mod dhcp;      // Phase 8.2 - DHCP client (planned)
+pub mod http;      // Phase 8.3 - HTTP client (planned)
