@@ -87,6 +87,30 @@ Generate configuration headers:
 ./scripts/generate-config.py
 ```
 
+### `scripts/network-test-server.py`
+Combined host-side helper for testing NTP and HTTP from the guest.
+- NTP on port `8123`
+- HTTP on port `18080`
+
+**Example:**
+```bash
+python3 ./scripts/network-test-server.py
+```
+
+Guest commands:
+```bash
+ntp-sync 10.0.2.2:8123
+http-get http://10.0.2.2:18080/
+```
+
+### `scripts/network-test.sh`
+Starts the host test server and then launches QEMU.
+
+**Example:**
+```bash
+./scripts/network-test.sh
+```
+
 ## Quick Start Workflow
 
 ```bash
