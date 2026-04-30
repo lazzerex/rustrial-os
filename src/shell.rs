@@ -254,6 +254,9 @@ impl Shell {
             "arp" => self.cmd_arp(args),
             "ifconfig" => self.cmd_ifconfig(args),
             "ping" => self.cmd_ping(args).await,
+            "dhcp-acquire" => self.cmd_dhcp_acquire().await,
+            "ntp-sync" => self.cmd_ntp_sync(args).await,
+            "http-get" => self.cmd_http_get(args).await,
             "tcptest" => self.cmd_tcptest(),
             "dmastat" => self.cmd_dmastat(),
             "exit" | "quit" => return true,
@@ -297,6 +300,9 @@ impl Shell {
         self.sprintln("  arp [clear]       - Display ARP cache (use 'clear' to flush cache)");
         self.sprintln("  ifconfig [args]   - Configure or display network settings");
         self.sprintln("  ping <ip|host>    - Send ICMP echo request (e.g., ping google.com)");
+        self.sprintln("  dhcp-acquire      - Acquire IP via DHCP (RFC 2131)");
+        self.sprintln("  ntp-sync [host[:port]] - Synchronize time via NTP (RFC 5905)");
+        self.sprintln("  http-get <url>    - Fetch HTTP resource (RFC 7230)");
         self.sprintln("  tcptest           - Test TCP stack implementation");
         self.sprintln("  dmastat           - Display DMA memory statistics");
         self.sprintln("  exit, quit        - Return to desktop");
@@ -1238,6 +1244,174 @@ impl Shell {
         self.sprintln("+--------------------------------------------------------------------+");
         self.sprintln("");
         self.sprintln("Note: For full TCP testing, use 'cargo test --test tcp_test'");
+    }
+
+    async fn cmd_dhcp_acquire(&mut self) {
+        use crate::drivers::net::get_network_device;
+        use crate::net::dhcp;
+        use crate::net::stack::{NetworkConfig, set_network_config};
+
+        self.sprintln("\n[DHCP] Starting DHCP lease acquisition...");
+
+        // Get MAC address
+        let mac = {
+            let device_mutex = get_network_device();
+            let device = device_mutex.lock();
+            if let Some(ref dev) = *device {
+                if !dev.is_ready() {
+                    self.sprintln("[DHCP] Error: Network device not ready");
+                    return;
+                }
+                dev.mac_address()
+            } else {
+                self.sprintln("[DHCP] Error: Network device not found");
+                return;
+            }
+        };
+
+        self.sprintln(&format!("[DHCP] MAC: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]));
+
+        // Acquire lease
+        match dhcp::acquire_lease(&mac).await {
+            Ok(config) => {
+                self.sprintln(&format!("[DHCP] Success! Lease acquired:"));
+                self.sprintln(&format!("  IP Address: {}", config.ip_addr));
+                self.sprintln(&format!("  Netmask:    {}", config.netmask));
+                if let Some(gw) = config.gateway {
+                    self.sprintln(&format!("  Gateway:    {}", gw));
+                } else {
+                    self.sprintln("  Gateway:    (none)");
+                }
+                self.sprintln(&format!("  Lease Time: {} seconds", config.lease_time));
+
+                // Display DNS servers if available
+                if !config.dns_servers.is_empty() {
+                    self.sprint("  DNS Servers: ");
+                    for (i, dns) in config.dns_servers.iter().enumerate() {
+                        if i > 0 {
+                            self.sprint(", ");
+                        }
+                        self.sprint(&format!("{}", dns));
+                    }
+                    self.sprintln("");
+                }
+
+                // Apply configuration to stack
+                let network_config = NetworkConfig::new(config.ip_addr, config.netmask, config.gateway);
+                set_network_config(network_config);
+                self.sprintln("[DHCP] Network configuration applied!");
+            }
+            Err(e) => {
+                self.sprintln(&format!("[DHCP] Error: Failed to acquire lease: {:?}", e));
+            }
+        }
+    }
+
+    async fn cmd_ntp_sync(&mut self, args: &[&str]) {
+        use crate::net::ntp;
+        use core::net::Ipv4Addr;
+
+        let mut server_ip = Ipv4Addr::new(10, 0, 2, 2);
+        let mut server_port = ntp::NTP_PORT;
+
+        if let Some(arg) = args.get(0) {
+            if let Some((host, port)) = arg.split_once(':') {
+                if let Ok(parsed_ip) = host.parse::<Ipv4Addr>() {
+                    server_ip = parsed_ip;
+                } else {
+                    self.sprintln(&format!("[NTP] Error: invalid server IP '{}'", host));
+                    return;
+                }
+
+                if let Ok(parsed_port) = port.parse::<u16>() {
+                    server_port = parsed_port;
+                } else {
+                    self.sprintln(&format!("[NTP] Error: invalid server port '{}'", port));
+                    return;
+                }
+            } else if let Ok(parsed_ip) = arg.parse::<Ipv4Addr>() {
+                server_ip = parsed_ip;
+            } else {
+                self.sprintln(&format!("[NTP] Error: invalid server target '{}'", arg));
+                return;
+            }
+        }
+
+        self.sprintln("\n[NTP] Starting time synchronization...");
+        self.sprintln(&format!("[NTP] Contacting NTP server at {}:{}", server_ip, server_port));
+
+        // Query NTP server
+        match ntp::query_ntp_with_port(Some(server_ip), server_port).await {
+            Ok(offset) => {
+                self.sprintln(&format!("[NTP] Success! Time offset: {} seconds", offset));
+                self.sprintln("[NTP] Offset can be used to refine TCP ISN generation");
+            }
+            Err(e) => {
+                self.sprintln(&format!("[NTP] Error: Failed to sync time: {:?}", e));
+                self.sprintln(&format!("[NTP] Make sure NTP server is reachable at {}:{}", server_ip, server_port));
+            }
+        }
+    }
+
+    async fn cmd_http_get(&mut self, args: &[&str]) {
+        use crate::net::http;
+        use crate::net::stack::get_network_config;
+
+        if args.is_empty() {
+            self.sprintln("Usage: http-get <url>");
+            self.sprintln("Example: http-get http://10.0.2.2/");
+            return;
+        }
+
+        let url = args[0];
+
+        // Check if network is configured
+        let config = get_network_config();
+        if !config.is_valid() {
+            self.sprintln("Error: Network not configured. Use 'ifconfig' or 'dhcp-acquire' first.");
+            return;
+        }
+
+        self.sprintln(&format!("\n[HTTP] GET {}", url));
+        self.sprintln(&format!("[HTTP] Using local IP: {}", config.ip_addr));
+
+        match http::http_get(url, config.ip_addr).await {
+            Ok(response) => {
+                self.sprintln(&format!("[HTTP] Response Status: {}", response.status_code));
+                
+                if !response.headers.is_empty() {
+                    self.sprintln("[HTTP] Headers:");
+                    for (key, value) in &response.headers {
+                        self.sprintln(&format!("  {}: {}", key, value));
+                    }
+                }
+
+                if !response.body.is_empty() {
+                    self.sprintln("[HTTP] Body:");
+                    if let Ok(body_str) = core::str::from_utf8(&response.body) {
+                        // Truncate if too long
+                        if body_str.len() > 500 {
+                            self.sprintln(&format!("{}...", &body_str[..500]));
+                            self.sprintln(&format!("(truncated, total {} bytes)", response.body.len()));
+                        } else {
+                            self.sprintln(body_str);
+                        }
+                    } else {
+                        self.sprintln(&format!("(binary data, {} bytes)", response.body.len()));
+                    }
+                }
+
+                if response.is_success() {
+                    self.sprintln("[HTTP] Success!");
+                } else {
+                    self.sprintln("[HTTP] Response indicates error");
+                }
+            }
+            Err(e) => {
+                self.sprintln(&format!("[HTTP] Error: Failed to fetch resource: {:?}", e));
+            }
+        }
     }
 }
 
