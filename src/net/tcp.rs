@@ -325,15 +325,16 @@ impl TcpPacket {
     fn calculate_checksum(src_addr: Ipv4Addr, dest_addr: Ipv4Addr, protocol: u8, data: &[u8]) -> u16 {
         let mut sum: u32 = 0;
 
-        // Pseudo-header
-        for &byte in &src_addr.octets() {
-            sum += byte as u32;
-        }
-        for &byte in &dest_addr.octets() {
-            sum += byte as u32;
-        }
-        sum += protocol as u32;
-        sum += data.len() as u32;
+        // Pseudo-header: source IP, destination IP, zero, protocol, TCP length
+        let src = src_addr.octets();
+        let dest = dest_addr.octets();
+
+        sum += u16::from_be_bytes([src[0], src[1]]) as u32;
+        sum += u16::from_be_bytes([src[2], src[3]]) as u32;
+        sum += u16::from_be_bytes([dest[0], dest[1]]) as u32;
+        sum += u16::from_be_bytes([dest[2], dest[3]]) as u32;
+        sum += u16::from_be_bytes([0, protocol]) as u32;
+        sum += (data.len() as u16) as u32;
 
         // TCP header and data (16-bit words)
         let mut i = 0;
