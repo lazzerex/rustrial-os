@@ -65,6 +65,9 @@ static TX_QUEUE: Mutex<VecDeque<TxPacket>> = Mutex::new(VecDeque::new());
 /// Maximum TX queue size
 const MAX_TX_QUEUE_SIZE: usize = 64;
 
+/// IPv4 broadcast address
+const BROADCAST_IP: Ipv4Addr = Ipv4Addr::new(255, 255, 255, 255);
+
 /// Packet to be transmitted
 #[derive(Debug, Clone)]
 struct TxPacket {
@@ -263,11 +266,6 @@ fn handle_rx_arp(data: &[u8]) {
 
 /// Handle received IPv4 packet
 fn handle_rx_ipv4(data: &[u8]) {
-    let config = get_network_config();
-    if !config.is_valid() {
-        return;
-    }
-
     // Parse IPv4 header
     let (header, payload_offset) = match Ipv4Header::from_bytes(data) {
         Ok(result) => result,
@@ -277,15 +275,23 @@ fn handle_rx_ipv4(data: &[u8]) {
         }
     };
 
-    // Check if packet is for us
-    let routing_table = match get_routing_table() {
-        Some(rt) => rt,
-        None => return,
-    };
+    // Check if packet is for us.
+    // Before DHCP finishes, the destination may be broadcast or 0.0.0.0.
+    let config = get_network_config();
+    let is_bootstrap_packet = !config.is_valid()
+        && (header.dest_ip == Ipv4Addr::new(255, 255, 255, 255)
+            || header.dest_ip == Ipv4Addr::new(0, 0, 0, 0));
 
-    if !routing_table.is_our_ip(header.dest_ip) {
-        // Not for us, ignore
-        return;
+    if !is_bootstrap_packet {
+        let routing_table = match get_routing_table() {
+            Some(rt) => rt,
+            None => return,
+        };
+
+        if !routing_table.is_our_ip(header.dest_ip) {
+            // Not for us, ignore
+            return;
+        }
     }
 
     // Extract payload - use total_length to avoid including Ethernet padding
@@ -373,13 +379,6 @@ pub async fn tx_processing_task() {
             continue;
         }
 
-        // Get network configuration
-        let config = get_network_config();
-        if !config.is_valid() {
-            crate::task::yield_now().await;
-            continue;
-        }
-
         // Check if there are packets to transmit
         let packet = {
             let mut queue = TX_QUEUE.lock();
@@ -387,9 +386,27 @@ pub async fn tx_processing_task() {
         };
 
         if let Some(tx_packet) = packet {
+            let config = get_network_config();
+
+            if !config.is_valid() && tx_packet.dest_ip != BROADCAST_IP {
+                // Put non-bootstrap traffic back until a real IP exists.
+                let mut queue = TX_QUEUE.lock();
+                if queue.len() < MAX_TX_QUEUE_SIZE {
+                    queue.push_front(tx_packet);
+                }
+                crate::task::yield_now().await;
+                continue;
+            }
+
             // Process the packet
             serial_println!("TX: Processing packet for {}", tx_packet.dest_ip);
-            if let Err(e) = process_tx_packet(tx_packet, config).await {
+            let effective_config = if config.is_valid() {
+                config
+            } else {
+                NetworkConfig::default()
+            };
+
+            if let Err(e) = process_tx_packet(tx_packet, effective_config).await {
                 serial_println!("TX: Failed to transmit packet: {:?}", e);
             }
         }
@@ -412,10 +429,47 @@ enum TxError {
 async fn process_tx_packet(packet: TxPacket, config: NetworkConfig) -> Result<(), TxError> {
     // Check if destination is localhost (127.0.0.0/8)
     let is_loopback = packet.dest_ip.octets()[0] == 127;
+    let is_broadcast = packet.dest_ip == BROADCAST_IP;
     
     if is_loopback {
         // Route to loopback device
         return process_loopback_packet(packet, config).await;
+    }
+
+    if is_broadcast {
+        // Broadcast packets (for example DHCP discover/request) do not need ARP.
+        let our_mac = match get_mac_address() {
+            Some(mac) => mac,
+            None => return Err(TxError::NoDevice),
+        };
+
+        let src_ip = if config.is_valid() {
+            config.ip_addr
+        } else {
+            Ipv4Addr::new(0, 0, 0, 0)
+        };
+
+        let ip_header = Ipv4Header::new(
+            src_ip,
+            packet.dest_ip,
+            packet.protocol,
+            packet.payload.len() as u16,
+        );
+
+        let mut ip_packet = ip_header.to_bytes();
+        ip_packet.extend_from_slice(&packet.payload);
+
+        let broadcast_mac = [0xFF; 6];
+        let eth_frame = EthernetFrame::new(
+            broadcast_mac,
+            our_mac,
+            ETHERTYPE_IPV4,
+            ip_packet,
+        ).map_err(|_| TxError::TransmitFailed)?;
+
+        let frame_bytes = eth_frame.to_bytes();
+        transmit_packet(&frame_bytes).map_err(|_| TxError::TransmitFailed)?;
+        return Ok(());
     }
     
     // Regular packet processing for physical NIC
