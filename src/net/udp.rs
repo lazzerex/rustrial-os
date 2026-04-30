@@ -314,15 +314,20 @@ impl UdpSocket {
 
         // Get network configuration
         let config = crate::net::stack::get_network_config();
-        if !config.is_valid() {
+        let source_ip = if config.is_valid() {
+            config.ip_addr
+        } else if dest_ip == Ipv4Addr::new(255, 255, 255, 255) {
+            // Allow bootstrap broadcasts such as DHCP discovery before an IP is assigned.
+            Ipv4Addr::new(0, 0, 0, 0)
+        } else {
             return Err(SendError::NotConfigured);
-        }
+        };
 
         // Create UDP packet
         let mut packet = UdpPacket::new(self.local_port, dest_port, data.to_vec());
         
         // Calculate and set checksum (optional for IPv4, but we'll include it)
-        packet.checksum = packet.calculate_checksum(config.ip_addr, dest_ip);
+        packet.checksum = packet.calculate_checksum(source_ip, dest_ip);
 
         // Serialize to bytes
         let udp_bytes = packet.to_bytes();
