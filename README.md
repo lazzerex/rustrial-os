@@ -82,7 +82,7 @@ Rustrial OS is an educational operating system project that demonstrates modern 
 
 **TCP/IP Network Stack with RTL8139 Driver**
 
-The OS includes a full networking implementation with Ethernet, ARP, IPv4, ICMP, UDP, and TCP protocols. DHCP lease acquisition and NTP sync now work in QEMU user-mode networking, and the existing `ifconfig`, `ping`, and `arp` commands still work as before:
+The OS includes a full networking implementation with Ethernet, ARP, IPv4, ICMP, UDP, and TCP protocols. DHCP lease acquisition, NTP sync, and HTTP GET now work in QEMU user-mode networking, alongside `ifconfig`, `ping`, and `arp` diagnostics:
 
 <img width="1094" height="506" alt="image" src="https://github.com/user-attachments/assets/5f50768e-1b64-42f0-ad31-2298009f19b9" />
 
@@ -91,6 +91,7 @@ Features shown:
 - **Interface Configuration**: `ifconfig` displays MAC address (52:54:00:12:34:56) and IP (10.0.2.15)
 - **DHCP Lease**: `dhcp-acquire` obtains IP, netmask, gateway, and DNS settings automatically
 - **NTP Sync**: `ntp-sync` synchronizes time through the QEMU host test server
+- **HTTP GET**: `http-get http://10.0.2.2:18080/` fetches host-served content over TCP
 - **ICMP Ping**: Successfully pinging QEMU gateway at 10.0.2.2
 - **ARP Resolution**: ARP cache showing resolved MAC address for gateway
 - **Packet Flow**: Serial debug output showing TX/RX packet processing with RTL8139 driver
@@ -208,7 +209,7 @@ The OS boots into a feature-rich menu:
 - **Domain Name Resolution**: Ping any hostname (e.g., `ping google.com`) with automatic DNS lookup
 - **QEMU Networking**: User-mode networking support with hardcoded gateway MAC workaround
 - **Shell Commands**: `ifconfig`, `ping <ip|hostname>`, `arp`, `netinfo`, `tcptest`, `dhcp-acquire`, `ntp-sync`, `http-get` for network management
-- **Status**: DHCP and NTP working in QEMU; HTTP client present but still under validation
+- **Status**: DHCP, NTP, and HTTP client validated in QEMU networking workflow
 - **Documentation**: See `docs/net.md` for detailed architecture and setup
 
 ### I/O & Serial
@@ -605,12 +606,13 @@ gdb target/x86_64-rustrial_os/debug/rustrial_os
 - Text-mode graphics library and desktop GUI
 - Native C/Assembly hardware detection (CPU, PCI, RTC)
 - Network stack with TCP/IP (Ethernet, ARP, IPv4, ICMP, UDP, TCP, DNS)
+- DHCP client for dynamic IP configuration
+- HTTP client for HTTP/1.1 GET requests
+- NTP time synchronization client
 - PS/2 mouse driver with smooth cursor movement
 - Shell with network diagnostics and scrollback
 
 **In Progress / Planned:**
-- [ ] HTTP client (TCP ready, needs implementation)
-- [ ] DHCP client for dynamic IP configuration
 - [ ] Block device drivers (ATA/AHCI)
 - [ ] Persistent filesystem (FAT32 or ext2)
 - [ ] Pre-emptive multitasking
