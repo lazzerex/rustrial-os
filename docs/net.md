@@ -839,20 +839,20 @@ DNS resolution failed: DNS query timed out
 - [x] Socket abstraction layer  
 - [x] Port management
 - [x] DNS client (queries 10.0.2.3 in QEMU, resolves hostnames to IPv4)
-- [ ] DHCP client (dynamic IP configuration)
+- [x] DHCP client (dynamic IP configuration)
 
-### Phase 7: TCP Implementation
-- [ ] TCP state machine
-- [ ] Reliable delivery with ACK/retransmission
-- [ ] Flow control (sliding window)
-- [ ] Congestion control (basic)
-- [ ] Socket API (connect, listen, accept)
+### Phase 7: TCP Implementation (Completed)
+- [x] TCP state machine
+- [x] Reliable delivery with ACK/retransmission
+- [x] Flow control (sliding window)
+- [x] Congestion control (basic)
+- [x] Socket API (connect, listen, accept)
 
 ### Phase 8: Higher-Level Protocols
-- [ ] HTTP client
+- [x] HTTP client
 - [ ] TLS/SSL (embedded-tls crate)
 - [ ] FTP client
-- [ ] NTP time synchronization
+- [x] NTP time synchronization
 
 ### Driver Expansion
 - [ ] E1000 driver (Intel Gigabit)
