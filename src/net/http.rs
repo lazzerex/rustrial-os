@@ -201,7 +201,19 @@ pub async fn http_get(url: &str, local_ip: Ipv4Addr) -> Result<HttpResponse, Htt
 
     // Receive response (simplified: expect < 4KB)
     let mut response_data = Vec::new();
-    for _ in 0..100 {
+    const TIMEOUT_ITERATIONS: u32 = 1000;
+    
+    for _ in 0..TIMEOUT_ITERATIONS {
+        if let Some(state) = get_connection_state(socket_id) {
+            match state {
+                TcpState::Closed | TcpState::TimeWait => {
+                    crate::serial_println!("[HTTP] Connection closed by peer");
+                    break;
+                }
+                _ => {}
+            }
+        }
+
         match tcp_recv(socket_id, 1024) {
             Ok(chunk) => {
                 if chunk.is_empty() {
