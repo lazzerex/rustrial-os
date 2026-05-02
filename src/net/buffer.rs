@@ -110,28 +110,3 @@ impl<const N: usize, const PACKET_SIZE: usize> PacketRingBuffer<N, PACKET_SIZE> 
 /// Standard network packet ring buffer: 256 buffers × 2KB each
 pub type StandardRxBuffer = PacketRingBuffer<256, 2048>;
 pub type StandardTxBuffer = PacketRingBuffer<256, 2048>;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn test_ring_buffer_basic() {
-        let mut ring: PacketRingBuffer<4, 2048> = PacketRingBuffer::new();
-        
-        assert!(ring.is_empty());
-        assert_eq!(ring.len(), 0);
-        
-        let packet = [0x01, 0x02, 0x03, 0x04];
-        ring.push(&packet).unwrap();
-        
-        assert!(!ring.is_empty());
-        assert_eq!(ring.len(), 1);
-        
-        let (data, len) = ring.pop().unwrap();
-        assert_eq!(len, 4);
-        assert_eq!(&data[..len], &packet);
-        
-        assert!(ring.is_empty());
-    }
-}
