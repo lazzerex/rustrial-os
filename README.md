@@ -168,9 +168,12 @@ For detailed networking documentation, see [docs/net.md](docs/net.md)
 ### Desktop GUI Environment
 - **Interactive Desktop**: Graphical environment with mouse-driven interface
 - **Icon System**: Launch applications via double-click (Shell, Scripts, Hardware Info, etc.)
-- **Smooth Mouse Cursor**: 8x subpixel precision for fluid diagonal movement
-- **Visual Feedback**: Icon highlighting and click detection
-- **Multi-window Support**: Switch between desktop and applications seamlessly
+- **Smooth Mouse Cursor**: 8x subpixel precision for fluid diagonal movement; save/restore under cursor for flicker-free movement
+- **Window System**: Movable windows with double-line title bars, focus tracking, and z-ordering (`src/window_manager.rs`)
+- **Drag Support**: Hold left-click on any title bar and drag to reposition; windows clamp to screen bounds
+- **Taskbar**: Persistent row-24 bar with `[W]` new-window shortcut and a focus button per open window
+- **Right-Click Context Menus**: Desktop → New Window / Refresh; window area → Close Window; dismiss with left-click or ESC
+- **Visual Feedback**: Icon highlighting on hover; icons deselect when cursor enters a window area
 
 ### Interactive Menu System
 The OS boots into a feature-rich menu:
@@ -296,7 +299,9 @@ src/
 ├── script_loader.rs         # Compile-time script embedding
 ├── native_ffi.rs            # FFI bindings to C/Assembly code
 ├── graphics.rs              # Graphics subsystem interface
-├── desktop.rs               # Desktop GUI environment
+├── desktop.rs               # Desktop GUI environment and event loop
+├── window_manager.rs        # Window system (z-order, drag, focus, taskbar integration)
+├── context_menu.rs          # Right-click context menu rendering and hit-testing
 ├── shell.rs                 # Command-line shell interpreter
 │
 ├── allocator/               # Memory allocator implementations
@@ -388,11 +393,11 @@ build.rs                     # Build script (NASM + Clang)
 ### Required Tools
 
 1. **Rustup**
- - On **Linux**:
-  ```bash
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-  ```
-- On **Windows**: You can download the executable in the rustup.rs website
+   - **Linux**:
+     ```bash
+     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+     ```
+   - **Windows**: Download the installer from [rustup.rs](https://rustup.rs/)
   
 2. **Rust Toolchain** (Nightly)
    ```bash
@@ -405,28 +410,34 @@ build.rs                     # Build script (NASM + Clang)
    ```bash
    cargo install bootimage
    ```
-   On Linux, if you encounter any errors, you should probably install build-essential first by running the command:
-    ```bash
+   On Linux, if you encounter errors, install build-essential first:
+   ```bash
    sudo apt install build-essential
    ```
 
-5. **QEMU x86-64 Emulator**
-   - **Linux**: `sudo apt install qemu-system-x86` or `sudo pacman -S qemu-system-x86` (qemu-dekstop if qemu-system-x86 cannot be installed)
+4. **QEMU x86-64 Emulator**
+   - **Linux**: `sudo apt install qemu-system-x86` or `sudo pacman -S qemu-system-x86`
    - **macOS**: `brew install qemu`
    - **Windows**: Download from [qemu.org](https://www.qemu.org/download/)
 
-6. **NASM** (for custom bootloader or native code)
+5. **NASM** (for native code compilation)
    - **Linux**: `sudo apt install nasm` or `sudo pacman -S nasm`
    - **macOS**: `brew install nasm`
    - **Windows**: Download from [nasm.us](https://www.nasm.us/)
 
-7. **Clang** (for native C code compilation)
+6. **Clang** (for native C code compilation)
    - **Linux**: `sudo apt install clang` or `sudo pacman -S clang`
    - **macOS**: Included with Xcode Command Line Tools
    - **Windows**: Install LLVM from [llvm.org](https://llvm.org/)
 
+7. **Python 3** *(optional — required only for networking commands)*
+   Needed to run `scripts/network-test.sh` and `scripts/network-test-server.py`, which provide the host-side HTTP and NTP servers used by `http-get` and `ntp-sync`.
+   - **Linux**: `sudo apt install python3` or `sudo pacman -S python`
+   - **macOS**: `brew install python3` (or included with Xcode tools)
+   - **Windows**: Download from [python.org](https://www.python.org/downloads/)
+
 ### System Requirements
-- Rust 1.70+ nightly (edition 2024)
+- Rust nightly toolchain (edition 2024)
 - 2 GB RAM minimum
 - Internet connection for initial dependency download
 
@@ -462,6 +473,39 @@ cargo bootimage --target x86_64-rustrial_os.json
 # Run with custom QEMU options
 qemu-system-x86_64 -drive format=raw,file=target/x86_64-rustrial_os/debug/bootimage-rustrial_os.bin -serial stdio
 ```
+
+### Running with Networking
+
+Networking commands (`dhcp-acquire`, `ntp-sync`, `http-get`) require a host-side test server. Two options:
+
+**Option 1 — Automated (recommended):** `network-test.sh` starts the server and launches QEMU for you:
+```bash
+./scripts/network-test.sh
+```
+The script starts `network-test-server.py` in the background (HTTP on port 18080, NTP on port 8123) then runs QEMU with networking enabled.
+
+**Option 2 — Manual:** Start the server and QEMU separately:
+```bash
+# Terminal 1 — start host test server
+python3 scripts/network-test-server.py
+
+# Terminal 2 — launch QEMU with RTL8139 networking
+cargo build
+qemu-system-x86_64 \
+  -drive format=raw,file=target/x86_64-rustrial_os/debug/bootimage-rustrial_os.bin \
+  -netdev user,id=net0 \
+  -device rtl8139,netdev=net0 \
+  -serial stdio
+```
+
+Then inside the shell:
+```
+rustrial> dhcp-acquire          # Get IP via DHCP
+rustrial> ntp-sync 10.0.2.2:8123   # Sync time from host
+rustrial> http-get http://10.0.2.2:18080/  # Fetch from host HTTP server
+```
+
+See `docs/net.md` for full networking documentation.
 
 ### Testing
 
@@ -611,6 +655,9 @@ gdb target/x86_64-rustrial_os/debug/rustrial_os
 - NTP time synchronization client
 - PS/2 mouse driver with smooth cursor movement
 - Shell with network diagnostics and scrollback
+- Window system with drag, z-ordering, and focus management
+- Taskbar with per-window buttons and quick-launch shortcut
+- Right-click context menus (desktop and window actions)
 
 **In Progress / Planned:**
 - [ ] Block device drivers (ATA/AHCI)
@@ -683,13 +730,6 @@ Contributions welcome! Open an issue or PR for:
 - **[FILESYSTEM.md](FILESYSTEM.md)** - Complete filesystem architecture, design decisions, and API reference
 - **[boot/custombootloader.md](boot/custombootloader.md)** - Custom x86-64 bootloader documentation and boot process
 
-### RustrialScript Documentation
-Located in `src/rustrial_script/docs/`:
-- **[INTEGRATION.md](src/rustrial_script/docs/INTEGRATION.md)** - How to integrate and use the interpreter
-- **[INTERACTIVE_MENU.md](src/rustrial_script/docs/INTERACTIVE_MENU.md)** - Menu system user guide
-- **[ARCHITECTURE.md](src/rustrial_script/docs/ARCHITECTURE.md)** - Interpreter internals and design
-- **[GETTING_STARTED.md](src/rustrial_script/docs/GETTING_STARTED.md)** - Quick start guide for RustrialScript
-- **[scriptdocs.md](src/rustrial_script/docs/scriptdocs.md)** - Complete language reference and syntax
 
 ### Example Scripts
 Located in `src/rustrial_script/examples/`:
