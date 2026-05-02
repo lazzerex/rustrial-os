@@ -20,8 +20,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y nasm clang
 
       - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: nightly-2025-11-12
           components: rust-src, llvm-tools-preview
 
       - name: Cache Cargo
@@ -51,8 +52,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y nasm clang qemu-system-x86
 
       - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: nightly-2025-11-12
           components: rust-src, llvm-tools-preview
 
       - name: Cache Cargo
@@ -83,8 +85,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y nasm clang
 
       - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: nightly-2025-11-12
           components: rust-src, llvm-tools-preview, clippy
 
       - name: Cache Cargo
