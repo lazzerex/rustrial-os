@@ -25,7 +25,7 @@
 
 # Rustrial OS
 
-A hobby x86-64 bare-metal operating system kernel written in Rust, built from scratch to explore low-level systems programming, memory management, and async concurrency on real hardware.
+A hobby x86-64 bare-metal operating system kernel written in Rust, built from scratch to explore low-level systems programming, memory management, and async concurrency on real hardware. 
 
 ## Star History
 
@@ -440,6 +440,10 @@ build.rs                     # Build script (NASM + Clang)
 - Rust nightly toolchain (edition 2024)
 - 2 GB RAM minimum
 - Internet connection for initial dependency download
+
+### Warning
+
+This project is using an older version for bootimage (v0.9). The latest version has breaking changes that require significant refactoring of the build process and target configuration. Until the project is updated to be compatible with bootimage v0.10, please ensure you have v0.9 installed to avoid build errors.
 
 ## Build & Run
 
