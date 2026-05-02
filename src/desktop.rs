@@ -5,8 +5,10 @@
 
 use alloc::{vec::Vec, string::String};
 use crate::vga_buffer::{Color, BUFFER_HEIGHT, BUFFER_WIDTH};
+use crate::window_manager::WindowManager;
+use crate::context_menu::{ContextMenu, MenuItem, MenuActionKind};
 use crate::task::keyboard;
-use crate::task::mouse::{MouseStream, get_position, is_left_button_pressed, update_position, update_buttons};
+use crate::task::mouse::{MouseStream, get_position, is_left_button_pressed, is_right_button_pressed, update_position, update_buttons};
 use crate::rustrial_menu::menu_system::shutdown::{ShutdownButton, shutdown_system};
 use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1, KeyCode};
 use futures_util::stream::StreamExt;
@@ -118,6 +120,9 @@ pub struct Desktop {
     last_mouse_x: i16,
     last_mouse_y: i16,
     mouse_visible: bool,
+    window_manager: WindowManager,
+    cursor_under: u16,
+    context_menu: Option<ContextMenu>,
 }
 
 impl Desktop {
@@ -146,15 +151,15 @@ impl Desktop {
             last_mouse_x: 40,
             last_mouse_y: 12,
             mouse_visible: true,
+            window_manager: WindowManager::new(),
+            cursor_under: 0,
+            context_menu: None,
         }
     }
 
     fn render_desktop(&self) {
-        use crate::vga_buffer::clear_screen;
         use crate::graphics::text_graphics::*;
-        
-        clear_screen();
-        
+
         // Draw desktop background with gradient effect
         for y in 0..BUFFER_HEIGHT {
             for x in 0..BUFFER_WIDTH {
@@ -212,10 +217,7 @@ impl Desktop {
         let time_str = alloc::format!("{:02}:{:02} {} {:02}, {:04}", dt.hour, dt.minute, dt.month_str(), dt.day, dt.year);
         write_at(BUFFER_WIDTH - time_str.len() - 2, 0, &time_str, Color::White, Color::Blue);
         
-        // Draw status bar at bottom
-        draw_filled_box(0, BUFFER_HEIGHT - 1, BUFFER_WIDTH, 1, Color::White, Color::DarkGray);
-        let status_msg = alloc::format!("Mouse: ({:2},{:2}) | Double-click icons | ESC to exit", self.last_mouse_x, self.last_mouse_y);
-        write_at(2, BUFFER_HEIGHT - 1, &status_msg, Color::White, Color::DarkGray);
+        self.render_taskbar();
         
         // Render all icons
         for (idx, icon) in self.icons.iter().enumerate() {
@@ -231,22 +233,41 @@ impl Desktop {
                 icon.render(Some(idx) == self.selected_icon);
             }
         }
-        // Draw mouse cursor
-        if self.mouse_visible {
-            self.render_cursor(self.last_mouse_x, self.last_mouse_y);
-        }
     }
 
-    fn render_cursor(&self, x: i16, y: i16) {
-        use crate::vga_buffer::{write_char_at, Color};
-        // mouse cursor
+    fn render_cursor(&mut self, x: i16, y: i16) {
         if x >= 0 && x < BUFFER_WIDTH as i16 && y >= 0 && y < BUFFER_HEIGHT as i16 {
+            use x86_64::instructions::interrupts;
+            self.cursor_under = interrupts::without_interrupts(|| unsafe {
+                core::ptr::read_volatile(
+                    (0xb8000 as *const u16).add(y as usize * BUFFER_WIDTH + x as usize)
+                )
+            });
+            use crate::vga_buffer::{write_char_at, Color};
             write_char_at(x as usize, y as usize, b'^', Color::Black, Color::White);
         }
     }
 
+    fn restore_cursor_under(&self, x: i16, y: i16) {
+        if x >= 0 && x < BUFFER_WIDTH as i16 && y >= 0 && y < BUFFER_HEIGHT as i16 {
+            use x86_64::instructions::interrupts;
+            let val = self.cursor_under;
+            interrupts::without_interrupts(|| unsafe {
+                core::ptr::write_volatile(
+                    (0xb8000 as *mut u16).add(y as usize * BUFFER_WIDTH + x as usize),
+                    val,
+                );
+            });
+        }
+    }
+
+    fn render_icons(&self) {
+        for (idx, icon) in self.icons.iter().enumerate() {
+            icon.render(Some(idx) == self.selected_icon);
+        }
+    }
+
     fn update_mouse_selection(&mut self, x: i16, y: i16) {
-        // Check if mouse is over any icon
         let mut found_icon = None;
         for (idx, icon) in self.icons.iter().enumerate() {
             if icon.contains_point(x, y) {
@@ -254,93 +275,99 @@ impl Desktop {
                 break;
             }
         }
-        
         if self.selected_icon != found_icon {
             self.selected_icon = found_icon;
-            // Only re-render icons when selection changes
             self.render_icons();
         }
     }
-    
-    fn render_icons(&self) {
-        // Re-render all icons (more efficient than full screen)
-        for (idx, icon) in self.icons.iter().enumerate() {
-            icon.render(Some(idx) == self.selected_icon);
-        }
-    }
-    
+
     fn update_cursor_position(&mut self, x: i16, y: i16) {
-        // Erase old cursor by redrawing that cell from background
-        self.redraw_cell(self.last_mouse_x, self.last_mouse_y);
-        
-        // Update position
+        self.restore_cursor_under(self.last_mouse_x, self.last_mouse_y);
         self.last_mouse_x = x;
         self.last_mouse_y = y;
-        
-        // Draw new cursor
+        if self.context_menu.is_some() {
+            self.update_context_menu_hover(x, y);
+        } else if self.window_manager.is_point_over_window(x, y) {
+            if self.selected_icon.is_some() {
+                self.selected_icon = None;
+                self.render_icons();
+            }
+        } else {
+            self.update_mouse_selection(x, y);
+        }
         self.render_cursor(x, y);
-        
-        // Update status bar
-        self.update_status_bar();
     }
     
-    fn redraw_cell(&self, x: i16, y: i16) {
-        use crate::vga_buffer::{write_char_at, Color};
-        
-        if x >= 0 && x < BUFFER_WIDTH as i16 && y >= 0 && y < BUFFER_HEIGHT as i16 {
-            let ux = x as usize;
-            let uy = y as usize;
-            
-            // Title bar - blue background
-            if uy == 0 {
-                write_char_at(ux, uy, b' ', Color::White, Color::Blue);
-                return;
-            }
-            
-            // Status bar - dark gray background  
-            if uy == BUFFER_HEIGHT - 1 {
-                write_char_at(ux, uy, b' ', Color::White, Color::DarkGray);
-                return;
-            }
-            
-            // Check if on an icon - restore just this character position
-            for icon in &self.icons {
-                if icon.contains_point(x, y) {
-                    // Calculate position within icon
-                    let rel_x = (x - icon.x) as usize;
-                    let rel_y = (y - icon.y) as usize;
-                    
-                    // Determine what should be at this position
-                    if rel_y == 0 || rel_y == icon.height as usize - 1 ||
-                       rel_x == 0 || rel_x == icon.width as usize - 1 {
-                        // Border
-                        write_char_at(ux, uy, b' ', Color::Yellow, Color::Blue);
-                    } else if rel_y == 1 && rel_x >= (icon.width as usize / 2) - 1 && rel_x <= (icon.width as usize / 2) + 1 {
-                        // Icon symbol area - just draw space with bg color
-                        write_char_at(ux, uy, b' ', Color::Yellow, Color::Blue);
-                    } else if rel_y == 3 {
-                        // Label area
-                        write_char_at(ux, uy, b' ', Color::White, Color::Cyan);
-                    } else {
-                        // Inside icon
-                        write_char_at(ux, uy, b' ', Color::White, Color::Blue);
-                    }
-                    return;
-                }
-            }
-            
-            // Desktop background - cyan
-            write_char_at(ux, uy, b' ', Color::Black, Color::Cyan);
+    fn render_taskbar(&self) {
+        use crate::graphics::text_graphics::{draw_filled_box, write_at};
+
+        draw_filled_box(0, BUFFER_HEIGHT - 1, BUFFER_WIDTH, 1, Color::LightGray, Color::DarkGray);
+
+        // New-window button
+        write_at(0, BUFFER_HEIGHT - 1, "[W]", Color::LightGreen, Color::DarkGray);
+
+        // One button per open window: "[title     ]" = 12 chars, +1 gap = 13 stride
+        let mut x = 4usize;
+        for win in self.window_manager.get_windows() {
+            if x + 12 > BUFFER_WIDTH { break; }
+            let focused = self.window_manager.is_focused(win.id);
+            let btn_bg = if focused { Color::Blue } else { Color::Black };
+            let title = if win.title.len() > 10 { &win.title[..10] } else { &win.title };
+            let btn = alloc::format!("[{:<10}]", title);
+            write_at(x, BUFFER_HEIGHT - 1, &btn, Color::White, btn_bg);
+            x += 13;
         }
     }
-    
-    fn update_status_bar(&self) {
-        use crate::graphics::text_graphics::{write_at, draw_filled_box};
-        
-        // Redraw only the status bar
-        draw_filled_box(0, BUFFER_HEIGHT - 1, BUFFER_WIDTH, 1, Color::White, Color::DarkGray);
-        let status_msg = alloc::format!("Mouse: ({:2},{:2}) | Double-click icons | ESC to exit", self.last_mouse_x, self.last_mouse_y);
-        write_at(2, BUFFER_HEIGHT - 1, &status_msg, Color::White, Color::DarkGray);
+
+    fn handle_taskbar_click(&mut self, mx: i16) {
+        let mx_u = mx as usize;
+
+        // [W] button (x 0..=2)
+        if mx_u <= 2 {
+            self.window_manager.add_window(18, 5, 44, 14, "Window");
+            return;
+        }
+
+        // Collect button positions first to avoid borrow conflict
+        let mut buttons: Vec<(u8, usize)> = Vec::new();
+        let mut x = 4usize;
+        for win in self.window_manager.get_windows() {
+            if x + 12 > BUFFER_WIDTH { break; }
+            buttons.push((win.id, x));
+            x += 13;
+        }
+        for (id, x_start) in buttons {
+            if mx_u >= x_start && mx_u < x_start + 12 {
+                self.window_manager.focus_and_raise(id);
+                return;
+            }
+        }
+    }
+
+    fn render_context_menu(&self) {
+        if let Some(ref menu) = self.context_menu {
+            menu.render();
+        }
+    }
+
+    fn update_context_menu_hover(&mut self, x: i16, y: i16) {
+        if let Some(ref mut menu) = self.context_menu {
+            if menu.update_hover(x, y) {
+                menu.render();
+            }
+        }
+    }
+
+    fn execute_menu_action(&mut self, action: MenuActionKind) {
+        match action {
+            MenuActionKind::NewWindow => {
+                self.window_manager.add_window(18, 5, 44, 14, "Window");
+            }
+            MenuActionKind::CloseWindow(id) => {
+                self.window_manager.close_window(id);
+            }
+            MenuActionKind::Refresh => {}
+        }
     }
 
     fn handle_icon_click(&mut self, icon_idx: usize) -> Option<IconAction> {
@@ -356,6 +383,8 @@ impl Desktop {
         
         // Render initial desktop
         self.render_desktop();
+        self.window_manager.render_all();
+        self.render_cursor(self.last_mouse_x, self.last_mouse_y);
         
         // Initialize keyboard - use ScancodeStream to ensure queue is initialized
         let _scancodes = keyboard::ScancodeStream::new();
@@ -366,7 +395,8 @@ impl Desktop {
         );
         
         let mut mouse_stream = MouseStream::new();
-        let mut left_button_was_pressed = true; // Start true to ignore any held button from before
+        let mut left_button_was_pressed = true;
+        let mut right_button_was_pressed = is_right_button_pressed();
         let mut double_click_timer = 0u32;
         let mut last_clicked_icon: Option<usize> = None;
         
@@ -378,26 +408,42 @@ impl Desktop {
         
         loop {
             // Process ALL pending mouse packets (non-blocking)
+            let mut need_full_redraw = false;
+
             while let Some(packet) = mouse_stream.try_next() {
                 update_position(packet.x_movement, packet.y_movement);
                 update_buttons(packet.buttons);
-                
+
                 let (mx, my) = get_position();
-                
-                // Update cursor position
-                if mx != self.last_mouse_x || my != self.last_mouse_y {
-                    self.update_cursor_position(mx, my);
-                    self.update_mouse_selection(mx, my);
-                }
-                
-                // Handle left button clicks
                 let left_pressed = packet.left_button();
+
+                if !left_pressed && left_button_was_pressed {
+                    self.window_manager.on_mouse_up();
+                }
+
+                if mx != self.last_mouse_x || my != self.last_mouse_y {
+                    if self.window_manager.on_mouse_move(mx, my) {
+                        self.last_mouse_x = mx;
+                        self.last_mouse_y = my;
+                        need_full_redraw = true;
+                    } else {
+                        self.update_cursor_position(mx, my);
+                    }
+                }
+
                 if left_pressed && !left_button_was_pressed {
-                    // Button just pressed - check if hovering over an icon
-                    if let Some(icon_idx) = self.selected_icon {
-                        // Check for double-click on same icon
+                    if let Some(menu) = self.context_menu.take() {
+                        if let Some(action) = menu.action_at(mx, my) {
+                            self.execute_menu_action(action);
+                        }
+                        need_full_redraw = true;
+                    } else if self.window_manager.on_mouse_down(mx, my) {
+                        need_full_redraw = true;
+                    } else if my as usize == BUFFER_HEIGHT - 1 {
+                        self.handle_taskbar_click(mx);
+                        need_full_redraw = true;
+                    } else if let Some(icon_idx) = self.selected_icon {
                         if double_click_timer > 0 && last_clicked_icon == Some(icon_idx) {
-                            // Double-click detected! Activate the icon
                             if let Some(action) = self.handle_icon_click(icon_idx) {
                                 if action == IconAction::Shutdown {
                                     shutdown_system();
@@ -405,17 +451,42 @@ impl Desktop {
                                 return action;
                             }
                         } else {
-                            // First click - start timer
                             last_clicked_icon = Some(icon_idx);
-                            double_click_timer = 5000; // Much longer timer for double-click window
+                            double_click_timer = 5000;
                         }
                     } else {
-                        // Clicked outside any icon - reset
                         last_clicked_icon = None;
                         double_click_timer = 0;
                     }
                 }
+
+                let right_pressed = packet.right_button();
+                if right_pressed && !right_button_was_pressed {
+                    self.context_menu = None;
+                    let mut items: Vec<MenuItem> = Vec::new();
+                    if self.window_manager.is_point_over_window(mx, my) {
+                        if let Some(id) = self.window_manager.topmost_window_at(mx, my) {
+                            items.push(MenuItem::new("Close Window", MenuActionKind::CloseWindow(id)));
+                        }
+                    } else if my as usize != BUFFER_HEIGHT - 1 {
+                        items.push(MenuItem::new("New Window", MenuActionKind::NewWindow));
+                        items.push(MenuItem::new("Refresh", MenuActionKind::Refresh));
+                    }
+                    if !items.is_empty() {
+                        self.context_menu = Some(ContextMenu::new(mx as usize, my as usize, items));
+                        need_full_redraw = true;
+                    }
+                }
+                right_button_was_pressed = right_pressed;
+
                 left_button_was_pressed = left_pressed;
+            }
+
+            if need_full_redraw {
+                self.render_desktop();
+                self.window_manager.render_all();
+                self.render_context_menu();
+                self.render_cursor(self.last_mouse_x, self.last_mouse_y);
             }
             
             // Decrement double-click timer (slowly)
@@ -469,6 +540,21 @@ impl Desktop {
                                 let (mx, my) = get_position();
                                 self.update_cursor_position(mx, my);
                                 self.update_mouse_selection(mx, my);
+                            }
+                            DecodedKey::Unicode('w') | DecodedKey::Unicode('W') => {
+                                self.window_manager.add_window(18, 5, 44, 14, "Window");
+                                self.render_desktop();
+                                self.window_manager.render_all();
+                                self.render_context_menu();
+                                self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+                            }
+                            DecodedKey::RawKey(KeyCode::Escape) => {
+                                if self.context_menu.is_some() {
+                                    self.context_menu = None;
+                                    self.render_desktop();
+                                    self.window_manager.render_all();
+                                    self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+                                }
                             }
                             _ => {}
                         }
