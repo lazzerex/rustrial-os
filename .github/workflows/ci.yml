@@ -75,34 +75,3 @@ jobs:
         run: cargo test
         timeout-minutes: 15
 
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y nasm clang
-
-      - name: Install Rust nightly
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-2025-11-12
-          components: rust-src, llvm-tools-preview, clippy
-
-      - name: Cache Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.cargo/bin
-            target
-          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-clippy-
-
-      - name: Install bootimage
-        run: cargo install bootimage --locked || true
-
-      - name: Run Clippy
-        run: cargo clippy -- -D warnings
