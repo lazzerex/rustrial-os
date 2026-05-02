@@ -7,7 +7,7 @@
 //! - RFC 1035: Domain Names - Implementation and Specification
 //!
 //! # Example
-//! ```rust
+//! ```rust,ignore
 //! let ip = resolve("google.com").await?;
 //! println!("google.com resolved to {}", ip);
 //! ```
@@ -386,7 +386,7 @@ fn parse_response(data: &[u8]) -> Result<Vec<Ipv4Addr>, DnsError> {
 /// * `Err(DnsError)` - If resolution fails
 ///
 /// # Example
-/// ```rust
+/// ```rust,ignore
 /// let ip = resolve("google.com").await?;
 /// println!("Resolved to: {}", ip);
 /// ```

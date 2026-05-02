@@ -110,7 +110,7 @@ pub fn register_loopback_device(device: Box<dyn NetworkDevice>) {
 /// * `device` - The network device to register (must implement NetworkDevice trait)
 /// 
 /// Example
-/// ```
+/// ```ignore
 /// let rtl8139 = Rtl8139::new(...);
 /// register_network_device(Box::new(rtl8139));
 /// ```
