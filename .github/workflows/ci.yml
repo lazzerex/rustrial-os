@@ -72,6 +72,6 @@ jobs:
         run: cargo install bootimage --locked || true
 
       - name: Run tests
-        run: cargo test
+        run: cargo test --tests
         timeout-minutes: 15
 
