@@ -22,7 +22,7 @@ jobs:
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2025-11-12
+          toolchain: nightly-2024-01-01
           components: rust-src, llvm-tools-preview
 
       - name: Cache Cargo
@@ -37,7 +37,7 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Install bootimage
-        run: cargo install bootimage --locked || true
+        run: cargo install bootimage@^0.9 --locked || true
 
       - name: Build kernel
         run: cargo build
@@ -54,7 +54,7 @@ jobs:
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2025-11-12
+          toolchain: nightly-2024-01-01
           components: rust-src, llvm-tools-preview
 
       - name: Cache Cargo
@@ -69,9 +69,8 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-test-
 
       - name: Install bootimage
-        run: cargo install bootimage --locked || true
+        run: cargo install bootimage@^0.9 --locked || true
 
       - name: Run tests
         run: cargo test --tests
         timeout-minutes: 15
-
