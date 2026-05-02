@@ -21,6 +21,8 @@ pub mod fs;
 pub mod script_loader;
 pub mod graphics;
 pub mod desktop;
+pub mod window_manager;
+pub mod context_menu;
 pub mod shell;
 
 // hardware detection with native implementation (C + Assembly)
