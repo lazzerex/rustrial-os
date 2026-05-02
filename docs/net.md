@@ -13,12 +13,13 @@ RustrialOS features a full TCP/IP network stack implementation with support for 
 ```
 ┌─────────────────────────────────────────┐
 │     Application Layer                    │
-│   Shell Commands & DNS Client            │
-│   (ifconfig, ping, arp, netinfo)        │
+│   Shell Commands & DNS/DHCP/NTP/HTTP     │
+│   (ifconfig, ping, arp, netinfo,        │
+│    dhcp-acquire, ntp-sync, http-get)    │
 ├─────────────────────────────────────────┤
 │     Transport Layer                      │
 │   UDP (sockets, port registry)           │
-│         [Future: TCP]                    │
+│   TCP (sliding window, congestion ctrl) │
 ├─────────────────────────────────────────┤
 │     Network Layer                        │
 │   IPv4 (routing, checksums)              │
@@ -536,15 +537,47 @@ pub struct RingBuffer {
 
 ## QEMU Networking Setup
 
-### User-Mode Networking (Default)
+### Quick Start with network-test.sh (Recommended)
 
-**Command:**
-```powershell
-qemu-system-x86_64 `
-    -drive format=raw,file=target/x86_64-rustrial_os/debug/bootimage-rustrial_os.bin `
-    -netdev user,id=net0 `
-    -device rtl8139,netdev=net0
+For commands that require a host-side server (`dhcp-acquire`, `ntp-sync`, `http-get`), use the provided script which starts the server and launches QEMU automatically:
+
+```bash
+./scripts/network-test.sh
 ```
+
+This single command:
+1. Starts `scripts/network-test-server.py` in the background — provides HTTP on port 18080 and NTP on port 8123
+2. Launches QEMU with user-mode networking and RTL8139 enabled
+
+Then inside the shell:
+```
+rustrial> dhcp-acquire
+rustrial> ntp-sync 10.0.2.2:8123
+rustrial> http-get http://10.0.2.2:18080/
+```
+
+### Manual Setup (Alternative)
+
+If you prefer to run things separately:
+
+**Terminal 1 — start host test server:**
+```bash
+python3 scripts/network-test-server.py
+```
+
+**Terminal 2 — build and run QEMU:**
+```bash
+cargo build
+qemu-system-x86_64 \
+    -drive format=raw,file=target/x86_64-rustrial_os/debug/bootimage-rustrial_os.bin \
+    -netdev user,id=net0 \
+    -device rtl8139,netdev=net0 \
+    -serial stdio
+```
+
+Commands like `ifconfig`, `ping`, and `arp` work without the test server. Only `ntp-sync` and `http-get` need the server running on the host.
+
+### User-Mode Networking
 
 **Network Configuration:**
 - **Guest IP**: 10.0.2.15 (set via ifconfig, or auto-assigned by QEMU DHCP)
@@ -659,8 +692,8 @@ Network Stack Information:
   ARP Packets: 1
   IPv4 Packets: 14
   ICMP Messages: 14
-  TCP Segments: 0 (not implemented)
-  UDP Datagrams: 0 (not implemented)
+  TCP Segments: 3
+  UDP Datagrams: 2
   
 ARP Cache Entries: 1
   10.0.2.2 -> 52:55:0a:00:02:02
@@ -670,6 +703,84 @@ Routing Table:
 ```
 
 **Implementation:** Aggregates statistics from all protocol layers
+
+---
+
+### dhcp-acquire
+**Purpose:** Obtain an IP address and network configuration dynamically via DHCP
+
+**Usage:**
+```
+rustrial> dhcp-acquire
+```
+
+**Output:**
+```
+DHCP: Sending DISCOVER...
+DHCP: Got OFFER — IP 10.0.2.15
+DHCP: Sending REQUEST...
+DHCP: Got ACK
+  IP Address : 10.0.2.15
+  Subnet Mask: 255.255.255.0
+  Gateway    : 10.0.2.2
+  DNS Server : 10.0.2.3
+```
+
+**Notes:**
+- Requires QEMU user-mode networking (`-netdev user,id=net0 -device rtl8139,netdev=net0`)
+- Updates the kernel's IP configuration for all subsequent commands
+- The test server is not required for this command — QEMU's built-in DHCP handles it
+
+---
+
+### ntp-sync
+**Purpose:** Synchronize system time from a Network Time Protocol server
+
+**Usage:**
+```
+rustrial> ntp-sync 10.0.2.2:8123
+```
+
+**Output:**
+```
+NTP: Sending request to 10.0.2.2:8123...
+NTP: Response received
+  Server time: 2026-05-02 12:50:34 UTC
+  Offset      : +0.002s
+  Clock updated
+```
+
+**Notes:**
+- Requires the host-side test server (`scripts/network-test-server.py`) or `network-test.sh`
+- The test server runs NTP on port 8123 (non-standard) to avoid root privileges on the host
+- Uses UDP with a standard 48-byte NTP packet (RFC 5905)
+
+---
+
+### http-get
+**Purpose:** Fetch a resource from an HTTP/1.1 server over TCP
+
+**Usage:**
+```
+rustrial> http-get http://10.0.2.2:18080/
+```
+
+**Output:**
+```
+HTTP GET http://10.0.2.2:18080/
+Connecting to 10.0.2.2:18080...
+Connected. Sending request...
+HTTP/1.1 200 OK
+Content-Type: text/plain
+...
+[response body]
+```
+
+**Notes:**
+- Requires the host-side test server (`scripts/network-test-server.py`) or `network-test.sh`
+- The test server serves HTTP on port 18080
+- Only GET requests supported; no TLS
+- Underlying TCP stack handles the full 3-way handshake and reliable delivery
 
 ## Testing
 
@@ -693,13 +804,25 @@ cargo test --test network_test
 
 ### Manual Testing Procedure
 
-1. **Build and run:**
-   ```powershell
-   cargo build
-   qemu-system-x86_64 -drive format=raw,file=target/x86_64-rustrial_os/debug/bootimage-rustrial_os.bin -netdev user,id=net0 -device rtl8139,netdev=net0
-   ```
+**Option A — Automated (recommended for networking commands):**
+```bash
+./scripts/network-test.sh
+```
+Starts the host test server and QEMU together. Then follow steps 2–7 below.
 
-2. **Launch shell** from desktop or menu
+**Option B — Manual:**
+```bash
+# Terminal 1
+python3 scripts/network-test-server.py
+
+# Terminal 2
+cargo build
+qemu-system-x86_64 \
+  -drive format=raw,file=target/x86_64-rustrial_os/debug/bootimage-rustrial_os.bin \
+  -netdev user,id=net0 -device rtl8139,netdev=net0 -serial stdio
+```
+
+2. **Launch shell** from desktop (Shell icon) or menu option
 
 3. **Check interface:**
    ```
@@ -707,17 +830,35 @@ cargo test --test network_test
    ```
    Expected: MAC and IP displayed, Status: Link Up
 
-4. **Test connectivity:**
+4. **Acquire IP via DHCP:**
+   ```
+   rustrial> dhcp-acquire
+   ```
+   Expected: IP 10.0.2.15, gateway 10.0.2.2, DNS 10.0.2.3
+
+5. **Test connectivity:**
    ```
    rustrial> ping 10.0.2.2
    ```
    Expected: ICMP Echo Reply messages
 
-5. **Verify ARP cache:**
+6. **Sync time:**
+   ```
+   rustrial> ntp-sync 10.0.2.2:8123
+   ```
+   Expected: Server time printed, clock updated *(requires test server)*
+
+7. **HTTP fetch:**
+   ```
+   rustrial> http-get http://10.0.2.2:18080/
+   ```
+   Expected: HTTP 200 response with body *(requires test server)*
+
+8. **Verify ARP cache:**
    ```
    rustrial> arp
    ```
-   Expected: Gateway entry present
+   Expected: Gateway and DNS entries present
 
 ### Debug Output
 
@@ -932,6 +1073,6 @@ Network stack development follows these guidelines:
 
 ---
 
-**Last Updated:** After successful completion of Phase 6 (UDP, DNS working)  
-**Tested On:** QEMU 7.0.0, RTL8139 emulated NIC  
-**Working Status:** Fully operational network stack with DNS resolution and hostname ping support
+**Last Updated:** 2026-05-02 — DHCP, NTP, HTTP, TCP, DNS all validated  
+**Tested On:** QEMU 7.0.0+, RTL8139 emulated NIC  
+**Working Status:** Fully operational — `ifconfig`, `ping`, `arp`, `dhcp-acquire`, `ntp-sync`, `http-get` all functional in QEMU user-mode networking
