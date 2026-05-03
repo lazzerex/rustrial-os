@@ -359,11 +359,12 @@ impl Desktop {
 
         draw_filled_box(0, BUFFER_HEIGHT - 1, BUFFER_WIDTH, 1, Color::LightGray, Color::DarkGray);
 
-        // New-window button
         write_at(0, BUFFER_HEIGHT - 1, "[W]", Color::LightGreen, Color::DarkGray);
+        write_at(4, BUFFER_HEIGHT - 1, "[S]", Color::LightCyan, Color::DarkGray);
+        write_at(8, BUFFER_HEIGHT - 1, "[=]", Color::Pink, Color::DarkGray);
 
         // One button per open window: "[title     ]" = 12 chars, +1 gap = 13 stride
-        let mut x = 4usize;
+        let mut x = 12usize;
         for win in self.window_manager.get_windows() {
             if x + 12 > BUFFER_WIDTH { break; }
             let focused = self.window_manager.is_focused(win.id);
@@ -378,15 +379,21 @@ impl Desktop {
     fn handle_taskbar_click(&mut self, mx: i16) {
         let mx_u = mx as usize;
 
-        // [W] button (x 0..=2)
         if mx_u <= 2 {
             self.window_manager.add_window(18, 5, 44, 14, "Window");
             return;
         }
+        if mx_u >= 4 && mx_u <= 6 {
+            self.window_manager.add_shell_window();
+            return;
+        }
+        if mx_u >= 8 && mx_u <= 10 {
+            self.window_manager.add_settings_window();
+            return;
+        }
 
-        // Collect button positions first to avoid borrow conflict
         let mut buttons: Vec<(u8, usize)> = Vec::new();
-        let mut x = 4usize;
+        let mut x = 12usize;
         for win in self.window_manager.get_windows() {
             if x + 12 > BUFFER_WIDTH { break; }
             buttons.push((win.id, x));
@@ -597,6 +604,14 @@ impl Desktop {
             while let Some(scancode) = keyboard::try_pop_scancode() {
                 if let Ok(Some(key_event)) = kb.add_byte(scancode) {
                     if let Some(key) = kb.process_keyevent(key_event) {
+                        // Route all keys to focused shell window
+                        if self.window_manager.focused_window_is_shell() {
+                            if self.window_manager.handle_shell_key(key) {
+                                self.window_manager.render_all();
+                                self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+                            }
+                            continue;
+                        }
                         match key {
                             DecodedKey::Unicode('\n') | DecodedKey::Unicode(' ') => {
                                 // Enter/Space activates selected icon OR simulates click
