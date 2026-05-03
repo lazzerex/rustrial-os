@@ -82,6 +82,7 @@ async fn desktop_loop() {
             IconAction::Shutdown => {
                 rustrial_os::rustrial_menu::menu_system::shutdown::shutdown_system();
             }
+            IconAction::FileManager => {}
         }
     }
 }
