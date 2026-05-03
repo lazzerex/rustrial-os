@@ -26,6 +26,7 @@ pub enum WindowContent {
         selected: usize,
         scroll: usize,
     },
+    Settings,
 }
 
 impl WindowContent {
@@ -124,6 +125,10 @@ impl WindowManager {
         self.create_window(x, y, w, h, &title, content)
     }
 
+    pub fn add_settings_window(&mut self) -> u8 {
+        self.create_window(22, 4, 36, 12, "Settings", WindowContent::Settings)
+    }
+
     fn create_window(&mut self, x: usize, y: usize, w: usize, h: usize, title: &str, content: WindowContent) -> u8 {
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1);
@@ -214,6 +219,9 @@ impl WindowManager {
     fn render_content(&self, win: &Window, cx: usize, cy: usize, cw: usize, ch: usize, focused: bool) {
         match &win.content {
             WindowContent::Empty => {}
+            WindowContent::Settings => {
+                self.render_settings_content(cx, cy, cw, ch, focused);
+            }
             WindowContent::FileManager { cwd, entries, selected, scroll } => {
                 // First row: current path
                 let cwd_disp = if cwd.len() > cw { &cwd[cwd.len() - cw..] } else { cwd.as_str() };
@@ -261,6 +269,52 @@ impl WindowManager {
                 }
             }
         }
+    }
+
+    fn render_settings_content(&self, cx: usize, cy: usize, cw: usize, _ch: usize, _focused: bool) {
+        let section = |y: usize, label: &str| {
+            draw_filled_box(cx, y, cw, 1, Color::Yellow, Color::DarkGray);
+            write_at(cx + 1, y, label, Color::Yellow, Color::DarkGray);
+        };
+
+        // Mouse speed section
+        section(cy, "Mouse Speed");
+        let sens = crate::task::mouse::get_sensitivity();
+        let speed_str = alloc::format!("  [<]  {:2}  [>]", sens);
+        draw_filled_box(cx, cy + 1, cw, 1, Color::White, Color::Black);
+        write_at(cx, cy + 1, &speed_str, Color::White, Color::Black);
+        draw_filled_box(cx, cy + 2, cw, 1, Color::Black, Color::Black);
+
+        // Theme section
+        section(cy + 3, "Theme");
+        let theme = crate::theme::get();
+        draw_filled_box(cx, cy + 4, cw, 1, Color::Black, Color::Black);
+        let themes = [("Cyan ", 0u8), ("Dark ", 1), ("Night", 2)];
+        let mut tx = cx + 1;
+        for (label, id) in themes.iter() {
+            let (fg, bg) = if *id == theme {
+                (Color::Black, Color::Yellow)
+            } else {
+                (Color::White, Color::DarkGray)
+            };
+            let btn = alloc::format!("[{}]", label);
+            write_at(tx, cy + 4, &btn, fg, bg);
+            tx += 8;
+        }
+        draw_filled_box(cx, cy + 5, cw, 1, Color::Black, Color::Black);
+
+        // Time section
+        section(cy + 6, "Time  (UTC+7)");
+        use crate::native_ffi;
+        let mut dt = native_ffi::DateTime::read();
+        let mut hour = dt.hour as i16 + 7;
+        if hour >= 24 {
+            hour -= 24;
+        }
+        dt.hour = hour as u8;
+        let time_str = alloc::format!("  {:02}:{:02}:{:02}  {}", dt.hour, dt.minute, dt.second, dt.month_str());
+        draw_filled_box(cx, cy + 7, cw, 1, Color::White, Color::Black);
+        write_at(cx, cy + 7, &time_str, Color::LightCyan, Color::Black);
     }
 
     /// Returns true if a window consumed the click (focus, drag, close, resize, or content).
@@ -312,10 +366,11 @@ impl WindowManager {
 
             // Content area click
             if my_u > win_y && my_u < win_y + win_h - 1 && mx_u > win_x && mx_u < win_x + win_w - 1 {
+                let inner_x = mx_u - win_x - 1;
                 let inner_y = my_u - win_y - 1;
                 self.bring_to_front(id);
                 self.focus_id = Some(id);
-                self.handle_content_click(id, inner_y);
+                self.handle_content_click(id, inner_x, inner_y);
                 return true;
             }
 
@@ -327,8 +382,18 @@ impl WindowManager {
         }
     }
 
-    fn handle_content_click(&mut self, id: u8, inner_y: usize) {
-        // inner_y 0 = cwd header row, skip navigation
+    fn handle_content_click(&mut self, id: u8, inner_x: usize, inner_y: usize) {
+        if let Some(win) = self.windows.iter().find(|w| w.id == id) {
+            match win.content {
+                WindowContent::Settings => {
+                    self.handle_settings_click(inner_x, inner_y);
+                    return;
+                }
+                _ => {}
+            }
+        }
+
+        // File manager: inner_y 0 = cwd header, skip
         if inner_y == 0 {
             return;
         }
@@ -358,6 +423,31 @@ impl WindowManager {
                     scroll: 0,
                 };
             }
+        }
+    }
+
+    fn handle_settings_click(&self, inner_x: usize, inner_y: usize) {
+        match inner_y {
+            1 => {
+                // Mouse speed row: [<] at cols 2-4, [>] at cols 9-11
+                let sens = crate::task::mouse::get_sensitivity();
+                if inner_x >= 2 && inner_x <= 4 {
+                    crate::task::mouse::set_sensitivity(sens.saturating_sub(2));
+                } else if inner_x >= 9 && inner_x <= 11 {
+                    crate::task::mouse::set_sensitivity(sens.saturating_add(2));
+                }
+            }
+            4 => {
+                // Theme row: [Cyan ] at 1-7, [Dark ] at 9-15, [Night] at 17-23
+                if inner_x >= 1 && inner_x <= 7 {
+                    crate::theme::set(0);
+                } else if inner_x >= 9 && inner_x <= 15 {
+                    crate::theme::set(1);
+                } else if inner_x >= 17 && inner_x <= 23 {
+                    crate::theme::set(2);
+                }
+            }
+            _ => {}
         }
     }
 
