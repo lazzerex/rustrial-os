@@ -286,25 +286,42 @@ impl Desktop {
         }
     }
 
-    fn update_cursor_position(&mut self, x: i16, y: i16) -> bool {
+    fn update_cursor_position(&mut self, x: i16, y: i16) {
         self.restore_cursor_under(self.last_mouse_x, self.last_mouse_y);
         self.last_mouse_x = x;
         self.last_mouse_y = y;
-        let need_redraw = if self.context_menu.is_some() {
+        if self.context_menu.is_some() {
             self.update_context_menu_hover(x, y);
-            false
         } else if self.window_manager.is_point_over_window(x, y) {
-            if self.selected_icon.is_some() {
-                self.selected_icon = None;
-                true
-            } else {
-                false
+            if let Some(old_idx) = self.selected_icon.take() {
+                self.repaint_icon(old_idx);
             }
         } else {
-            self.update_mouse_selection(x, y)
-        };
+            let old = self.selected_icon;
+            if self.update_mouse_selection(x, y) {
+                if let Some(idx) = old { self.repaint_icon(idx); }
+                if let Some(idx) = self.selected_icon { self.repaint_icon(idx); }
+            }
+        }
         self.render_cursor(x, y);
-        need_redraw
+    }
+
+    fn repaint_icon(&self, idx: usize) {
+        if idx >= self.icons.len() { return; }
+        let icon = &self.icons[idx];
+        if icon.action == IconAction::Shutdown {
+            use crate::rustrial_menu::menu_system::shutdown::ShutdownButton;
+            let btn = ShutdownButton {
+                x: icon.x as usize, y: icon.y as usize,
+                width: icon.width as usize, height: icon.height as usize,
+            };
+            btn.render(true);
+        } else {
+            icon.render(Some(idx) == self.selected_icon);
+        }
+        self.window_manager.render_windows_overlapping(
+            icon.x as usize, icon.y as usize, icon.width as usize, icon.height as usize,
+        );
     }
 
     fn erase_desktop_region(&self, x: usize, y: usize, w: usize, h: usize) {
@@ -464,18 +481,22 @@ impl Desktop {
                         self.last_mouse_y = my;
                         need_full_redraw = true;
                     } else {
-                        if self.update_cursor_position(mx, my) {
-                            need_full_redraw = true;
-                        }
+                        self.update_cursor_position(mx, my);
                     }
                 }
 
                 if left_pressed && !left_button_was_pressed {
                     if let Some(menu) = self.context_menu.take() {
+                        let (mx2, my2, mw, mh) = (menu.x, menu.y, menu.width, menu.height);
                         if let Some(action) = menu.action_at(mx, my) {
                             self.execute_menu_action(action);
+                            need_full_redraw = true;
+                        } else {
+                            // No action selected: erase menu region only, no full redraw
+                            self.erase_desktop_region(mx2, my2, mw, mh);
+                            self.window_manager.render_all();
+                            self.render_cursor(self.last_mouse_x, self.last_mouse_y);
                         }
-                        need_full_redraw = true;
                     } else if self.window_manager.on_mouse_down(mx, my) {
                         need_full_redraw = true;
                     } else if my as usize == BUFFER_HEIGHT - 1 {
@@ -505,7 +526,11 @@ impl Desktop {
 
                 let right_pressed = packet.right_button();
                 if right_pressed && !right_button_was_pressed {
-                    self.context_menu = None;
+                    // Erase any existing menu before showing new one
+                    if let Some(old) = self.context_menu.take() {
+                        self.erase_desktop_region(old.x, old.y, old.width, old.height);
+                        self.window_manager.render_all();
+                    }
                     let mut items: Vec<MenuItem> = Vec::new();
                     if self.window_manager.is_point_over_window(mx, my) {
                         if let Some(id) = self.window_manager.topmost_window_at(mx, my) {
@@ -517,7 +542,8 @@ impl Desktop {
                     }
                     if !items.is_empty() {
                         self.context_menu = Some(ContextMenu::new(mx as usize, my as usize, items));
-                        need_full_redraw = true;
+                        self.render_context_menu();
+                        self.render_cursor(self.last_mouse_x, self.last_mouse_y);
                     }
                 }
                 right_button_was_pressed = right_pressed;
@@ -619,9 +645,8 @@ impl Desktop {
                                 self.render_cursor(self.last_mouse_x, self.last_mouse_y);
                             }
                             DecodedKey::RawKey(KeyCode::Escape) => {
-                                if self.context_menu.is_some() {
-                                    self.context_menu = None;
-                                    self.render_desktop();
+                                if let Some(menu) = self.context_menu.take() {
+                                    self.erase_desktop_region(menu.x, menu.y, menu.width, menu.height);
                                     self.window_manager.render_all();
                                     self.render_cursor(self.last_mouse_x, self.last_mouse_y);
                                 }
