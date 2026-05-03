@@ -33,6 +33,7 @@ pub enum IconAction {
     Shell,
     Shutdown,
     FileManager,
+    Settings,
 }
 
 impl DesktopIcon {
@@ -87,6 +88,7 @@ impl DesktopIcon {
             IconAction::Shell => "[>_]",
             IconAction::Shutdown => "[OFF]",
             IconAction::FileManager => "[F]",
+            IconAction::Settings => "[=]",
         };
         
         write_at(
@@ -138,6 +140,7 @@ impl Desktop {
         icons.push(DesktopIcon::new(50, 4, "Hardware", IconAction::Hardware));
         icons.push(DesktopIcon::new(65, 4, "Shell", IconAction::Shell));
         icons.push(DesktopIcon::new(5, 10, "Files", IconAction::FileManager));
+        icons.push(DesktopIcon::new(20, 10, "Settings", IconAction::Settings));
         // Shutdown button in bottom-right corner
         icons.push(DesktopIcon {
             x: 64,
@@ -163,10 +166,12 @@ impl Desktop {
     fn render_desktop(&self) {
         use crate::graphics::text_graphics::*;
 
-        // Draw desktop background with gradient effect
+        let bg = crate::theme::desktop_bg();
+
+        // Draw desktop background
         for y in 0..BUFFER_HEIGHT {
             for x in 0..BUFFER_WIDTH {
-                write_at(x, y, " ", Color::Black, Color::Cyan);
+                write_at(x, y, " ", Color::Black, bg);
             }
         }
         
@@ -330,7 +335,7 @@ impl Desktop {
         let y_end = (y + h).min(BUFFER_HEIGHT - 1);
         let y = y.max(1);
         if x_end <= x || y_end <= y { return; }
-        draw_filled_box(x, y, x_end - x, y_end - y, Color::Black, Color::Cyan);
+        draw_filled_box(x, y, x_end - x, y_end - y, Color::Black, crate::theme::desktop_bg());
 
         for (idx, icon) in self.icons.iter().enumerate() {
             let ix = icon.x as usize;
@@ -511,6 +516,10 @@ impl Desktop {
                                         self.window_manager.add_file_manager(8, 3, 40, 18, "/");
                                         need_full_redraw = true;
                                     }
+                                    IconAction::Settings => {
+                                        self.window_manager.add_settings_window();
+                                        need_full_redraw = true;
+                                    }
                                     _ => return action,
                                 }
                             }
@@ -599,6 +608,12 @@ impl Desktop {
                                                 IconAction::Shutdown => shutdown_system(),
                                                 IconAction::FileManager => {
                                                     self.window_manager.add_file_manager(8, 3, 40, 18, "/");
+                                                    self.render_desktop();
+                                                    self.window_manager.render_all();
+                                                    self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+                                                }
+                                                IconAction::Settings => {
+                                                    self.window_manager.add_settings_window();
                                                     self.render_desktop();
                                                     self.window_manager.render_all();
                                                     self.render_cursor(self.last_mouse_x, self.last_mouse_y);
