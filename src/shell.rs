@@ -860,57 +860,40 @@ impl Shell {
     /// Scroll up in the scrollback buffer
     fn scroll_up(&mut self) {
         use crate::vga_buffer::BUFFER_HEIGHT;
-        
+
         if self.scrollback_buffer.is_empty() {
-            // No scrollback to display
             return;
         }
 
-        // Enter scroll mode if not already in it
         if !self.in_scroll_mode {
             self.in_scroll_mode = true;
             self.scroll_offset = 0;
         }
 
-        // Scroll up by half a screen
-        let scroll_amount = BUFFER_HEIGHT / 2;
-        let max_offset = self.scrollback_buffer.len().saturating_sub(BUFFER_HEIGHT);
-        
+        let display_lines = BUFFER_HEIGHT - 1;
+        let max_offset = self.scrollback_buffer.len().saturating_sub(display_lines);
+
         if self.scroll_offset < max_offset {
-            self.scroll_offset = (self.scroll_offset + scroll_amount).min(max_offset);
+            self.scroll_offset = (self.scroll_offset + display_lines).min(max_offset);
             self.redraw_screen();
-        } else {
-            // Already at the top, just redraw to show we're there
-            if self.scroll_offset > 0 {
-                self.redraw_screen();
-            }
         }
     }
 
-    /// Scroll down in the scrollback buffer
     fn scroll_down(&mut self) {
         use crate::vga_buffer::BUFFER_HEIGHT;
-        
+
         if !self.in_scroll_mode {
             return;
         }
-        
-        if self.scroll_offset == 0 {
-            // Already at bottom, redraw to show status
-            self.redraw_screen();
-            return;
-        }
 
-        // Scroll down by half a screen
-        let scroll_amount = BUFFER_HEIGHT / 2;
-        
-        if self.scroll_offset > scroll_amount {
-            self.scroll_offset -= scroll_amount;
+        let display_lines = BUFFER_HEIGHT - 1;
+
+        if self.scroll_offset <= display_lines {
+            self.exit_scroll_mode();
         } else {
-            self.scroll_offset = 0;
+            self.scroll_offset -= display_lines;
+            self.redraw_screen();
         }
-        
-        self.redraw_screen();
     }
 
     /// Redraw the screen from the scrollback buffer
