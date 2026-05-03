@@ -231,6 +231,14 @@ pub fn is_right_button_pressed() -> bool {
     MOUSE_RIGHT_BUTTON.load(Ordering::Relaxed) != 0
 }
 
+pub fn get_sensitivity() -> u8 {
+    MOUSE_SENSITIVITY.load(Ordering::Relaxed)
+}
+
+pub fn set_sensitivity(v: u8) {
+    MOUSE_SENSITIVITY.store(v.clamp(4, 20), Ordering::Relaxed);
+}
+
 /// PS/2 Mouse controller ports
 const DATA_PORT: u16 = 0x60;
 const STATUS_PORT: u16 = 0x64;
