@@ -361,7 +361,7 @@ impl WindowManager {
         }
     }
 
-    /// Returns true if dragging or resizing (caller should do full redraw).
+    /// Returns true if dragging or resizing AND the window actually moved (redraw needed).
     pub fn on_mouse_move(&mut self, mx: i16, my: i16) -> bool {
         if let Some(resize_id) = self.resize_id {
             if let Some(win) = self.windows.iter_mut().find(|w| w.id == resize_id) {
@@ -369,9 +369,14 @@ impl WindowManager {
                 let dh = my - self.resize_start_my;
                 let new_w = ((self.resize_start_w as i16) + dw).max(WIN_MIN_W as i16) as usize;
                 let new_h = ((self.resize_start_h as i16) + dh).max(WIN_MIN_H as i16) as usize;
-                win.w = new_w.min(SCREEN_W.saturating_sub(win.x));
-                win.h = new_h.min(SCREEN_H.saturating_sub(win.y + WIN_Y_MAX_OFFSET));
-                return true;
+                let new_w = new_w.min(SCREEN_W.saturating_sub(win.x));
+                let new_h = new_h.min(SCREEN_H.saturating_sub(win.y + WIN_Y_MAX_OFFSET));
+                if new_w != win.w || new_h != win.h {
+                    win.w = new_w;
+                    win.h = new_h;
+                    return true;
+                }
+                return false;
             }
         }
 
@@ -379,12 +384,28 @@ impl WindowManager {
             if let Some(win) = self.windows.iter_mut().find(|w| w.id == drag_id) {
                 let new_x = (mx - self.drag_offset_x).max(0) as usize;
                 let new_y = (my - self.drag_offset_y).max(0) as usize;
-                win.x = new_x.min(SCREEN_W.saturating_sub(win.w));
-                win.y = new_y.clamp(WIN_Y_MIN, SCREEN_H.saturating_sub(win.h + WIN_Y_MAX_OFFSET));
-                return true;
+                let new_x = new_x.min(SCREEN_W.saturating_sub(win.w));
+                let new_y = new_y.clamp(WIN_Y_MIN, SCREEN_H.saturating_sub(win.h + WIN_Y_MAX_OFFSET));
+                if new_x != win.x || new_y != win.y {
+                    win.x = new_x;
+                    win.y = new_y;
+                    return true;
+                }
+                return false;
             }
         }
         false
+    }
+
+    pub fn is_dragging_or_resizing(&self) -> bool {
+        self.drag_id.is_some() || self.resize_id.is_some()
+    }
+
+    /// Bounds of the currently dragged/resized window, used for targeted erase.
+    pub fn current_drag_bounds(&self) -> Option<(usize, usize, usize, usize)> {
+        let id = self.drag_id.or(self.resize_id)?;
+        let win = self.windows.iter().find(|w| w.id == id)?;
+        Some((win.x, win.y, win.w, win.h))
     }
 
     pub fn on_mouse_up(&mut self) {
