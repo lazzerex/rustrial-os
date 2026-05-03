@@ -270,7 +270,7 @@ impl Desktop {
         }
     }
 
-    fn update_mouse_selection(&mut self, x: i16, y: i16) {
+    fn update_mouse_selection(&mut self, x: i16, y: i16) -> bool {
         let mut found_icon = None;
         for (idx, icon) in self.icons.iter().enumerate() {
             if icon.contains_point(x, y) {
@@ -280,25 +280,56 @@ impl Desktop {
         }
         if self.selected_icon != found_icon {
             self.selected_icon = found_icon;
-            self.render_icons();
+            true
+        } else {
+            false
         }
     }
 
-    fn update_cursor_position(&mut self, x: i16, y: i16) {
+    fn update_cursor_position(&mut self, x: i16, y: i16) -> bool {
         self.restore_cursor_under(self.last_mouse_x, self.last_mouse_y);
         self.last_mouse_x = x;
         self.last_mouse_y = y;
-        if self.context_menu.is_some() {
+        let need_redraw = if self.context_menu.is_some() {
             self.update_context_menu_hover(x, y);
+            false
         } else if self.window_manager.is_point_over_window(x, y) {
             if self.selected_icon.is_some() {
                 self.selected_icon = None;
-                self.render_icons();
+                true
+            } else {
+                false
             }
         } else {
-            self.update_mouse_selection(x, y);
-        }
+            self.update_mouse_selection(x, y)
+        };
         self.render_cursor(x, y);
+        need_redraw
+    }
+
+    fn erase_desktop_region(&self, x: usize, y: usize, w: usize, h: usize) {
+        use crate::graphics::text_graphics::draw_filled_box;
+        let x_end = (x + w).min(BUFFER_WIDTH);
+        let y_end = (y + h).min(BUFFER_HEIGHT - 1);
+        let y = y.max(1);
+        if x_end <= x || y_end <= y { return; }
+        draw_filled_box(x, y, x_end - x, y_end - y, Color::Black, Color::Cyan);
+
+        for (idx, icon) in self.icons.iter().enumerate() {
+            let ix = icon.x as usize;
+            let iy = icon.y as usize;
+            let iw = icon.width as usize;
+            let ih = icon.height as usize;
+            if ix < x_end && ix + iw > x && iy < y_end && iy + ih > y {
+                if icon.action == IconAction::Shutdown {
+                    use crate::rustrial_menu::menu_system::shutdown::ShutdownButton;
+                    let btn = ShutdownButton { x: ix, y: iy, width: iw, height: ih };
+                    btn.render(true);
+                } else {
+                    icon.render(Some(idx) == self.selected_icon);
+                }
+            }
+        }
     }
     
     fn render_taskbar(&self) {
@@ -410,6 +441,9 @@ impl Desktop {
         left_button_was_pressed = is_left_button_pressed();
         
         loop {
+            // Capture drag/resize window bounds before processing packets (used for targeted erase)
+            let drag_pre_bounds = self.window_manager.current_drag_bounds();
+
             // Process ALL pending mouse packets (non-blocking)
             let mut need_full_redraw = false;
 
@@ -430,7 +464,9 @@ impl Desktop {
                         self.last_mouse_y = my;
                         need_full_redraw = true;
                     } else {
-                        self.update_cursor_position(mx, my);
+                        if self.update_cursor_position(mx, my) {
+                            need_full_redraw = true;
+                        }
                     }
                 }
 
@@ -490,10 +526,31 @@ impl Desktop {
             }
 
             if need_full_redraw {
-                self.render_desktop();
-                self.window_manager.render_all();
-                self.render_context_menu();
-                self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+                let is_drag = self.window_manager.is_dragging_or_resizing();
+                if is_drag && self.context_menu.is_none() {
+                    // Targeted erase: fill union of old+new window bounds with desktop bg,
+                    // then redraw windows. Avoids clearing the whole screen on every move.
+                    let drag_post_bounds = self.window_manager.current_drag_bounds();
+                    if let Some((px, py, pw, ph)) = drag_pre_bounds {
+                        let (ex, ey, ew, eh) = if let Some((nx, ny, nw, nh)) = drag_post_bounds {
+                            let ex = px.min(nx);
+                            let ey = py.min(ny);
+                            let ex2 = (px + pw).max(nx + nw);
+                            let ey2 = (py + ph).max(ny + nh);
+                            (ex, ey, ex2 - ex, ey2 - ey)
+                        } else {
+                            (px, py, pw, ph)
+                        };
+                        self.erase_desktop_region(ex, ey, ew, eh);
+                    }
+                    self.window_manager.render_all();
+                    self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+                } else {
+                    self.render_desktop();
+                    self.window_manager.render_all();
+                    self.render_context_menu();
+                    self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+                }
             }
             
             // Decrement double-click timer (slowly)
