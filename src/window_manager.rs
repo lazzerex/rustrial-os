@@ -438,6 +438,19 @@ impl WindowManager {
             .map(|w| w.id)
     }
 
+    pub fn render_windows_overlapping(&self, x: usize, y: usize, w: usize, h: usize) {
+        let x_end = x + w;
+        let y_end = y + h;
+        let mut order: Vec<usize> = (0..self.windows.len()).collect();
+        order.sort_by_key(|&i| self.windows[i].z_order);
+        for i in order {
+            let win = &self.windows[i];
+            if win.x < x_end && win.x + win.w > x && win.y < y_end && win.y + win.h > y {
+                self.render_window(win);
+            }
+        }
+    }
+
     pub fn is_point_over_window(&self, mx: i16, my: i16) -> bool {
         if mx < 0 || my < 0 {
             return false;
