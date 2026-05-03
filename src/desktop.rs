@@ -32,6 +32,7 @@ pub enum IconAction {
     Hardware,
     Shell,
     Shutdown,
+    FileManager,
 }
 
 impl DesktopIcon {
@@ -83,8 +84,9 @@ impl DesktopIcon {
             IconAction::SystemInfo => "[i]",
             IconAction::Scripts => "[S]",
             IconAction::Hardware => "[H]",
-            IconAction::Shell => "[>_]", // New symbol for Shell
+            IconAction::Shell => "[>_]",
             IconAction::Shutdown => "[OFF]",
+            IconAction::FileManager => "[F]",
         };
         
         write_at(
@@ -135,6 +137,7 @@ impl Desktop {
         icons.push(DesktopIcon::new(35, 4, "Scripts", IconAction::Scripts));
         icons.push(DesktopIcon::new(50, 4, "Hardware", IconAction::Hardware));
         icons.push(DesktopIcon::new(65, 4, "Shell", IconAction::Shell));
+        icons.push(DesktopIcon::new(5, 10, "Files", IconAction::FileManager));
         // Shutdown button in bottom-right corner
         icons.push(DesktopIcon {
             x: 64,
@@ -445,10 +448,14 @@ impl Desktop {
                     } else if let Some(icon_idx) = self.selected_icon {
                         if double_click_timer > 0 && last_clicked_icon == Some(icon_idx) {
                             if let Some(action) = self.handle_icon_click(icon_idx) {
-                                if action == IconAction::Shutdown {
-                                    shutdown_system();
+                                match action {
+                                    IconAction::Shutdown => shutdown_system(),
+                                    IconAction::FileManager => {
+                                        self.window_manager.add_file_manager(8, 3, 40, 18, "/");
+                                        need_full_redraw = true;
+                                    }
+                                    _ => return action,
                                 }
-                                return action;
                             }
                         } else {
                             last_clicked_icon = Some(icon_idx);
@@ -505,10 +512,16 @@ impl Desktop {
                                     // Check for double-press
                                     if double_click_timer > 0 && last_clicked_icon == Some(icon_idx) {
                                         if let Some(action) = self.handle_icon_click(icon_idx) {
-                                            if action == IconAction::Shutdown {
-                                                shutdown_system();
+                                            match action {
+                                                IconAction::Shutdown => shutdown_system(),
+                                                IconAction::FileManager => {
+                                                    self.window_manager.add_file_manager(8, 3, 40, 18, "/");
+                                                    self.render_desktop();
+                                                    self.window_manager.render_all();
+                                                    self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+                                                }
+                                                _ => return action,
                                             }
-                                            return action;
                                         }
                                     } else {
                                         last_clicked_icon = Some(icon_idx);
