@@ -1,5 +1,6 @@
 use alloc::{vec::Vec, string::String};
 use alloc::string::ToString;
+use pc_keyboard::{DecodedKey, KeyCode};
 use crate::vga_buffer::Color;
 use crate::graphics::text_graphics::{draw_filled_box, draw_double_box, write_at};
 
@@ -27,6 +28,14 @@ pub enum WindowContent {
         scroll: usize,
     },
     Settings,
+    Shell {
+        input: String,
+        output: Vec<String>,
+        cwd: String,
+        history: Vec<String>,
+        history_idx: usize,
+        scroll: usize,
+    },
 }
 
 impl WindowContent {
@@ -127,6 +136,20 @@ impl WindowManager {
 
     pub fn add_settings_window(&mut self) -> u8 {
         self.create_window(22, 4, 36, 12, "Settings", WindowContent::Settings)
+    }
+
+    pub fn add_shell_window(&mut self) -> u8 {
+        let mut output = Vec::new();
+        output.push(String::from("RustrialOS Shell  type 'help' for commands"));
+        let content = WindowContent::Shell {
+            input: String::new(),
+            output,
+            cwd: String::from("/"),
+            history: Vec::new(),
+            history_idx: 0,
+            scroll: 0,
+        };
+        self.create_window(10, 2, 58, 20, "Shell", content)
     }
 
     fn create_window(&mut self, x: usize, y: usize, w: usize, h: usize, title: &str, content: WindowContent) -> u8 {
@@ -268,7 +291,40 @@ impl WindowManager {
                     write_at(cx + cw - 1, cy + list_h, "v", Color::DarkGray, Color::Black);
                 }
             }
+            WindowContent::Shell { .. } => {
+                self.render_shell_content(win, cx, cy, cw, ch);
+            }
         }
+    }
+
+    fn render_shell_content(&self, win: &Window, cx: usize, cy: usize, cw: usize, ch: usize) {
+        let (input, output, cwd, scroll) = match &win.content {
+            WindowContent::Shell { input, output, cwd, scroll, .. } => (input, output, cwd, *scroll),
+            _ => return,
+        };
+        if ch == 0 { return; }
+
+        let output_h = ch.saturating_sub(1);
+        let total = output.len();
+        let end_idx = total.saturating_sub(scroll);
+        let start_idx = end_idx.saturating_sub(output_h);
+
+        for i in 0..output_h {
+            let row = cy + i;
+            draw_filled_box(cx, row, cw, 1, Color::LightGreen, Color::Black);
+            let line_idx = start_idx + i;
+            if line_idx < end_idx && line_idx < total {
+                let line = &output[line_idx];
+                let disp = if line.len() > cw { &line[..cw] } else { line.as_str() };
+                write_at(cx, row, disp, Color::LightGreen, Color::Black);
+            }
+        }
+
+        let prompt_row = cy + ch - 1;
+        let full_line = alloc::format!("{}> {}", cwd, input);
+        draw_filled_box(cx, prompt_row, cw, 1, Color::Black, Color::Black);
+        let disp = if full_line.len() > cw { &full_line[full_line.len() - cw..] } else { full_line.as_str() };
+        write_at(cx, prompt_row, disp, Color::Yellow, Color::Black);
     }
 
     fn render_settings_content(&self, cx: usize, cy: usize, cw: usize, _ch: usize, _focused: bool) {
@@ -433,7 +489,7 @@ impl WindowManager {
                 let sens = crate::task::mouse::get_sensitivity();
                 if inner_x >= 2 && inner_x <= 4 {
                     crate::task::mouse::set_sensitivity(sens.saturating_sub(2));
-                } else if inner_x >= 9 && inner_x <= 11 {
+                } else if inner_x >= 11 && inner_x <= 13 {
                     crate::task::mouse::set_sensitivity(sens.saturating_add(2));
                 }
             }
@@ -489,6 +545,74 @@ impl WindowManager {
 
     pub fn is_dragging_or_resizing(&self) -> bool {
         self.drag_id.is_some() || self.resize_id.is_some()
+    }
+
+    pub fn focused_window_is_shell(&self) -> bool {
+        self.focus_id
+            .and_then(|id| self.windows.iter().find(|w| w.id == id))
+            .map(|w| matches!(w.content, WindowContent::Shell { .. }))
+            .unwrap_or(false)
+    }
+
+    pub fn handle_shell_key(&mut self, key: DecodedKey) -> bool {
+        let id = match self.focus_id { Some(id) => id, None => return false };
+        let idx = match self.windows.iter().position(|w| w.id == id) { Some(i) => i, None => return false };
+
+        match &mut self.windows[idx].content {
+            WindowContent::Shell { input, output, cwd, history, history_idx, scroll } => {
+                match key {
+                    DecodedKey::Unicode('\n') | DecodedKey::Unicode('\r') => {
+                        let cmd = input.clone();
+                        output.push(alloc::format!("{}> {}", cwd, cmd));
+                        if !cmd.is_empty() {
+                            if history.len() >= 50 { history.remove(0); }
+                            history.push(cmd.clone());
+                            *history_idx = history.len();
+                            shell_exec_to_buf(&cmd, cwd, output);
+                        }
+                        input.clear();
+                        *scroll = 0;
+                        true
+                    }
+                    DecodedKey::Unicode('\u{0008}') | DecodedKey::RawKey(KeyCode::Backspace) => {
+                        input.pop();
+                        true
+                    }
+                    DecodedKey::Unicode(c) if !c.is_control() => {
+                        input.push(c);
+                        true
+                    }
+                    DecodedKey::RawKey(KeyCode::ArrowUp) => {
+                        if *history_idx > 0 {
+                            *history_idx -= 1;
+                            *input = history[*history_idx].clone();
+                        }
+                        true
+                    }
+                    DecodedKey::RawKey(KeyCode::ArrowDown) => {
+                        if *history_idx < history.len() {
+                            *history_idx += 1;
+                            if *history_idx < history.len() {
+                                *input = history[*history_idx].clone();
+                            } else {
+                                input.clear();
+                            }
+                        }
+                        true
+                    }
+                    DecodedKey::RawKey(KeyCode::PageUp) => {
+                        *scroll = scroll.saturating_add(5);
+                        true
+                    }
+                    DecodedKey::RawKey(KeyCode::PageDown) => {
+                        *scroll = scroll.saturating_sub(5);
+                        true
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
     }
 
     /// Bounds of the currently dragged/resized window, used for targeted erase.
@@ -557,5 +681,257 @@ impl WindowManager {
         if let Some(win) = self.windows.iter_mut().find(|w| w.id == id) {
             win.z_order = max_z.wrapping_add(1);
         }
+    }
+}
+
+fn shell_exec_to_buf(cmd: &str, cwd: &mut String, output: &mut Vec<String>) {
+    use crate::fs::FileSystem;
+    let parts: Vec<&str> = cmd.trim().split_whitespace().collect();
+    if parts.is_empty() { return; }
+    match parts[0] {
+        "help" => {
+            output.push(String::from("Commands:"));
+            output.push(String::from("  help  echo  ls  cat  cd  pwd  mkdir  touch  clear"));
+            output.push(String::from("  run  fetch  netinfo  pciinfo  arp  ifconfig  dmastat  tcptest"));
+            output.push(String::from("  (ping/dhcp-acquire/ntp-sync/http-get: use desktop Shell)"));
+        }
+        "echo" => { output.push(parts[1..].join(" ")); }
+        "clear" | "cls" => { output.clear(); }
+        "pwd" => { output.push(cwd.clone()); }
+        "cd" => {
+            let target = if parts.len() < 2 { "/" } else { parts[1] };
+            let new_path = shell_resolve_path(cwd, target);
+            if new_path == "/" {
+                *cwd = new_path;
+                return;
+            }
+            if let Some(fs) = crate::fs::root_fs() {
+                let fs = fs.lock();
+                if fs.is_dir(&new_path) {
+                    *cwd = new_path;
+                } else {
+                    output.push(alloc::format!("cd: not a directory: {}", target));
+                }
+            }
+        }
+        "ls" => {
+            let path = if parts.len() > 1 { shell_resolve_path(cwd, parts[1]) } else { cwd.clone() };
+            if let Some(fs) = crate::fs::root_fs() {
+                let fs = fs.lock();
+                match fs.list_dir(&path) {
+                    Ok(entries) => {
+                        if entries.is_empty() { output.push(String::from("(empty)")); }
+                        for entry in entries {
+                            let is_dir = fs.is_dir(&entry);
+                            let name = entry.rsplit('/').next().unwrap_or(&entry).to_string();
+                            output.push(alloc::format!("{} {}", if is_dir { "[D]" } else { "[F]" }, name));
+                        }
+                    }
+                    Err(_) => output.push(alloc::format!("ls: cannot access '{}'", path)),
+                }
+            }
+        }
+        "cat" => {
+            if parts.len() < 2 { output.push(String::from("Usage: cat <file>")); return; }
+            let path = shell_resolve_path(cwd, parts[1]);
+            if let Some(fs) = crate::fs::root_fs() {
+                let fs = fs.lock();
+                match fs.read_file(&path) {
+                    Ok(content) => match core::str::from_utf8(&content) {
+                        Ok(text) => { for line in text.lines() { output.push(line.to_string()); } }
+                        Err(_) => output.push(alloc::format!("(binary, {} bytes)", content.len())),
+                    },
+                    Err(_) => output.push(alloc::format!("cat: {}: no such file", parts[1])),
+                }
+            }
+        }
+        "mkdir" => {
+            if parts.len() < 2 { output.push(String::from("Usage: mkdir <dir>")); return; }
+            let path = shell_resolve_path(cwd, parts[1]);
+            if let Some(fs) = crate::fs::root_fs() {
+                let mut fs = fs.lock();
+                match fs.create_dir(&path) {
+                    Ok(_) => output.push(alloc::format!("created '{}'", path)),
+                    Err(e) => output.push(alloc::format!("mkdir: {:?}", e)),
+                }
+            }
+        }
+        "touch" => {
+            if parts.len() < 2 { output.push(String::from("Usage: touch <file>")); return; }
+            let path = shell_resolve_path(cwd, parts[1]);
+            if let Some(fs) = crate::fs::root_fs() {
+                let mut fs = fs.lock();
+                match fs.create_file(&path, b"") {
+                    Ok(_) => output.push(alloc::format!("created '{}'", path)),
+                    Err(e) => output.push(alloc::format!("touch: {:?}", e)),
+                }
+            }
+        }
+        "run" => {
+            if parts.len() < 2 { output.push(String::from("Usage: run <script>")); return; }
+            let path = if parts[1].starts_with('/') {
+                parts[1].to_string()
+            } else {
+                alloc::format!("/scripts/{}", parts[1])
+            };
+            if let Some(fs) = crate::fs::root_fs() {
+                let fs = fs.lock();
+                match fs.read_file(&path) {
+                    Ok(content) => match core::str::from_utf8(&content) {
+                        Ok(text) => {
+                            output.push(alloc::format!("Running: {}", path));
+                            match crate::rustrial_script::run(text) {
+                                Ok(_) => output.push(String::from("Script completed")),
+                                Err(e) => output.push(alloc::format!("Script error: {}", e)),
+                            }
+                        }
+                        Err(_) => output.push(String::from("Error: file is not valid UTF-8")),
+                    },
+                    Err(_) => output.push(alloc::format!("Error: cannot read '{}'", path)),
+                }
+            }
+        }
+        "rustrialfetch" | "fetch" => {
+            use crate::native_ffi;
+            let cpu = native_ffi::CpuInfo::get();
+            let dt = native_ffi::DateTime::read();
+            let pci = native_ffi::enumerate_pci_devices();
+            let scripts = if let Some(fs) = crate::fs::root_fs() {
+                fs.lock().list_dir("/scripts").map(|e| e.len()).unwrap_or(0)
+            } else { 0 };
+            output.push(String::from("OS:          RustrialOS v0.1"));
+            output.push(String::from("Kernel:      Rust bare-metal"));
+            output.push(alloc::format!("CPU:         {}", cpu.brand_str()));
+            output.push(alloc::format!("Date:        {}", dt));
+            output.push(alloc::format!("PCI Devices: {}", pci.len()));
+            output.push(alloc::format!("Scripts:     {}", scripts));
+        }
+        "netinfo" => {
+            use crate::drivers::net::{get_network_device, has_network_device};
+            if has_network_device() {
+                let dev_mutex = get_network_device();
+                let dev = dev_mutex.lock();
+                if let Some(ref d) = *dev {
+                    let mac = d.mac_address();
+                    output.push(alloc::format!("Device: {}", d.device_name()));
+                    output.push(alloc::format!("MAC:    {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+                        mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]));
+                    output.push(alloc::format!("Ready:  {}", d.is_ready()));
+                }
+            } else {
+                output.push(String::from("No network device found"));
+            }
+            let cfg = crate::net::stack::get_network_config();
+            output.push(alloc::format!("IP:      {}", cfg.ip_addr));
+            output.push(alloc::format!("Netmask: {}", cfg.netmask));
+            if let Some(gw) = cfg.gateway {
+                output.push(alloc::format!("Gateway: {}", gw));
+            }
+        }
+        "pciinfo" => {
+            use crate::native_ffi;
+            let devices = native_ffi::enumerate_pci_devices();
+            output.push(alloc::format!("{} PCI devices:", devices.len()));
+            for (i, dev) in devices.iter().enumerate() {
+                output.push(alloc::format!("  #{}: {}", i + 1, dev));
+            }
+        }
+        "arp" => {
+            use crate::net::arp::{arp_cache, format_mac};
+            if parts.len() > 1 && parts[1] == "clear" {
+                arp_cache().clear();
+                output.push(String::from("ARP cache cleared"));
+                return;
+            }
+            let entries = arp_cache().entries();
+            if entries.is_empty() {
+                output.push(String::from("ARP cache: (empty)"));
+            } else {
+                output.push(String::from("ARP cache:"));
+                for (ip, mac, _) in &entries {
+                    output.push(alloc::format!("  {} -> {}", ip, format_mac(mac)));
+                }
+            }
+        }
+        "ifconfig" => {
+            use core::net::Ipv4Addr;
+            use crate::net::stack::{NetworkConfig, set_network_config, get_network_config};
+            if parts.len() == 1 {
+                let cfg = get_network_config();
+                output.push(alloc::format!("IP:      {}", cfg.ip_addr));
+                output.push(alloc::format!("Netmask: {}", cfg.netmask));
+                if let Some(gw) = cfg.gateway {
+                    output.push(alloc::format!("Gateway: {}", gw));
+                }
+            } else if parts.len() >= 3 {
+                match (parts[1].parse::<Ipv4Addr>(), parts[2].parse::<Ipv4Addr>()) {
+                    (Ok(ip), Ok(mask)) => {
+                        let gw = if parts.len() >= 4 { parts[3].parse::<Ipv4Addr>().ok() } else { None };
+                        set_network_config(NetworkConfig::new(ip, mask, gw));
+                        output.push(String::from("Network config updated"));
+                    }
+                    _ => output.push(String::from("Usage: ifconfig [<ip> <netmask> [gateway]]")),
+                }
+            } else {
+                output.push(String::from("Usage: ifconfig [<ip> <netmask> [gateway]]"));
+            }
+        }
+        "dmastat" => {
+            let s = crate::memory::dma::get_dma_stats();
+            output.push(alloc::format!("Allocated: {} KB", s.total_allocated / 1024));
+            output.push(alloc::format!("Current:   {} KB", s.current_usage / 1024));
+            output.push(alloc::format!("Peak:      {} KB", s.peak_usage / 1024));
+            output.push(alloc::format!("Pool hits: {}  misses: {}", s.pool_hits, s.pool_misses));
+        }
+        "tcptest" => {
+            use core::net::Ipv4Addr;
+            use crate::net::tcp::{TcpConnection, TcpSocketId, TcpState};
+            let sid = TcpSocketId {
+                local_addr: Ipv4Addr::new(10,0,2,15), local_port: 8080,
+                remote_addr: Ipv4Addr::new(10,0,2,2), remote_port: 80,
+            };
+            let conn = TcpConnection::new(sid);
+            output.push(if conn.state == TcpState::Closed {
+                String::from("[OK] Initial state: CLOSED")
+            } else {
+                String::from("[FAIL] Initial state incorrect")
+            });
+            output.push(alloc::format!("CWND: {}  SSThresh: {}", conn.cwnd, conn.ssthresh));
+            let mut conn2 = TcpConnection::new(sid);
+            match conn2.connect() {
+                Ok(_) => {
+                    output.push(alloc::format!("[OK] ISN: {}", conn2.initial_send_seq));
+                    output.push(if conn2.state == TcpState::SynSent {
+                        String::from("[OK] State: SYN_SENT")
+                    } else {
+                        String::from("[FAIL] State transition failed")
+                    });
+                }
+                Err(_) => output.push(String::from("[FAIL] connect() failed")),
+            }
+        }
+        "ping" | "dhcp-acquire" | "ntp-sync" | "http-get" => {
+            output.push(alloc::format!("'{}' requires async networking", parts[0]));
+            output.push(String::from("Use the desktop Shell icon for async commands"));
+        }
+        _ => { output.push(alloc::format!("'{}': unknown command (type 'help')", parts[0])); }
+    }
+}
+
+fn shell_resolve_path(cwd: &str, path: &str) -> String {
+    if path.starts_with('/') {
+        path.to_string()
+    } else if path == ".." {
+        if cwd == "/" { return String::from("/"); }
+        match cwd.rsplit_once('/') {
+            Some((parent, _)) => if parent.is_empty() { String::from("/") } else { parent.to_string() },
+            None => String::from("/"),
+        }
+    } else if path == "." {
+        cwd.to_string()
+    } else if cwd == "/" {
+        alloc::format!("/{}", path)
+    } else {
+        alloc::format!("{}/{}", cwd, path)
     }
 }
