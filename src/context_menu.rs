@@ -10,6 +10,7 @@ pub enum MenuActionKind {
     NewWindow,
     CloseWindow(u8),
     Refresh,
+    RenameIcon(usize),
 }
 
 #[derive(Clone)]
