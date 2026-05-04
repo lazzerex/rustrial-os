@@ -54,22 +54,23 @@ impl DesktopIcon {
     }
 
     pub fn render(&self, selected: bool) {
+        self.render_with_cursor(selected, false);
+    }
+
+    pub fn render_with_cursor(&self, selected: bool, cursor: bool) {
         use crate::graphics::text_graphics::*;
-        
+
         let bg_color = if selected { Color::LightBlue } else { Color::Blue };
-        
-        // Draw icon background
-            // Always clear icon background with bg_color only
-            draw_filled_box(
-                self.x as usize,
-                self.y as usize,
-                self.width as usize,
-                self.height as usize,
-                bg_color,
-                bg_color,
-            );
-        
-        // Draw icon border
+
+        draw_filled_box(
+            self.x as usize,
+            self.y as usize,
+            self.width as usize,
+            self.height as usize,
+            bg_color,
+            bg_color,
+        );
+
         draw_box(
             self.x as usize,
             self.y as usize,
@@ -78,8 +79,7 @@ impl DesktopIcon {
             Color::Yellow,
             bg_color,
         );
-        
-        // Draw icon symbol in the center
+
         let symbol = match self.action {
             IconAction::OpenMenu => "[*]",
             IconAction::SystemInfo => "[i]",
@@ -90,7 +90,7 @@ impl DesktopIcon {
             IconAction::FileManager => "[F]",
             IconAction::Settings => "[=]",
         };
-        
+
         write_at(
             self.x as usize + (self.width as usize / 2) - 1,
             self.y as usize + 1,
@@ -98,22 +98,23 @@ impl DesktopIcon {
             Color::Yellow,
             bg_color,
         );
-        
-        // Draw label below icon
-        let label_len = self.label.len();
-        let label_x = if label_len < self.width as usize {
-            self.x as usize + (self.width as usize - label_len) / 2
+
+        let max_label_w = self.width as usize;
+        let display_label: alloc::string::String = if cursor {
+            let truncated = &self.label[..core::cmp::min(self.label.len(), max_label_w.saturating_sub(1))];
+            alloc::format!("{}_", truncated)
+        } else {
+            let truncated = &self.label[..core::cmp::min(self.label.len(), max_label_w)];
+            alloc::string::String::from(truncated)
+        };
+        let label_len = display_label.len();
+        let label_x = if label_len < max_label_w {
+            self.x as usize + (max_label_w - label_len) / 2
         } else {
             self.x as usize
         };
-        
-        write_at(
-            label_x,
-            (self.y + 3) as usize,
-            &self.label[..core::cmp::min(label_len, self.width as usize)],
-            Color::White,
-            Color::Cyan,
-        );
+
+        write_at(label_x, (self.y + 3) as usize, &display_label, Color::White, Color::Cyan);
     }
 }
 
@@ -127,6 +128,12 @@ pub struct Desktop {
     window_manager: WindowManager,
     cursor_under: u16,
     context_menu: Option<ContextMenu>,
+    drag_icon_idx: Option<usize>,
+    drag_icon_offset_x: i16,
+    drag_icon_offset_y: i16,
+    pending_drag_icon: Option<usize>,
+    renaming_icon: Option<usize>,
+    rename_original_label: String,
 }
 
 impl Desktop {
@@ -160,6 +167,12 @@ impl Desktop {
             window_manager: WindowManager::new(),
             cursor_under: 0,
             context_menu: None,
+            drag_icon_idx: None,
+            drag_icon_offset_x: 0,
+            drag_icon_offset_y: 0,
+            pending_drag_icon: None,
+            renaming_icon: None,
+            rename_original_label: String::new(),
         }
     }
 
@@ -322,7 +335,9 @@ impl Desktop {
             };
             btn.render(true);
         } else {
-            icon.render(Some(idx) == self.selected_icon);
+            let renaming = self.renaming_icon == Some(idx);
+            let selected = Some(idx) == self.selected_icon || renaming;
+            icon.render_with_cursor(selected, renaming);
         }
         self.window_manager.render_windows_overlapping(
             icon.x as usize, icon.y as usize, icon.width as usize, icon.height as usize,
@@ -430,6 +445,45 @@ impl Desktop {
                 self.window_manager.close_window(id);
             }
             MenuActionKind::Refresh => {}
+            MenuActionKind::RenameIcon(idx) => {
+                self.rename_original_label = self.icons[idx].label.clone();
+                self.renaming_icon = Some(idx);
+            }
+        }
+    }
+
+    fn handle_rename_key(&mut self, key: DecodedKey) {
+        let idx = match self.renaming_icon { Some(i) => i, None => return };
+        match key {
+            DecodedKey::Unicode('\n') | DecodedKey::Unicode('\r') => {
+                if self.icons[idx].label.is_empty() {
+                    let orig = self.rename_original_label.clone();
+                    self.icons[idx].label = orig;
+                }
+                self.renaming_icon = None;
+                self.repaint_icon(idx);
+                self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+            }
+            DecodedKey::RawKey(KeyCode::Escape) => {
+                let orig = self.rename_original_label.clone();
+                self.icons[idx].label = orig;
+                self.renaming_icon = None;
+                self.repaint_icon(idx);
+                self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+            }
+            DecodedKey::Unicode('\u{0008}') | DecodedKey::RawKey(KeyCode::Backspace) => {
+                self.icons[idx].label.pop();
+                self.repaint_icon(idx);
+                self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+            }
+            DecodedKey::Unicode(c) if !c.is_control() => {
+                if self.icons[idx].label.len() < 10 {
+                    self.icons[idx].label.push(c);
+                    self.repaint_icon(idx);
+                    self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -485,36 +539,10 @@ impl Desktop {
 
                 if !left_pressed && left_button_was_pressed {
                     self.window_manager.on_mouse_up();
-                }
-
-                if mx != self.last_mouse_x || my != self.last_mouse_y {
-                    if self.window_manager.on_mouse_move(mx, my) {
-                        self.last_mouse_x = mx;
-                        self.last_mouse_y = my;
+                    if self.drag_icon_idx.take().is_some() {
+                        self.pending_drag_icon = None;
                         need_full_redraw = true;
-                    } else {
-                        self.update_cursor_position(mx, my);
-                    }
-                }
-
-                if left_pressed && !left_button_was_pressed {
-                    if let Some(menu) = self.context_menu.take() {
-                        let (mx2, my2, mw, mh) = (menu.x, menu.y, menu.width, menu.height);
-                        if let Some(action) = menu.action_at(mx, my) {
-                            self.execute_menu_action(action);
-                            need_full_redraw = true;
-                        } else {
-                            // No action selected: erase menu region only, no full redraw
-                            self.erase_desktop_region(mx2, my2, mw, mh);
-                            self.window_manager.render_all();
-                            self.render_cursor(self.last_mouse_x, self.last_mouse_y);
-                        }
-                    } else if self.window_manager.on_mouse_down(mx, my) {
-                        need_full_redraw = true;
-                    } else if my as usize == BUFFER_HEIGHT - 1 {
-                        self.handle_taskbar_click(mx);
-                        need_full_redraw = true;
-                    } else if let Some(icon_idx) = self.selected_icon {
+                    } else if let Some(icon_idx) = self.pending_drag_icon.take() {
                         if double_click_timer > 0 && last_clicked_icon == Some(icon_idx) {
                             if let Some(action) = self.handle_icon_click(icon_idx) {
                                 match action {
@@ -534,6 +562,75 @@ impl Desktop {
                             last_clicked_icon = Some(icon_idx);
                             double_click_timer = 5000;
                         }
+                    }
+                }
+
+                if mx != self.last_mouse_x || my != self.last_mouse_y {
+                    if let Some(icon_idx) = self.drag_icon_idx {
+                        let new_x = (mx - self.drag_icon_offset_x)
+                            .max(0)
+                            .min(BUFFER_WIDTH as i16 - self.icons[icon_idx].width);
+                        let new_y = (my - self.drag_icon_offset_y)
+                            .max(1)
+                            .min(BUFFER_HEIGHT as i16 - self.icons[icon_idx].height - 1);
+                        if new_x != self.icons[icon_idx].x || new_y != self.icons[icon_idx].y {
+                            let (ox, oy, iw, ih) = (
+                                self.icons[icon_idx].x as usize,
+                                self.icons[icon_idx].y as usize,
+                                self.icons[icon_idx].width as usize,
+                                self.icons[icon_idx].height as usize,
+                            );
+                            // Update coords BEFORE erase so the icon loop inside
+                            // erase_desktop_region doesn't repaint at the old position.
+                            self.icons[icon_idx].x = new_x;
+                            self.icons[icon_idx].y = new_y;
+                            self.erase_desktop_region(ox, oy, iw, ih);
+                            self.icons[icon_idx].render(true);
+                        }
+                        self.restore_cursor_under(self.last_mouse_x, self.last_mouse_y);
+                        self.last_mouse_x = mx;
+                        self.last_mouse_y = my;
+                        self.render_cursor(mx, my);
+                    } else if self.pending_drag_icon.is_some() && left_pressed {
+                        let icon_idx = self.pending_drag_icon.unwrap();
+                        self.drag_icon_idx = Some(icon_idx);
+                        self.drag_icon_offset_x = mx - self.icons[icon_idx].x;
+                        self.drag_icon_offset_y = my - self.icons[icon_idx].y;
+                        self.pending_drag_icon = None;
+                        self.restore_cursor_under(self.last_mouse_x, self.last_mouse_y);
+                        self.last_mouse_x = mx;
+                        self.last_mouse_y = my;
+                        self.render_cursor(mx, my);
+                    } else if self.window_manager.on_mouse_move(mx, my) {
+                        self.last_mouse_x = mx;
+                        self.last_mouse_y = my;
+                        need_full_redraw = true;
+                    } else {
+                        self.update_cursor_position(mx, my);
+                    }
+                }
+
+                if left_pressed && !left_button_was_pressed {
+                    if let Some(menu) = self.context_menu.take() {
+                        let (mx2, my2, mw, mh) = (menu.x, menu.y, menu.width, menu.height);
+                        if let Some(action) = menu.action_at(mx, my) {
+                            self.execute_menu_action(action);
+                            need_full_redraw = true;
+                        } else {
+                            // No action selected: erase menu region only, no full redraw
+                            self.erase_desktop_region(mx2, my2, mw, mh);
+                            self.window_manager.render_all();
+                            // Restore before re-render: avoids saving '^' into cursor_under
+                            self.restore_cursor_under(self.last_mouse_x, self.last_mouse_y);
+                            self.render_cursor(self.last_mouse_x, self.last_mouse_y);
+                        }
+                    } else if self.window_manager.on_mouse_down(mx, my) {
+                        need_full_redraw = true;
+                    } else if my as usize == BUFFER_HEIGHT - 1 {
+                        self.handle_taskbar_click(mx);
+                        need_full_redraw = true;
+                    } else if let Some(icon_idx) = self.selected_icon {
+                        self.pending_drag_icon = Some(icon_idx);
                     } else {
                         last_clicked_icon = None;
                         double_click_timer = 0;
@@ -553,6 +650,11 @@ impl Desktop {
                             items.push(MenuItem::new("Close Window", MenuActionKind::CloseWindow(id)));
                         }
                     } else if my as usize != BUFFER_HEIGHT - 1 {
+                        if let Some(icon_idx) = self.selected_icon {
+                            if self.icons[icon_idx].action != IconAction::Shutdown {
+                                items.push(MenuItem::new("Rename Icon", MenuActionKind::RenameIcon(icon_idx)));
+                            }
+                        }
                         items.push(MenuItem::new("New Window", MenuActionKind::NewWindow));
                         items.push(MenuItem::new("Refresh", MenuActionKind::Refresh));
                     }
@@ -604,6 +706,10 @@ impl Desktop {
             while let Some(scancode) = keyboard::try_pop_scancode() {
                 if let Ok(Some(key_event)) = kb.add_byte(scancode) {
                     if let Some(key) = kb.process_keyevent(key_event) {
+                        if self.renaming_icon.is_some() {
+                            self.handle_rename_key(key);
+                            continue;
+                        }
                         // Route all keys to focused shell window
                         if self.window_manager.focused_window_is_shell() {
                             if self.window_manager.handle_shell_key(key) {
