@@ -399,16 +399,19 @@ build.rs                     # Build script (NASM + Clang)
      ```
    - **Windows**: Download the installer from [rustup.rs](https://rustup.rs/)
   
-2. **Rust Toolchain** (Nightly)
+2. **Rust Toolchain** (Nightly `2025-11-12`)
+   The project includes a `rust-toolchain.toml` that pins the exact nightly. Rustup auto-installs the correct toolchain when you run any `cargo` command inside the project directory. No manual override needed.
    ```bash
-   rustup install nightly
-   rustup override set nightly
-   rustup component add rust-src llvm-tools-preview
+   rustup install nightly-2025-11-12
+   ```
+   If components are missing afterward, install them manually:
+   ```bash
+   rustup component add rust-src llvm-tools-preview --toolchain nightly-2025-11-12
    ```
 
-3. **Bootimage**
+3. **Bootimage** (must be exactly v0.9.0)
    ```bash
-   cargo install bootimage
+   cargo install bootimage --version "=0.9.0"
    ```
    On Linux, if you encounter errors, install build-essential first:
    ```bash
@@ -441,9 +444,19 @@ build.rs                     # Build script (NASM + Clang)
 - 2 GB RAM minimum
 - Internet connection for initial dependency download
 
+### Exact Version Requirements
+
+| Tool | Required version | How to install |
+|------|-----------------|----------------|
+| Rust toolchain | `nightly-2025-11-12` | Auto-set by `rust-toolchain.toml` |
+| `bootimage` | `0.9.0` | `cargo install bootimage --version "=0.9.0"` |
+| `rustc` / `cargo` | `1.93.0-nightly` | Comes with the toolchain above |
+
+These versions are locked for compatibility. **Do not install `cargo install bootimage` without the version flag** — it will pull 0.10.x which has breaking changes incompatible with this project.
+
 ### Warning
 
-This project is using an older version for bootimage (v0.9). The latest version has breaking changes that require significant refactoring of the build process and target configuration. Until the project is updated to be compatible with bootimage v0.10, please ensure you have v0.9 installed to avoid build errors.
+This project requires bootimage v0.9.0. v0.10.x has breaking changes that require significant refactoring of the build process and target configuration. Always install with `cargo install bootimage --version "=0.9.0"`.
 
 ## Build & Run
 
