@@ -189,54 +189,9 @@ impl Desktop {
         }
         
         // Draw title bar
-        draw_filled_box(0, 0, BUFFER_WIDTH, 1, Color::White, Color::Blue);
-        write_at(2, 0, "RUSTRIAL OS", Color::Yellow, Color::Blue);
-
-        // Draw local-adjusted date and time in corner (UTC+7)
-        use crate::native_ffi;
-        let mut dt = native_ffi::DateTime::read();
-        let mut hour = dt.hour as i16 + 7;
-        let mut day = dt.day as i16;
-        let mut month = dt.month as i16;
-        let mut year = dt.year as i16;
-        let mut weekday = dt.weekday as i16;
-        let days_in_month = |month: i16, year: i16| -> i16 {
-            match month {
-                1 => 31,
-                2 => if (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0) { 29 } else { 28 },
-                3 => 31,
-                4 => 30,
-                5 => 31,
-                6 => 30,
-                7 => 31,
-                8 => 31,
-                9 => 30,
-                10 => 31,
-                11 => 30,
-                12 => 31,
-                _ => 31,
-            }
-        };
-        if hour >= 24 {
-            hour -= 24;
-            day += 1;
-            weekday = (weekday + 1) % 7;
-            if day > days_in_month(month, year) {
-                day = 1;
-                month += 1;
-                if month > 12 {
-                    month = 1;
-                    year += 1;
-                }
-            }
-        }
-        dt.hour = hour as u8;
-        dt.day = day as u8;
-        dt.month = month as u8;
-        dt.year = year as u16;
-        dt.weekday = weekday as u8;
-        let time_str = alloc::format!("{:02}:{:02} {} {:02}, {:04}", dt.hour, dt.minute, dt.month_str(), dt.day, dt.year);
-        write_at(BUFFER_WIDTH - time_str.len() - 2, 0, &time_str, Color::White, Color::Blue);
+        let title_bg = crate::theme::title_bar_bg();
+        draw_filled_box(0, 0, BUFFER_WIDTH, 1, Color::White, title_bg);
+        write_at(2, 0, "RUSTRIAL OS", Color::Yellow, title_bg);
         
         self.render_taskbar();
         
@@ -369,14 +324,25 @@ impl Desktop {
         }
     }
     
+    fn get_local_time_str() -> alloc::string::String {
+        use crate::native_ffi;
+        let mut dt = native_ffi::DateTime::read();
+        let mut hour = dt.hour as i16 + 7;
+        if hour >= 24 { hour -= 24; }
+        dt.hour = hour as u8;
+        alloc::format!("{:02}:{:02}", dt.hour, dt.minute)
+    }
+
     fn render_taskbar(&self) {
         use crate::graphics::text_graphics::{draw_filled_box, write_at};
+        let tbg = crate::theme::taskbar_bg();
+        let tfg = crate::theme::taskbar_fg();
 
-        draw_filled_box(0, BUFFER_HEIGHT - 1, BUFFER_WIDTH, 1, Color::LightGray, Color::DarkGray);
+        draw_filled_box(0, BUFFER_HEIGHT - 1, BUFFER_WIDTH, 1, tfg, tbg);
 
-        write_at(0, BUFFER_HEIGHT - 1, "[W]", Color::LightGreen, Color::DarkGray);
-        write_at(4, BUFFER_HEIGHT - 1, "[S]", Color::LightCyan, Color::DarkGray);
-        write_at(8, BUFFER_HEIGHT - 1, "[=]", Color::Pink, Color::DarkGray);
+        write_at(0, BUFFER_HEIGHT - 1, "[W]", Color::LightGreen, tbg);
+        write_at(4, BUFFER_HEIGHT - 1, "[S]", Color::LightCyan, tbg);
+        write_at(8, BUFFER_HEIGHT - 1, "[=]", Color::Pink, tbg);
 
         // One button per open window: "[title     ]" = 12 chars, +1 gap = 13 stride
         let mut x = 12usize;
@@ -389,6 +355,9 @@ impl Desktop {
             write_at(x, BUFFER_HEIGHT - 1, &btn, Color::White, btn_bg);
             x += 13;
         }
+
+        let time_str = Self::get_local_time_str();
+        write_at(BUFFER_WIDTH - time_str.len() - 1, BUFFER_HEIGHT - 1, &time_str, Color::Yellow, tbg);
     }
 
     fn handle_taskbar_click(&mut self, mx: i16) {
