@@ -345,9 +345,9 @@ impl WindowManager {
         section(cy + 3, "Theme");
         let theme = crate::theme::get();
         draw_filled_box(cx, cy + 4, cw, 1, Color::Black, Color::Black);
-        let themes = [("Cyan ", 0u8), ("Dark ", 1), ("Night", 2)];
+        let themes_row1 = [("Cyan ", 0u8), ("Dark ", 1), ("Night", 2)];
         let mut tx = cx + 1;
-        for (label, id) in themes.iter() {
+        for (label, id) in themes_row1.iter() {
             let (fg, bg) = if *id == theme {
                 (Color::Black, Color::Yellow)
             } else {
@@ -357,7 +357,20 @@ impl WindowManager {
             write_at(tx, cy + 4, &btn, fg, bg);
             tx += 8;
         }
+
         draw_filled_box(cx, cy + 5, cw, 1, Color::Black, Color::Black);
+        let themes_row2 = [("Green", 3u8), ("Purpl", 4)];
+        let mut tx = cx + 1;
+        for (label, id) in themes_row2.iter() {
+            let (fg, bg) = if *id == theme {
+                (Color::Black, Color::Yellow)
+            } else {
+                (Color::White, Color::DarkGray)
+            };
+            let btn = alloc::format!("[{}]", label);
+            write_at(tx, cy + 5, &btn, fg, bg);
+            tx += 8;
+        }
 
         // Time section
         section(cy + 6, "Time  (UTC+7)");
@@ -494,13 +507,21 @@ impl WindowManager {
                 }
             }
             4 => {
-                // Theme row: [Cyan ] at 1-7, [Dark ] at 9-15, [Night] at 17-23
+                // Theme row 1: [Cyan ] at 1-7, [Dark ] at 9-15, [Night] at 17-23
                 if inner_x >= 1 && inner_x <= 7 {
                     crate::theme::set(0);
                 } else if inner_x >= 9 && inner_x <= 15 {
                     crate::theme::set(1);
                 } else if inner_x >= 17 && inner_x <= 23 {
                     crate::theme::set(2);
+                }
+            }
+            5 => {
+                // Theme row 2: [Green] at 1-7, [Purpl] at 9-15
+                if inner_x >= 1 && inner_x <= 7 {
+                    crate::theme::set(3);
+                } else if inner_x >= 9 && inner_x <= 15 {
+                    crate::theme::set(4);
                 }
             }
             _ => {}
