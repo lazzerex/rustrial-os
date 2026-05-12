@@ -1,0 +1,7 @@
+# Haxe tools build (skeleton)
+#
+# Example CLI target:
+# -cp .
+# -main tools.src.Validator
+# -js tools/bin/validator.js
+# -lib hxnodejs
