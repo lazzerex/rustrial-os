@@ -7,6 +7,29 @@ fn main() {
     let src_dir = PathBuf::from("src/native");
 
     println!("cargo:rerun-if-changed=src/native");
+    println!("cargo:rerun-if-env-changed=RUSTRIAL_HAXE_VALIDATE");
+
+    let haxe_validate = env::var("RUSTRIAL_HAXE_VALIDATE")
+        .ok()
+        .map(|value| value != "0" && !value.is_empty())
+        .unwrap_or(false);
+
+    if haxe_validate {
+        println!("cargo:rerun-if-changed=src/rustrial_script/examples");
+        println!("cargo:rerun-if-changed=tools/src");
+        println!("cargo:rerun-if-changed=tools/validate.hxml");
+
+        let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+        let status = Command::new("haxe")
+            .current_dir(&manifest_dir)
+            .args(["tools/validate.hxml"])
+            .status()
+            .expect("Failed to run haxe");
+
+        if !status.success() {
+            panic!("Haxe validation failed");
+        }
+    }
 
     // ----------------------------
     // 1. Compile ASM using NASM

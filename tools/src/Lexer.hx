@@ -151,7 +151,7 @@ class Lexer {
                         add(TBangEqual);
                         i += 2;
                     } else {
-                        throw "Unexpected character '!'";
+                        throw "Line " + line + ": Unexpected character '!'";
                     }
                 case 60: // <
                     if (i + 1 < len && codeAt(i + 1) == 61) {
@@ -185,7 +185,7 @@ class Lexer {
                     add(TSemicolon);
                     i++;
                 default:
-                    throw "Unexpected character";
+                    throw "Line " + line + ": Unexpected character";
             }
         }
 
