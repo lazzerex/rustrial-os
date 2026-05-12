@@ -20,3 +20,7 @@ Thumbs.db
 
 # Temporary files
 UPDATE_SUMMARY.md
+
+# Haxe tooling
+tools/bin/
+tools/haxe_modules/
