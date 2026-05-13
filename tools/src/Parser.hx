@@ -32,21 +32,36 @@ enum OpCode {
     OPop;
 }
 
+typedef OpCodeInfo = {
+    var op: OpCode;
+    var line: Int;
+}
+
 class Parser {
     var tokens:Array<TokenInfo>;
     var current:Int;
     var bytecode:Array<OpCode>;
+    var lineMap:Array<Int>;
+    var lastLine:Int;
 
     function new(tokens:Array<TokenInfo>) {
         this.tokens = tokens;
         this.current = 0;
         this.bytecode = [];
+        this.lineMap = [];
+        this.lastLine = tokens.length > 0 ? tokens[0].line : 1;
     }
 
     public static function parse(tokens:Array<TokenInfo>):Array<OpCode> {
         var parser = new Parser(tokens);
         parser.parseProgram();
         return parser.bytecode;
+    }
+
+    public static function parseWithLines(tokens:Array<TokenInfo>):Array<OpCodeInfo> {
+        var parser = new Parser(tokens);
+        parser.parseProgram();
+        return parser.buildOpInfo();
     }
 
     inline function isAtEnd():Bool {
@@ -68,7 +83,9 @@ class Parser {
         if (!isAtEnd()) {
             current++;
         }
-        return tokens[current - 1];
+        var token = tokens[current - 1];
+        lastLine = token.line;
+        return token;
     }
 
     inline function sameKind(a:Token, b:Token):Bool {
@@ -96,6 +113,16 @@ class Parser {
 
     inline function emit(op:OpCode):Void {
         bytecode.push(op);
+        lineMap.push(lastLine);
+    }
+
+    function buildOpInfo():Array<OpCodeInfo> {
+        var result = new Array<OpCodeInfo>();
+        for (i in 0...bytecode.length) {
+            var line = i < lineMap.length ? lineMap[i] : lastLine;
+            result.push({ op: bytecode[i], line: line });
+        }
+        return result;
     }
 
     function parseProgram():Void {
