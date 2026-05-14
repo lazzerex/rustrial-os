@@ -1,5 +1,5 @@
--cp .
--main tools.src.Inspector
+-cp tools
+-main src.Inspector
 -js tools/bin/inspector.js
 -lib haxeui-core
 -lib haxeui-html5
