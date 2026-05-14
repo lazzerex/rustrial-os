@@ -3,5 +3,5 @@
 # Example CLI target:
 # -cp .
 # -main tools.src.Validator
-# -js tools/bin/validator.js
+# -js bin/validator.js
 # -lib hxnodejs
