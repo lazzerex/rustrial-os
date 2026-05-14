@@ -1,4 +1,4 @@
-package tools.src;
+package src;
 
 import haxe.ui.HaxeUIApp;
 import haxe.ui.components.Label;
@@ -10,7 +10,7 @@ import haxe.ui.events.KeyboardEvent;
 import haxe.ui.events.UIEvent;
 import haxe.ui.events.MouseEvent;
 import js.Browser;
-import tools.src.Parser.OpCode;
+import src.Parser.OpCode;
 
 class Inspector {
     static var sourceArea:TextArea;
@@ -22,6 +22,7 @@ class Inspector {
     static var selectedIndex:Int = -1;
     static var syntaxOverlay:Dynamic;
     static var syntaxContent:Dynamic;
+    static var overlayInitAttempts:Int = 0;
 
     public static function main():Void {
         if (Browser.document == null || Browser.document.body == null) {
@@ -35,6 +36,13 @@ class Inspector {
     }
 
     static function startApp():Void {
+        Browser.document.title = "Rustrial Script Inspector";
+        if (Browser.document.body != null) {
+            Browser.document.body.style.margin = "0";
+            Browser.document.body.style.width = "100vw";
+            Browser.document.body.style.height = "100vh";
+            Browser.document.body.style.overflow = "hidden";
+        }
         var app = new HaxeUIApp();
         app.ready(function() {
             var root = new HBox();
@@ -113,6 +121,9 @@ class Inspector {
     }
 
     static function compile():Void {
+        if (syntaxOverlay == null) {
+            setupSyntaxOverlay();
+        }
         opcodeBox.removeAllComponents();
         opcodeEntries = [];
         opcodeLines = [];
@@ -288,11 +299,25 @@ class Inspector {
     }
 
     static function getTextElement():Dynamic {
-        var el = Reflect.getProperty(sourceArea, "element");
-        if (el == null) {
-            el = Reflect.field(sourceArea, "element");
+        var root = Reflect.getProperty(sourceArea, "element");
+        if (root == null) {
+            root = Reflect.field(sourceArea, "element");
         }
-        return el;
+        if (root == null) {
+            return null;
+        }
+        var tag = Reflect.field(root, "tagName");
+        if (tag != null && Std.string(tag).toLowerCase() == "textarea") {
+            return root;
+        }
+        var query = Reflect.field(root, "querySelector");
+        if (query != null) {
+            var ta = Reflect.callMethod(root, query, ["textarea"]);
+            if (ta != null) {
+                return ta;
+            }
+        }
+        return null;
     }
 
     static function indexToLine(text:String, index:Int):Int {
@@ -310,8 +335,17 @@ class Inspector {
     }
 
     static function setupSyntaxOverlay():Void {
+        if (syntaxOverlay != null) {
+            return;
+        }
         var el = getTextElement();
         if (el == null) {
+            if (overlayInitAttempts < 20) {
+                overlayInitAttempts++;
+                Browser.window.setTimeout(function() {
+                    setupSyntaxOverlay();
+                }, 50);
+            }
             return;
         }
         var parent = Reflect.field(el, "parentElement");
@@ -327,31 +361,45 @@ class Inspector {
         var parentStyle = Reflect.field(parent, "style");
         if (parentStyle != null) {
             Reflect.setProperty(parentStyle, "position", "relative");
+            Reflect.setProperty(parentStyle, "overflow", "hidden");
         }
+
+        var computed = Browser.window.getComputedStyle(el);
+        var padding = Reflect.field(computed, "padding");
+        var margin = Reflect.field(computed, "margin");
+        var border = Reflect.field(computed, "border");
 
         var overlayStyle = Reflect.field(overlay, "style");
         Reflect.setProperty(overlayStyle, "position", "absolute");
         Reflect.setProperty(overlayStyle, "top", "0");
         Reflect.setProperty(overlayStyle, "left", "0");
-        Reflect.setProperty(overlayStyle, "right", "0");
-        Reflect.setProperty(overlayStyle, "bottom", "0");
+        Reflect.setProperty(overlayStyle, "width", "100%");
+        Reflect.setProperty(overlayStyle, "height", "100%");
+        Reflect.setProperty(overlayStyle, "margin", "0");
+        Reflect.setProperty(overlayStyle, "border", "none");
+        Reflect.setProperty(overlayStyle, "padding", "0");
         Reflect.setProperty(overlayStyle, "overflow", "hidden");
         Reflect.setProperty(overlayStyle, "pointerEvents", "none");
-
+        Reflect.setProperty(overlayStyle, "zIndex", "-1");
+        Reflect.setProperty(overlayStyle, "backgroundColor", "transparent");
+        
         var contentStyle = Reflect.field(content, "style");
-        Reflect.setProperty(contentStyle, "whiteSpace", "pre");
+        Reflect.setProperty(contentStyle, "whiteSpace", "pre-wrap");
+        Reflect.setProperty(contentStyle, "wordBreak", "break-word");
         Reflect.setProperty(contentStyle, "boxSizing", "border-box");
-
-        var computed = Browser.window.getComputedStyle(el);
+        Reflect.setProperty(contentStyle, "margin", "0");
+        Reflect.setProperty(contentStyle, "padding", padding);
         Reflect.setProperty(contentStyle, "fontFamily", Reflect.field(computed, "fontFamily"));
         Reflect.setProperty(contentStyle, "fontSize", Reflect.field(computed, "fontSize"));
         Reflect.setProperty(contentStyle, "lineHeight", Reflect.field(computed, "lineHeight"));
-        Reflect.setProperty(contentStyle, "padding", Reflect.field(computed, "padding"));
 
         var elStyle = Reflect.field(el, "style");
         Reflect.setProperty(elStyle, "background", "transparent");
-        Reflect.setProperty(elStyle, "color", "transparent");
-        Reflect.setProperty(elStyle, "caretColor", "#ffffff");
+        Reflect.setProperty(elStyle, "color", "rgba(0, 0, 0, 0)");
+        Reflect.setProperty(elStyle, "textShadow", "none");
+        Reflect.setProperty(elStyle, "caretColor", "#111111");
+        Reflect.setProperty(elStyle, "position", "relative");
+        Reflect.setProperty(elStyle, "zIndex", "0");
 
         var insertBefore = Reflect.field(parent, "insertBefore");
         if (insertBefore != null) {
@@ -366,6 +414,7 @@ class Inspector {
         }
 
         syncSyntaxScroll();
+        updateSyntaxOverlay(sourceArea.text);
     }
 
     static function updateSyntaxOverlay(source:String):Void {
