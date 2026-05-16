@@ -1,4 +1,4 @@
-package src;
+package tools.src;
 
 typedef TokenInfo = {
     var kind: Token;
