@@ -1,4 +1,4 @@
-package src;
+package tools.src;
 
 import haxe.ui.HaxeUIApp;
 import haxe.ui.components.Label;
@@ -10,7 +10,7 @@ import haxe.ui.events.KeyboardEvent;
 import haxe.ui.events.UIEvent;
 import haxe.ui.events.MouseEvent;
 import js.Browser;
-import src.Parser.OpCode;
+import tools.src.Parser.OpCode;
 
 class Inspector {
     static var sourceArea:TextArea;
@@ -23,6 +23,8 @@ class Inspector {
     static var syntaxOverlay:Dynamic;
     static var syntaxContent:Dynamic;
     static var overlayInitAttempts:Int = 0;
+    static var currentOps:Array<{op:OpCode, line:Int}> = [];
+    static var arrowDiv:Dynamic = null;
 
     public static function main():Void {
         if (Browser.document == null || Browser.document.body == null) {
@@ -133,6 +135,7 @@ class Inspector {
         try {
             var tokens = Lexer.tokenize(source);
             var ops = Parser.parseWithLines(tokens);
+            currentOps = ops;
             var idx = 0;
             for (info in ops) {
                 var label = new Label();
@@ -146,14 +149,26 @@ class Inspector {
                     var index = Std.int(data.index);
                     highlightOpcodeIndex(index);
                     selectLine(opcodeLines[index]);
+                    var jumpTarget = -1;
+                    if (index < currentOps.length) {
+                        switch (currentOps[index].op) {
+                            case OJump(t): jumpTarget = t;
+                            case OJumpIfFalse(t): jumpTarget = t;
+                            default:
+                        }
+                    }
+                    if (jumpTarget >= 0) scrollOpcodeIntoView(jumpTarget);
                 };
                 opcodeBox.addComponent(label);
                 opcodeEntries.push(label);
                 opcodeLines.push(info.line);
                 idx++;
             }
+            Browser.window.setTimeout(function() { updateJumpArrows(); }, 20);
             status.text = "OK (" + ops.length + " ops)";
         } catch (e) {
+            currentOps = [];
+            clearArrowDiv();
             status.text = Std.string(e);
         }
     }
@@ -161,8 +176,8 @@ class Inspector {
     static function opcodeLabel(index:Int, op:OpCode, line:Int):String {
         var text = "[" + index + "] " + opcodeToString(op) + " (line " + line + ")";
         return switch (op) {
-            case OJump(target): text + " -> " + target;
-            case OJumpIfFalse(target): text + " -> " + target;
+            case OJump(target): text + (target > index ? " ↓" : " ↑") + target;
+            case OJumpIfFalse(target): text + (target > index ? " ↓?" : " ↑?") + target;
             default: text;
         };
     }
@@ -550,5 +565,127 @@ class Inspector {
             case "\t": "    ";
             default: ch;
         };
+    }
+
+    static function clearArrowDiv():Void {
+        if (arrowDiv == null) return;
+        var removeFn = Reflect.field(arrowDiv, "remove");
+        if (removeFn != null) Reflect.callMethod(arrowDiv, removeFn, []);
+        arrowDiv = null;
+    }
+
+    static function scrollOpcodeIntoView(index:Int):Void {
+        if (index < 0 || index >= opcodeEntries.length) return;
+        var el:Dynamic = Reflect.getProperty(opcodeEntries[index], "element");
+        if (el == null) el = Reflect.field(opcodeEntries[index], "element");
+        if (el == null) return;
+        var fn = Reflect.field(el, "scrollIntoView");
+        if (fn != null) {
+            var opts:Dynamic = { behavior: "smooth", block: "nearest" };
+            Reflect.callMethod(el, fn, [opts]);
+        }
+    }
+
+    static function updateJumpArrows():Void {
+        clearArrowDiv();
+        if (currentOps.length == 0 || opcodeEntries.length == 0) return;
+
+        var boxEl:Dynamic = Reflect.getProperty(opcodeBox, "element");
+        if (boxEl == null) boxEl = Reflect.field(opcodeBox, "element");
+        if (boxEl == null) return;
+
+        var boxStyle = Reflect.field(boxEl, "style");
+        Reflect.setProperty(boxStyle, "position", "relative");
+        Reflect.setProperty(boxStyle, "paddingLeft", "44px");
+
+        var rowH = 22.0;
+        if (opcodeEntries.length > 0) {
+            var firstEl:Dynamic = Reflect.getProperty(opcodeEntries[0], "element");
+            if (firstEl == null) firstEl = Reflect.field(opcodeEntries[0], "element");
+            if (firstEl != null) {
+                var bcrFn = Reflect.field(firstEl, "getBoundingClientRect");
+                if (bcrFn != null) {
+                    var rect = Reflect.callMethod(firstEl, bcrFn, []);
+                    if (rect != null) {
+                        var h = Reflect.field(rect, "height");
+                        if (h != null) {
+                            var hf = Std.parseFloat(Std.string(h));
+                            if (hf > 4) rowH = hf;
+                        }
+                    }
+                }
+            }
+        }
+
+        var jumps = new Array<{src:Int, dst:Int, color:String, mid:String}>();
+        for (i in 0...currentOps.length) {
+            switch (currentOps[i].op) {
+                case OJump(t):
+                    jumps.push({ src: i, dst: t, color: "#ff8a3d", mid: "mO" });
+                case OJumpIfFalse(t):
+                    jumps.push({ src: i, dst: t, color: "#ff5555", mid: "mR" });
+                default:
+            }
+        }
+
+        if (jumps.length == 0) return;
+
+        var gutterW = 40;
+        var totalH = opcodeEntries.length * rowH;
+
+        var depths = new Array<Int>();
+        for (i in 0...jumps.length) {
+            var j = jumps[i];
+            var lo = Std.int(Math.min(j.src, j.dst));
+            var hi = Std.int(Math.max(j.src, j.dst));
+            var d = 0;
+            for (k in 0...i) {
+                var p = jumps[k];
+                var plo = Std.int(Math.min(p.src, p.dst));
+                var phi = Std.int(Math.max(p.src, p.dst));
+                if (plo <= hi && phi >= lo) d++;
+            }
+            depths.push(d);
+        }
+
+        var svg = new StringBuf();
+        svg.add("<svg xmlns='http://www.w3.org/2000/svg' width='" + gutterW + "' height='" + totalH + "' overflow='visible'>");
+        svg.add("<defs>");
+        svg.add("<marker id='mO' viewBox='0 0 8 8' markerWidth='5' markerHeight='5' refX='8' refY='4' orient='auto'><path d='M0,0 L8,4 L0,8 Z' fill='#ff8a3d'/></marker>");
+        svg.add("<marker id='mR' viewBox='0 0 8 8' markerWidth='5' markerHeight='5' refX='8' refY='4' orient='auto'><path d='M0,0 L8,4 L0,8 Z' fill='#ff5555'/></marker>");
+        svg.add("</defs>");
+
+        var edgeX = gutterW - 2;
+        for (i in 0...jumps.length) {
+            var j = jumps[i];
+            var x = gutterW - 8 - depths[i] * 7;
+            if (x < 3) x = 3;
+            var y1 = (j.src + 0.5) * rowH;
+            var y2 = (j.dst + 0.5) * rowH;
+            svg.add("<path d='M " + edgeX + " " + y1 + " H " + x + " V " + y2 + " H " + edgeX + "' fill='none' stroke='" + j.color + "' stroke-width='1.5' marker-end='url(#" + j.mid + ")'/>");
+        }
+
+        svg.add("</svg>");
+
+        var div = Browser.document.createElement("div");
+        var ds = Reflect.field(div, "style");
+        Reflect.setProperty(ds, "position", "absolute");
+        Reflect.setProperty(ds, "left", "0");
+        Reflect.setProperty(ds, "top", "0");
+        Reflect.setProperty(ds, "width", gutterW + "px");
+        Reflect.setProperty(ds, "height", totalH + "px");
+        Reflect.setProperty(ds, "pointerEvents", "none");
+        Reflect.setProperty(ds, "overflow", "visible");
+        Reflect.setProperty(div, "innerHTML", svg.toString());
+        arrowDiv = div;
+
+        var insFn = Reflect.field(boxEl, "insertBefore");
+        var fc = Reflect.field(boxEl, "firstChild");
+        if (insFn != null) {
+            Reflect.callMethod(boxEl, insFn, [div, fc]);
+        } else {
+            var apFn = Reflect.field(boxEl, "appendChild");
+            if (apFn != null) Reflect.callMethod(boxEl, apFn, [div]);
+        }
     }
 }
