@@ -1,7 +1,7 @@
-package src;
+package tools.src;
 
-import src.Lexer.Token;
-import src.Lexer.TokenInfo;
+import tools.src.Lexer.Token;
+import tools.src.Lexer.TokenInfo;
 import Type;
 
 enum OpCode {
